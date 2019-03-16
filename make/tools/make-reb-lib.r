@@ -725,7 +725,45 @@ e-cwrap/emit {
         reb = module.exports  /* add to what you get with require('rebol') */
     else
         reb = {}  /* build a new dictionary to use reb.Xxx() if in browser */
+
+    /* When using emterpreter, only non-emterpreted C functions can be called
+     * during emscripten_sleep_with_yield().  There can only be one suspended
+     * stack at a time, and only raw JS can be used during that suspension.
+     * Upshot of this is that most all libRebol APIs are unavailable during
+     * a JS-AWAITER.  BUT special trickery allows `return rebPromise(...)`
+     */
+    let RebFakePromiseMsg =
+        "Due to fundamental technical limitations of the Emterpreter, you can"
+      + " only `return reb.Promise(...)` from JS-AWAITER.  No `await` or"
+      + " `.then()` or `.catch()` on a nested promise can be used directly."
+      + " See: https://stackoverflow.com/q/55186667/"
+
+    class RebFakePromise extends Error {
+        constructor(new_promise_id) {
+            super(RebFakePromiseMsg)  /* avoid string `+` per call (?) */
+            this.new_promise_id = new_promise_id  /* super() sets up `this` */
+        }
+        new_promise_id() {
+            /* emscripten's acorn-based optimizer seems not to understand the
+             * syntax for declaring public class members.  Make a method.
+             */
+            this.new_promise_id
+        }
+        errorAndCleanup() {
+            /* RL_releasePromiseId(new_promise_id) */
+            throw this
+        }
+        /* Concept of using .then() and .catch() as means of intercepting
+         * usages besides `return rebPromise(...)` does not pan out.  This
+         * means errors involving bad uses of fake promises will leak IDs.
+         * Some other cleanup method needs to be designed.  The StackOverflow
+         * post explains the problem so hopefully someone can solve it.
+         */
+         /* then(handler) { this.errorAndCleanup() } */
+         /* catch(handler) { this.errorAndCleanup() } */
+    }
 }
+
 
 to-js-type: func [
     return: [<opt> text! tag!]
@@ -819,11 +857,28 @@ append api-objects make object! [
 
 append api-objects make object! [
     spec: _  ; e.g. `name: RL_API [...this is the spec, if any...]`
-    name: "rebSignalAwaiter_internal"  ; !!! see %mod-javascript.c
+    name: "rebIsPromiseDuringPromise_internal"  ; !!! see %mod-javascript.c
+    returns: "void"
+    paramlist: []
+    proto: "void rebIsPromiseDuringPromise_internal(void)"
+]
+append api-objects make object! [
+    spec: _  ; e.g. `name: RL_API [...this is the spec, if any...]`
+    name: "rebAwaiterResolve_internal"  ; !!! see %mod-javascript.c
     returns: "void"
     paramlist: ["intptr_t" frame_id]
     proto: unspaced [
-        "void rebSignalAwaiter_internal(intptr_t frame_id)"
+        "void rebAwaiterResolve_internal(intptr_t frame_id)"
+    ]
+]
+
+append api-objects make object! [
+    spec: _  ; e.g. `name: RL_API [...this is the spec, if any...]`
+    name: "rebAwaiterReject_internal"  ; !!! see %mod-javascript.c
+    returns: "void"
+    paramlist: ["intptr_t" frame_id]
+    proto: unspaced [
+        "void rebAwaiterReject_internal(intptr_t frame_id)"
     ]
 ]
 
@@ -899,6 +954,18 @@ map-each-api [
             ; sure that this table entry has been entered.
             ;
             {
+                if (reb.IsPromiseDuringPromise_internal()) {
+                    /*
+                     * Though this is an "error", it's stowing the ID of the
+                     * -new- Promise's Rebol code.  This means if you try to
+                     * `return rebPromise(...)` from a JS-AWAITER's body
+                     * (an async function internally) that can be detected
+                     * and safely queue the promise's actual work.  But the
+                     * error has .then() and .catch() methods on it which
+                     * intercept usage attempts and clean up the ID.
+                     */
+                    return new RebFakePromise (a)
+                }
                 return new Promise(function(resolve, reject) {
                     reb.RegisterId_internal(a, [resolve, reject])
                 })
@@ -1100,7 +1167,7 @@ e-cwrap/emit {
             }
 
             RL_JS_NATIVES[frame_id] = arg  /* stow for RL_Await */
-            _RL_rebSignalAwaiter_internal(frame_id, 0)  /* 0 = resolve */
+            _RL_rebAwaiterResolve_internal(frame_id)
 
           }).catch(function(arg) {
 
@@ -1118,8 +1185,11 @@ e-cwrap/emit {
             if (typeof arg == "number")
                 console.log("Suspicious numeric throw() in JS-AWAITER");
 
+            console.log("REJECTING AWAITER (no good Rebol error yet)");
+            console.error(arg)
+
             RL_JS_NATIVES[frame_id] = arg  /* stow for RL_Await */
-            _RL_rebSignalAwaiter_internal(frame_id, 1)  /* 1 = reject */
+            _RL_rebAwaiterReject_internal(frame_id)
           })
 
         /* Just fall through back to Idle, who lets the GUI loop spin back

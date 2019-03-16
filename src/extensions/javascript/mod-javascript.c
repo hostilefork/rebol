@@ -333,8 +333,11 @@ struct Reb_Promise_Info *PG_Promises;  // Singly-linked list
 // which ties the returned integer into the resolve and reject branches of an
 // actual JavaScript ES6 Promise.
 //
-static intptr_t rebPromise_internal(REBFLGS flags, void *p, va_list *vaptr)
-{
+static intptr_t rebPromise_internal(
+    REBFLGS flags,
+    void *p,
+    va_list *vaptr
+){
     TRACE("rebPromise_internal() called");
     ASSERT_ON_MAIN_THREAD();
 
@@ -379,15 +382,17 @@ static intptr_t rebPromise_internal(REBFLGS flags, void *p, va_list *vaptr)
     // the long run, there's no ordering guarantee of promises (e.g. if they
     // were running on individual threads).
 
+    if (PG_Promises == nullptr) { // e.g. not already executing a promise
+        EM_ASM(
+            { setTimeout(function() { _RL_rebIdle_internal(); }, 0); }
+        );  // note `_RL` (leading underscore means no cwrap)
+    }
+
     struct Reb_Promise_Info *info = ALLOC(struct Reb_Promise_Info);
     info->state = PROMISE_STATE_QUEUEING;
     info->promise_id = cast(intptr_t, code);
     info->next = PG_Promises;
     PG_Promises = info;
-
-    EM_ASM(
-        { setTimeout(function() { _RL_rebIdle_internal(); }, 0); }
-    );  // note `_RL` (leading underscore means no cwrap)
 
     return info->promise_id;
 }
@@ -399,6 +404,12 @@ intptr_t RL_rebPromise(void *p, va_list *vaptr)
 EMSCRIPTEN_KEEPALIVE EXTERN_C
 intptr_t RL_rebPromiseQ(void *p, va_list *vaptr)
   { return rebPromise_internal(FLAG_QUOTING_BYTE(1), p, vaptr); }
+
+EMSCRIPTEN_KEEPALIVE EXTERN_C
+bool RL_rebIsPromiseDuringPromise_internal(void)
+{
+    return false;
+}
 
 
 // Function passed to rebRescue() so code can be run but trap errors safely.
@@ -749,10 +760,10 @@ void RL_rebIdle_internal(void)  // there should be NO user JS code on stack!
 }
 
 
-// This is rebSignalAwaiter() and not rebResolveAwaiter() which passes in a
-// resolution value because the emterpreter build can't really pass a REBVAL*.
-// All the APIs it would need to make REBVAL* are unavailable.  So it instead
-// pokes a JavaScript function where it can be found when no longer in
+// This function receives a frame_id and not the resolved REBVAL* because
+// the emterpreter build can't really pass a REBVAL*.  All the APIs it would
+// need to make REBVAL* are unavailable.  So it instead pokes an item for
+// finding the appropriate JavaScript object where it can be found when no longer in
 // emscripten_sleep_with_yield(), then reb.GetAwaiterResult_internal() is used
 // to ask for that value later.
 //
@@ -761,88 +772,93 @@ void RL_rebIdle_internal(void)  // there should be NO user JS code on stack!
 // side.  It should be rethought if someday the emterpreter version is axed.
 //
 EMSCRIPTEN_KEEPALIVE EXTERN_C
-void RL_rebSignalAwaiter_internal(intptr_t frame_id, int rejected) {
+void RL_rebAwaiterResolve_internal(intptr_t frame_id, int rejected) {
     ASSERT_ON_MAIN_THREAD();
 
     struct Reb_Promise_Info *info = PG_Promises;
     assert(info->state == PROMISE_STATE_AWAITING);
 
-    if (rejected == 0) {
-        TRACE("reb.SignalAwaiter_internal() => signaling resolve");
+    TRACE("reb.SignalAwaiter_internal() => signaling resolve");
 
-        // If we resolved the awaiter, we didn't resolve the overall promise,
-        // but just pushed it back into the running state.
-        //
-        info->state = PROMISE_STATE_RUNNING;
+    // If we resolved the awaiter, we didn't resolve the overall promise,
+    // but just pushed it back into the running state.
+    //
+    info->state = PROMISE_STATE_RUNNING;
 
-      #if defined(USE_PTHREADS)
-        Proxy_Native_Result_To_Worker(frame_id);
-      #endif
+  #if defined(USE_PTHREADS)
+    Proxy_Native_Result_To_Worker(frame_id);
+  #endif
 
-        // !!! "The above only signaled.  The awaiter will get the actual
-        // result with reb.GetAwaiterResult_internal()."  Still true?
-    }
-    else {
-        assert(rejected == 1);
-        TRACE("reb.SignalAwaiter_internal() => signaling reject");
+    // !!! "The above only signaled.  The awaiter will get the actual
+    // result with reb.GetAwaiterResult_internal()."  Still true?
+}
 
-        // !!! Rejecting an awaiter basically means the promise as a whole
-        // failed, I'd assume?
-        //
-        info->state = PROMISE_STATE_REJECTED;
 
-      #if defined(USE_PTHREADS)
-        //
-        // This signal is happening during the .catch() clause of the internal
-        // routine that runs natives.  But it happens after it is no longer
-        // on the stack, e.g. 
-        //
-        //     async function js_awaiter_impl() { throw 1020; }
-        //     function js_awaiter_invoker() {
-        //         js_awaiter_impl().catch(function() {
-        //              console.log("prints second")  // we're here now
-        //         })
-        //         console.log("prints first")  // fell through to GUI pump
-        //     }
-        //
-        // So the js_awaiter_invoker() is not on the stack, this is an async
-        // resolution even if the throw was called directly like that.
-        //
-        // In the long term it may be possible for Rebol constructs like
-        // TRAP or CATCH to intercept a JavaScript-thrown error.  If they
-        // did they may ask for more work to be done on the GUI so it would
-        // need to be in idle for that (otherwise the next thing it ran
-        // could always be assumed as the result to the await).
-        //
-        // But if the Rebol construct could catch a JS throw, it would need
-        // to convert it somehow to a Rebol value.  That conversion would
-        // have to be done right now--or there'd have to be some specific
-        // protocol for coming back and requesting it.
-        //
-        // But what we have to do is unblock the JS-AWAITER that's running
-        // with a throw so it can finish.  We do not want to do the promise
-        // rejection until it is.  We make that thrown value the frame so
-        // we can get the ID back out of it (and so it doesn't GC, so the
-        // lifetime lasts long enough to not conflate IDs in the table).
-        //
-        // Note: We don't want to fall through to the main thread's message
-        // pump so long as any code is running on the worker that's using Rebol
-        // features.  A stray setTimeout() message might get processed while
-        // the R_THROW is being unwound, and use a Rebol API which would
-        // be contentious with running code on another thread.  Block, and
-        // it should be unblocked to let the catch() clause run.
-        //
-        // We *could* do mutex management here and finish up the signal
-        // sequence.  But we can't on the emterpreted build, because it has
-        // to unwind that asm.js stack safely, so we could only call the
-        // reject here for pthread.  Pipe everything through idle so both
-        // emterpreter and not run the reject on GUI from the same stack.
-        //
-        EM_ASM(
-            { setTimeout(function() { _RL_rebIdle_internal(); }, 0); }
-        );  // note `_RL` (leading underscore means no cwrap)
-      #endif
-    }
+EMSCRIPTEN_KEEPALIVE EXTERN_C
+void RL_rebAwaiterReject_internal(intptr_t frame_id) {
+    ASSERT_ON_MAIN_THREAD();
+
+    struct Reb_Promise_Info *info = PG_Promises;
+    assert(info->state == PROMISE_STATE_AWAITING);
+
+    TRACE("reb.SignalAwaiter_internal() => signaling reject");
+
+    // !!! Rejecting an awaiter basically means the promise as a whole
+    // failed, I'd assume?
+    //
+    info->state = PROMISE_STATE_REJECTED;
+
+  #if defined(USE_PTHREADS)
+    //
+    // This signal is happening during the .catch() clause of the internal
+    // routine that runs natives.  But it happens after it is no longer
+    // on the stack, e.g.
+    //
+    //     async function js_awaiter_impl() { throw 1020; }
+    //     function js_awaiter_invoker() {
+    //         js_awaiter_impl().catch(function() {
+    //              console.log("prints second")  // we're here now
+    //         })
+    //         console.log("prints first")  // fell through to GUI pump
+    //     }
+    //
+    // So the js_awaiter_invoker() is not on the stack, this is an async
+    // resolution even if the throw was called directly like that.
+    //
+    // In the long term it may be possible for Rebol constructs like
+    // TRAP or CATCH to intercept a JavaScript-thrown error.  If they
+    // did they may ask for more work to be done on the GUI so it would
+    // need to be in idle for that (otherwise the next thing it ran
+    // could always be assumed as the result to the await).
+    //
+    // But if the Rebol construct could catch a JS throw, it would need
+    // to convert it somehow to a Rebol value.  That conversion would
+    // have to be done right now--or there'd have to be some specific
+    // protocol for coming back and requesting it.
+    //
+    // But what we have to do is unblock the JS-AWAITER that's running
+    // with a throw so it can finish.  We do not want to do the promise
+    // rejection until it is.  We make that thrown value the frame so
+    // we can get the ID back out of it (and so it doesn't GC, so the
+    // lifetime lasts long enough to not conflate IDs in the table).
+    //
+    // Note: We don't want to fall through to the main thread's message
+    // pump so long as any code is running on the worker that's using Rebol
+    // features.  A stray setTimeout() message might get processed while
+    // the R_THROW is being unwound, and use a Rebol API which would
+    // be contentious with running code on another thread.  Block, and
+    // it should be unblocked to let the catch() clause run.
+    //
+    // We *could* do mutex management here and finish up the signal
+    // sequence.  But we can't on the emterpreted build, because it has
+    // to unwind that asm.js stack safely, so we could only call the
+    // reject here for pthread.  Pipe everything through idle so both
+    // emterpreter and not run the reject on GUI from the same stack.
+    //
+    EM_ASM(
+        { setTimeout(function() { _RL_rebIdle_internal(); }, 0); }
+    );  // note `_RL` (leading underscore means no cwrap)
+  #endif
 }
 
 
@@ -954,10 +970,10 @@ REB_R JavaScript_Dispatcher(REBFRM *f)
     // when this throw reaches the top it can be supplied to the caller.
     // (We don't want to unsafely EM_ASM() throw from within a Rebol call in
     // a way that breaks asm.js execution and bypasses the cleanup needed)
-    // 
+    //
     if (info and info->state == PROMISE_STATE_REJECTED) {
         assert(IS_END(result));
-        
+
         // !!! Testing at the moment to see if a throw can at least not cause
         // a crash (?)  The throw currently goes up and gets caught by
         // someone, can we see what happens?
@@ -1135,6 +1151,8 @@ REBNATIVE(init_javascript_extension)
     JAVASCRIPT_INCLUDE_PARAMS_OF_INIT_JAVASCRIPT_EXTENSION;
 
     TRACE("INIT-JAVASCRIPT-EXTENSION called");
+
+    PG_Probe_Failures = PG_JS_Trace = true;
 
   #if defined(USE_PTHREADS)
     int ret = 0;

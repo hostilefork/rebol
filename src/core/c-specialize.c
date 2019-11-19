@@ -889,20 +889,18 @@ REB_R Block_Dispatcher(REBFRM *f)
 // call EVALUATE via Eval_Core() yet introspect the evaluator step.
 //
 bool Make_Invocation_Frame_Throws(
-    REBVAL *out, // in case there is a throw
     REBFRM *f,
     REBVAL **first_arg_ptr, // returned so that MATCH can steal it
     const REBVAL *action
 ){
     assert(IS_ACTION(action));
+    assert(f == FS_TOP);
 
     // It is desired that any nulls encountered be processed as if they are
     // not specialized...and gather at the callsite if necessary.
     //
     f->flags.bits |= EVAL_FLAG_PROCESS_ACTION
         | EVAL_FLAG_ERROR_ON_DEFERRED_ENFIX;  // can't deal with ELSE/THEN/etc.
-
-    Push_Frame(out, f);
 
     // === END FIRST PART OF CODE FROM DO_SUBFRAME ===
 
@@ -974,7 +972,7 @@ bool Make_Invocation_Frame_Throws(
 
     fail ("ACTION! has no args to MAKE FRAME! from...");
 
-found_first_arg_ptr:
+  found_first_arg_ptr:
 
     // DS_DROP_TO(lowest_ordered_dsp);
 
@@ -1014,6 +1012,7 @@ bool Make_Frame_From_Varargs_Throws(
     // REBFRM whose built FRAME! context we will steal
 
     DECLARE_FRAME (f, parent->feed, EVAL_MASK_DEFAULT);
+    Push_Frame(out, f);
 
     REBSTR *opt_label;
     if (Get_If_Word_Or_Path_Throws(
@@ -1023,6 +1022,7 @@ bool Make_Frame_From_Varargs_Throws(
         SPECIFIED,
         true  // push_refinements = true (DECLARE_FRAME captured original DSP)
     )){
+        Drop_Frame(f);
         return true;
     }
     UNUSED(opt_label); // not used here
@@ -1042,8 +1042,10 @@ bool Make_Frame_From_Varargs_Throws(
     // resulting function will run faster.
 
     REBVAL *first_arg;
-    if (Make_Invocation_Frame_Throws(out, f, &first_arg, action))
+    if (Make_Invocation_Frame_Throws(f, &first_arg, action)) {
+        DROP_GC_GUARD(action);
         return true;
+    }
 
     UNUSED(first_arg); // MATCH uses to get its answer faster, we don't need
 
@@ -1062,8 +1064,8 @@ bool Make_Frame_From_Varargs_Throws(
 
     // May not be at end or thrown, e.g. (x: does lit y x = 'y)
     //
+    DROP_GC_GUARD(action);  // before drop to balance at right time
     Drop_Frame(f);
-    DROP_GC_GUARD(action); // has to be after drop to balance at right time
 
     // The exemplar may or may not be managed as of yet.  We want it
     // managed, but Push_Action() does not use ordinary series creation to

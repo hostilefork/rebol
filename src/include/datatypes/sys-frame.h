@@ -200,6 +200,11 @@ inline static const char* Frame_Label_Or_Anonymous_UTF8(REBFRM *f) {
 // This privileged level of access can be used by natives that feel they can
 // optimize performance by working with the evaluator directly.
 
+inline static void Free_Frame_Internal(REBFRM *f) {
+    FREE(REBFRM, f);
+}
+
+
 inline static void Reuse_Varlist_If_Available(REBFRM *f) {
     assert(IS_POINTER_TRASH_DEBUG(f->varlist));
     if (not TG_Reuse)
@@ -215,6 +220,21 @@ inline static void Reuse_Varlist_If_Available(REBFRM *f) {
 inline static void Push_Frame_No_Varlist(REBVAL *out, REBFRM *f)
 {
     assert(f->feed->value != nullptr);
+    assert(SECOND_BYTE(f->flags) == 0); // END signal
+    assert(not (f->flags.bits & NODE_FLAG_CELL));
+
+    // All calls through to Eval_Core() are assumed to happen at the same C
+    // stack level for a pushed frame (though this is not currently enforced).
+    // Hence it's sufficient to check for C stack overflow only once, e.g.
+    // not on each Eval_Step_Throws() for `reduce [a | b | ... | z]`.
+    //
+    // !!! This method is being replaced by "stackless", as there is no
+    // reliable platform independent method for detecting stack overflows.
+    //
+    if (C_STACK_OVERFLOWING(&f)) {
+        Free_Frame_Internal(f);  // not in stack, feed + frame wouldn't free
+        Fail_Stack_Overflow();
+    }
 
     // Frames are pushed to reuse for several sequential operations like
     // ANY, ALL, CASE, REDUCE.  It is allowed to change the output cell for
@@ -222,17 +242,6 @@ inline static void Push_Frame_No_Varlist(REBVAL *out, REBFRM *f)
     // slot at all times; use null until first eval call if needed
     //
     f->out = out;
-
-    // All calls through to Eval_Core() are assumed to happen at the same C
-    // stack level for a pushed frame (though this is not currently enforced).
-    // Hence it's sufficient to check for C stack overflow only once, e.g.
-    // not on each Eval_Step_Throws() for `reduce [a | b | ... | z]`.
-    //
-    if (C_STACK_OVERFLOWING(&f))
-        Fail_Stack_Overflow();
-
-    assert(SECOND_BYTE(f->flags) == 0); // END signal
-    assert(not (f->flags.bits & NODE_FLAG_CELL));
 
     // Though we can protect the value written into the target pointer 'out'
     // from GC during the course of evaluation, we can't protect the
@@ -410,9 +419,9 @@ inline static void Abort_Frame(REBFRM *f) {
     }
 
   pop:
-
     assert(TG_Top_Frame == f);
     TG_Top_Frame = f->prior;
+    Free_Frame_Internal(f);
 }
 
 
@@ -434,6 +443,7 @@ inline static void Drop_Frame_Core(REBFRM *f) {
 
     assert(TG_Top_Frame == f);
     TG_Top_Frame = f->prior;
+    Free_Frame_Internal(f);
 }
 
 inline static void Drop_Frame_Unbalanced(REBFRM *f) {
@@ -476,16 +486,15 @@ inline static void Prep_Frame_Core(
 }
 
 #define DECLARE_FRAME(name,feed,flags) \
-    REBFRM name##struct; \
-    Prep_Frame_Core(&name##struct, feed, flags); \
-    REBFRM * const name = &name##struct
+    REBFRM * name = ALLOC(REBFRM); \
+    Prep_Frame_Core(name, feed, flags);
 
 #define DECLARE_FRAME_AT(name,any_array,flags) \
     DECLARE_FEED_AT (name##feed, any_array); \
     DECLARE_FRAME (name, name##feed, flags)
 
 #define DECLARE_END_FRAME(name,flags) \
-    DECLARE_FRAME(name, &TG_Frame_Feed_End, flags)
+    DECLARE_FRAME (name, &TG_Frame_Feed_End, flags)
 
 
 inline static void Begin_Action_Core(REBFRM *f, REBSTR *opt_label, bool enfix)

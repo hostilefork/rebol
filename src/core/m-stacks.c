@@ -93,8 +93,7 @@ void Startup_Frame_Stack(void)
     TG_Frame_Feed_End.specifier = SPECIFIED;
     TRASH_POINTER_IF_DEBUG(TG_Frame_Feed_End.pending);
 
-    REBFRM *f = ALLOC(REBFRM);  // can't use DECLARE_FRAME(), must be dynamic
-    Prep_Frame_Core(f, &TG_Frame_Feed_End, EVAL_MASK_DEFAULT);
+    DECLARE_FRAME (f, &TG_Frame_Feed_End, EVAL_MASK_DEFAULT);
 
     Push_Frame(nullptr, f);
 
@@ -169,7 +168,6 @@ void Shutdown_Frame_Stack(void)
     Drop_Frame_Core(f); // can't be Drop_Frame() or Drop_Frame_Unbalanced()
 
     assert(not FS_TOP);
-    FREE(REBFRM, f);
 
     TG_Top_Frame = nullptr;
     TG_Bottom_Frame = nullptr;

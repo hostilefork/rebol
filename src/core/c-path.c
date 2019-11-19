@@ -595,8 +595,8 @@ REBNATIVE(pick)
 
     DECLARE_END_FRAME (pvs, EVAL_MASK_DEFAULT);
 
+    Push_Frame(D_OUT, pvs);
     Move_Value(D_OUT, location);
-    pvs->out = D_OUT;
 
     Move_Value(PVS_PICKER(pvs), ARG(picker));
 
@@ -608,16 +608,18 @@ REBNATIVE(pick)
     PATH_HOOK *hook = Path_Hook_For_Type_Of(D_OUT);
 
     REB_R r = hook(pvs, PVS_PICKER(pvs), NULL);
-    if (not r or r == pvs->out)  // common cases
-        return r;
-    if (IS_END(r)) {
+
+    if (not r or r == pvs->out) {
+        // Do nothing, let caller handle
+    }
+    else if (IS_END(r)) {
         assert(r == R_UNHANDLED);
         fail (Error_Bad_Path_Pick_Raw(PVS_PICKER(pvs)));
     }
-    if (GET_CELL_FLAG(r, ROOT))
-        return r;
-
-    switch (KIND_BYTE(r)) {
+    else if (GET_CELL_FLAG(r, ROOT)) {  // API value
+        // Do nothing, let caller handle
+    }
+    else switch (CELL_KIND_UNCHECKED(r)) {
       case REB_R_INVISIBLE:
         assert(false); // only SETs should do this
         break;
@@ -632,7 +634,8 @@ REBNATIVE(pick)
         );
         if (was_const) // can't Inherit_Const(), flag would be overwritten
             SET_CELL_FLAG(D_OUT, CONST);
-        return D_OUT; }
+        r = D_OUT;
+        break; }
 
       case REB_R_REDO:
         goto redo;
@@ -641,6 +644,7 @@ REBNATIVE(pick)
         panic ("Unsupported return value in Path Dispatcher");
     }
 
+    Drop_Frame(pvs);
     return r;
 }
 
@@ -682,33 +686,35 @@ REBNATIVE(poke)
 
     DECLARE_END_FRAME (pvs, EVAL_MASK_DEFAULT);
 
+    Push_Frame(D_OUT, pvs);
     Move_Value(D_OUT, location);
-    pvs->out = D_OUT;
 
     Move_Value(PVS_PICKER(pvs), ARG(picker));
 
-    pvs->opt_label = NULL; // applies to e.g. :append/only returning APPEND
+    pvs->opt_label = nullptr;  // e.g. :append/only returning APPEND
     pvs->special = ARG(value);
 
     PATH_HOOK *hook = Path_Hook_For_Type_Of(location);
 
     const REBVAL *r = hook(pvs, PVS_PICKER(pvs), ARG(value));
     switch (KIND_BYTE(r)) {
-    case REB_0_END:
+      case REB_0_END:
         assert(r == R_UNHANDLED);
         fail (Error_Bad_Path_Poke_Raw(PVS_PICKER(pvs)));
 
-    case REB_R_INVISIBLE: // is saying it did the write already
+      case REB_R_INVISIBLE:  // is saying it did the write already
         break;
 
-    case REB_R_REFERENCE: // wants us to write it
+      case REB_R_REFERENCE:  // wants us to write it
         Move_Value(pvs->u.ref.cell, ARG(value));
         break;
 
-    default:
-        assert(false); // shouldn't happen, complain in the debug build
-        fail (PVS_PICKER(pvs)); // raise error in release build
+      default:
+        assert(false);  // shouldn't happen, complain in the debug build
+        fail (PVS_PICKER(pvs));  // raise error in release build
     }
+
+    Drop_Frame(pvs);
 
     RETURN (ARG(value)); // return the value we got in
 }

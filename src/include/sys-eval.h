@@ -323,15 +323,15 @@ inline static bool Eval_Step_In_Any_Array_At_Throws(
 
     Push_Frame(out, f);
     bool threw = Eval_Throws(f);
+
+    if (threw)
+        *index_out = TRASHED_INDEX;
+    else
+        *index_out = f->feed->index - 1;
+
     Drop_Frame(f);
 
-    if (threw) {
-        *index_out = 0xDECAFBAD;
-        return true;
-    }
-
-    *index_out = f->feed->index - 1;
-    return false;
+    return threw;
 }
 
 

@@ -536,8 +536,9 @@ struct Reb_Feed {
     //
     RELVAL *stress;
   #endif
-
 };
+
+
 // NOTE: The ordering of the fields in `Reb_Frame` are specifically done so
 // as to accomplish correct 64-bit alignment of pointers on 64-bit systems.
 //

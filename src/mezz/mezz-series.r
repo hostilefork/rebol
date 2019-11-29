@@ -81,7 +81,7 @@ array: function [
     /initial "Initial value (will be called each time if a function)"
         [any-value!]
 ][
-    initial: :initial else '_  ; default to BLANK!
+    initial: default [blank]
     if block? size [
         rest: next size else [
             ;

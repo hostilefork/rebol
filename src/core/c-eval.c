@@ -139,6 +139,7 @@ REB_R Dispatch_Internal(REBFRM * const f)
 //
 inline static void Finalize_Arg(REBFRM *f) {
     assert(not Is_Param_Variadic(f->param));  // use Finalize_Variadic_Arg()
+    assert(VAL_PARAM_CLASS(f->param) != REB_P_LOCAL);
 
     REBYTE kind_byte = KIND_BYTE(f->arg);
 
@@ -397,12 +398,19 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
 
     SET_END(f->out);  // `1 x: comment "hi"` shouldn't set x to 1!
 
-    if (CURRENT_CHANGES_IF_FETCH_NEXT) {  // must use new frame
+    // !!! This used to have an optimization to reuse the current frame if
+    // not CURRENT_CHANGES_IF_FETCH_NEXT.  Reusing frames got more complex
+    // because the evaluator might be in a continuation.  The optimization is
+    // questionable in a stackless world, and should be reviewed.
+    //
+    if (
+        CURRENT_CHANGES_IF_FETCH_NEXT or GET_EVAL_FLAG(f, CONTINUATION)
+    ){
         if (Eval_Step_In_Subframe_Throws(f->out, f, flags))
             return true;
     }
     else {  // !!! Reusing the frame, would inert optimization be worth it?
-        if ((*PG_Eval_Maybe_Stale_Throws)(f))  // reuse `f`
+        if ((*PG_Eval_Maybe_Stale_Throws)())  // reuse `f`
             return true;
     }
 
@@ -424,8 +432,12 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
 // at each evaluation step are contained in %d-eval.c, to keep this file
 // more manageable in length.
 //
-bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
+bool Eval_Internal_Maybe_Stale_Throws(void)
 {
+  continue_topmost_frame: ;
+
+    REBFRM *f = FS_TOP;
+
   #ifdef DEBUG_ENSURE_FRAME_EVALUATES
     f->was_eval_called = true;  // see definition for why this flag exists
   #endif
@@ -435,7 +447,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
   #endif
 
   #if !defined(NDEBUG)
-    REBFLGS initial_flags = f->flags.bits & ~(
+    f->initial_flags = f->flags.bits & ~(
         EVAL_FLAG_POST_SWITCH
         | EVAL_FLAG_PROCESS_ACTION
         | EVAL_FLAG_REEVALUATE_CELL
@@ -1357,10 +1369,41 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
                 if (IS_VOID(f_next))  // Eval_Step() has callers test this
                     fail (Error_Void_Evaluation_Raw());  // must be quoted
 
-                if (Eval_Step_In_Subframe_Throws(f->arg, f, flags)) {
-                    Move_Value(f->out, f->arg);
-                    goto abort_action;
-                }
+                // If eval not hooked, ANY-INERT! may not need a frame
+                //
+                if (Did_Init_Inert_Optimize_Complete(f->arg, f->feed, &flags))
+                    break;
+
+                // Can't SET_END() here, because sometimes it would be
+                // overwriting what the optimization produced.  Trust that it
+                // has already done it if it was necessary.
+
+                flags |= EVAL_FLAG_CONTINUATION;
+                DECLARE_FRAME (subframe, f->feed, flags);
+                subframe->continuation_type = REB_ACTION;
+
+                Push_Frame(f->arg, subframe);
+                //
+                // !!! If we were to recurse here, we would say:
+                //
+                //     bool threw = Eval_Throws(subframe);
+                //     Drop_Frame(subframe);
+                //     if (threw) {
+                //        Move_Value(f->out, f->arg);
+                //        goto abort_action;
+                //     }
+                //
+                // !!! But we want to avoid recursions.
+                //
+                goto continue_topmost_frame;
+
+              normal_arg_done_evaluating:
+                //
+                // !!! Previously we had called Eval_Throws() which would
+                // clear the stale flag; but just recursing the evaluator and
+                // jumping back up here leaves it intact.  Clear it now.
+                //
+                CLEAR_CELL_FLAG(f->arg, OUT_MARKED_STALE);
                 break; }
 
     //=//// HARD QUOTED ARG-OR-REFINEMENT-ARG /////////////////////////////=//
@@ -1494,7 +1537,6 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
             // this code which checks the typeset and also handles it when
             // a void arg signals the revocation of a refinement usage.
 
-            assert(pclass != REB_P_LOCAL);
             assert(
                 not SPECIAL_IS_ARG_SO_TYPECHECKING  // was handled, unless...
                 or NOT_EVAL_FLAG(f, FULLY_SPECIALIZED)  // ...this!
@@ -1952,19 +1994,48 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
       case REB_GROUP: {
         f_next_gotten = nullptr;  // arbitrary code changes fetched variables
 
-        DECLARE_FEED_AT_CORE (subfeed, v, f_specifier);
+      blockscope {
+        //
+        // !!! We need to dynamically allocate the feed here, because it's
+        // a new one and has to outlive this scope.  So we can't just say:
+        //
+        //     DECLARE_FEED_AT_CORE (subfeed, v, f_specifier);
+        //
+        // This problem will exist for any native that wants to start an
+        // enumeration of a new block.  Thinking will be required.
+        //
+        struct Reb_Feed *subfeed = ALLOC(struct Reb_Feed);
+        Prep_Any_Array_Feed(
+            subfeed,
+            v,
+            f_specifier,
+            FS_TOP->feed->flags.bits
+        );
 
+        // Previous to the stackless model, this code would say:
+        //
+        //     if (Do_Feed_To_End_Maybe_Stale_Throws(f->out, subfeed))
+        //         goto return_thrown;
+        //
         // "Maybe_Stale" variant leaves f->out as-is if no result generated
         // However, it sets OUT_MARKED_STALE in that case (note we may be
-        // leaving an END in f->out by doing this.)
-        //
-        if (Do_Feed_To_End_Maybe_Stale_Throws(f->out, subfeed))
-            goto return_thrown;
+        // leaving an END in f->out by doing this.)  Now we use a continuation
+        // so we have to create a frame dynamically and use a goto.
+
+        REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_CONTINUATION;
+        DECLARE_FRAME (subframe, subfeed, flags);
+        subframe->continuation_type = REB_GROUP;
+
+        Push_Frame(f->out, subframe);
+
+        goto continue_topmost_frame;
+      }
 
         // We want `3 = (1 + 2 ()) 4` to not treat the 1 + 2 as "stale", thus
         // skipping it and trying to compare `3 = 4`.  But `3 = () 1 + 2`
         // should consider the empty group stale.
         //
+      continue_group:
         if (IS_END(f->out)) {
             if (IS_END(f_next))
                 goto finished;  // nothing after to try evaluating
@@ -2531,6 +2602,9 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
     // off if one knows a value came from doing those things.  This test at
     // the end checks to make sure that the right thing happened.
     //
+    // !!! Stackless processing messes with this because we don't do a
+    // recursion so the `kind.byte` is out of date.  Review.
+    /*
     if (ANY_INERT_KIND(kind.byte)) {  // if() so as to check which part failed
         assert(GET_CELL_FLAG(f->out, UNEVALUATED));
     }
@@ -2545,6 +2619,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
         //
         assert(kind.byte == REB_WORD or ANY_INERT(f->out));
     }
+    */
 
     // We're sitting at what "looks like the end" of an evaluation step.
     // But we still have to consider enfix.  e.g.
@@ -2755,8 +2830,16 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
 
         CLEAR_FEED_FLAG(f->feed, NO_LOOKAHEAD);
 
-        if (not Is_Action_Frame_Fulfilling(f->prior)) {
+        if (
+            Is_Action_Frame(f->prior)
             //
+            // ^-- !!! Before stackless it was always the case when we got
+            // here that a function frame was fulfilling, because SET-WORD!
+            // would reuse frames while fulfilling arguments...but stackless
+            // changed this and has SET-WORD! start new frames.  Review.
+            //
+            and not Is_Action_Frame_Fulfilling(f->prior)
+        ){
             // This should mean it's a variadic frame, e.g. when we have
             // the 2 in the output slot and are at the THEN in:
             //
@@ -2804,6 +2887,25 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
     // don't care if f->flags has changes; thrown frame is not resumable
   #endif
 
+    if (GET_EVAL_FLAG(f, CONTINUATION)) {
+        switch (f->continuation_type) {
+          case REB_ACTION:
+            Drop_Frame(f);
+            f = FS_TOP;
+            Move_Value(f->out, f->arg);
+            goto abort_action;
+
+          case REB_GROUP:
+            FREE(struct Reb_Feed, f->feed);
+            Drop_Frame(f);
+            f = FS_TOP;
+            goto return_thrown;
+
+          default:
+            assert(!"Bad continuation type in frame");
+        }
+    }
+
     return true;  // true => thrown
 
   finished:
@@ -2821,8 +2923,34 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
   #if !defined(NDEBUG)
     Eval_Core_Exit_Checks_Debug(f);  // called unless a fail() longjmps
     assert(NOT_EVAL_FLAG(f, DOING_PICKUPS));
-    assert(f->flags.bits == initial_flags);  // any change should be restored
+
+    assert(f->flags.bits == f->initial_flags);  // changes should be restored
   #endif
+
+    if (GET_EVAL_FLAG(f, CONTINUATION)) {
+        switch (f->continuation_type) {
+          case REB_ACTION:
+            Drop_Frame(f);
+            f = FS_TOP;
+            goto normal_arg_done_evaluating;
+
+          case REB_GROUP:  // was a "Do to End" form, must loop
+            if (NOT_END(f->feed->value))
+                goto continue_topmost_frame;
+            FREE(struct Reb_Feed, f->feed);
+            Drop_Frame(f);
+            f = FS_TOP;
+
+          #if !defined(NDEBUG)  // the feed changed, caches invalidated
+            TRASH_POINTER_IF_DEBUG(v);
+            kind.byte = REB_T_TRASH;
+          #endif
+            goto continue_group;
+
+          default:
+            assert(!"Bad continuation_type in frame");
+        }
+    }
 
     return false;  // false => not thrown
 }

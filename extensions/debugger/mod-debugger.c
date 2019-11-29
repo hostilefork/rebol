@@ -263,6 +263,8 @@ REBVAL *Spawn_Interrupt_Dangerous(void *opaque)
 //
 bool Stepper_Eval_Hook_Throws(REBFRM * const f)
 {
+    assert(f == FS_TOP);
+
     // At the moment, the only thing the stepper eval hook does is set a
     // signal for a breakpoint to happen on the *next* instruction.
     //
@@ -276,7 +278,7 @@ bool Stepper_Eval_Hook_Throws(REBFRM * const f)
     //
     PG_Eval_Maybe_Stale_Throws = &Eval_Internal_Maybe_Stale_Throws;
 
-    bool threw = Eval_Internal_Maybe_Stale_Throws(f);
+    bool threw = Eval_Internal_Maybe_Stale_Throws();
 
     // !!! We cannot run more code while in a thrown state, hence we could not
     // invoke a nested console after a throw.  We have to either set a global

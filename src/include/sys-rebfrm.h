@@ -208,21 +208,29 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_FALSE == NODE_FLAG_CELL);
 // then use GET/HARD and SET/HARD.
 //
 // IF NOT(EVAL_FLAG_PATH_MODE)...
-// ...currently available!
-//
+// If EVAL_FLAG_POST_SWITCH is being used due to an inert optimization, this
+// flag is set, so that the quoting machinery can realize the lookback quote
+// is not actually too late.
+
 #define EVAL_FLAG_21 \
     FLAG_LEFT_BIT(21)
+
+#define EVAL_FLAG_INERT_OPTIMIZATION    EVAL_FLAG_21
 
 #define EVAL_FLAG_PATH_HARD_QUOTE       EVAL_FLAG_21
 
 
-//=//// EVAL_FLAG_INERT_OPTIMIZATION //////////////////////////////////////=//
+//=//// EVAL_FLAG_CONTINUATION ////////////////////////////////////////////=//
 //
-// If EVAL_FLAG_POST_SWITCH is being used due to an inert optimization, this
-// flag is set, so that the quoting machinery can realize the lookback quote
-// is not actually too late.
+// This frame is a continuation, which is to say that when it is finished it
+// should not return to the callsite of the evaluator, but it should first
+// complete the frame underneath it (which may also be a continuation).
 //
-#define EVAL_FLAG_INERT_OPTIMIZATION \
+// NOTE: This cannot currently be used uniquely in path dispatch because
+// the Free_Frame_Internal() mechanics use the flag as an indication that
+// it needs the feed to be freed.
+//
+#define EVAL_FLAG_CONTINUATION \
     FLAG_LEFT_BIT(22)
 
 
@@ -568,6 +576,14 @@ struct Reb_Frame {
     //
     union Reb_Header flags; // See Endlike_Header()
 
+    // !!! There was quite a bit of tweaking done to avoid caching a Reb_Kind
+    // in the frame state.  However, with a non-recursive evaluator that just
+    // loops and jumps, it has to know which kind of continuation it just
+    // finished.  This will ultimately need to be more complex, but for the
+    // moment use an enumeration just to get things going.
+    //
+    uintptr_t continuation_type;
+
     // The prior call frame.  This never needs to be checked against nullptr,
     // because the bottom of the stack is FS_BOTTOM which is allocated at
     // startup and never used to run code.
@@ -734,6 +750,16 @@ struct Reb_Frame {
     int line;
   #endif
 
+  #if !defined(NDEBUG)
+    //
+    // Frames can be re-entered and re-used...this is fundamental to the
+    // evaluation model.  So it's important that any flags that are changed
+    // get put back how they were.  It's also a good check that whatever was
+    // manipulating that state knew what it was doing enough to clear it.
+    //
+    REBFLGS initial_flags;
+  #endif
+
   #if defined(DEBUG_BALANCE_STATE)
     //
     // Debug reuses PUSH_TRAP's snapshotting to check for leaks at each stack
@@ -762,7 +788,7 @@ struct Reb_Frame {
 // Unlike a dispatcher, its result is always in the frame's ->out cell, and
 // the boolean result only tells you whether or not it threw.
 //
-typedef bool (REBEVL)(REBFRM * const);
+typedef bool (REBEVL)(void);
 
 
 #if !defined(DEBUG_CHECK_CASTS)

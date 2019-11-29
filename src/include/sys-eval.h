@@ -108,8 +108,8 @@
 // (Note that it is wasteful to clear the stale flag if running in a loop,
 // so the Do_XXX() versions don't use this.)
 //
-inline static bool Eval_Throws(REBFRM *f) {
-    if ((*PG_Eval_Maybe_Stale_Throws)(f))
+inline static bool Eval_Throws(REBFRM *f) {  assert(f == FS_TOP);
+    if ((*PG_Eval_Maybe_Stale_Throws)())
         return true;
     CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);
     return false;
@@ -238,12 +238,12 @@ inline static bool Did_Init_Inert_Optimize_Complete(
 inline static bool Eval_Step_Maybe_Stale_Throws(
     REBVAL *out,
     REBFRM *f
-){
+){  assert(f == FS_TOP);
     assert(NOT_FEED_FLAG(f->feed, NO_LOOKAHEAD));
 
     f->out = out;
     f->dsp_orig = DSP;
-    return (*PG_Eval_Maybe_Stale_Throws)(f); // should already be pushed;
+    return (*PG_Eval_Maybe_Stale_Throws)(); // should already be pushed;
 }
 
 inline static bool Eval_Step_Throws(REBVAL *out, REBFRM *f) {
@@ -296,7 +296,7 @@ inline static bool Reevaluate_In_Subframe_Maybe_Stale_Throws(
     subframe->u.reval.value = reval;
 
     Push_Frame(out, subframe);
-    bool threw = (*PG_Eval_Maybe_Stale_Throws)(subframe);
+    bool threw = (*PG_Eval_Maybe_Stale_Throws)();
     Drop_Frame(subframe);
 
     return threw;

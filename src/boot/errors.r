@@ -125,7 +125,7 @@ Script: [
 
     break-not-continue: {Use BREAK/WITH when body is the breaking condition}
 
-    use-eval-for-eval:  {Use EVAL or APPLY on actions of arity > 0, not DO}
+    use-reeval-for-do:  {Use REEVAL or APPLY on actions of arity > 0, not DO}
 
     limited-fail-input: {FAIL requires complex expressions to be in a GROUP!}
 

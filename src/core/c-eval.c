@@ -138,7 +138,7 @@ REB_R Dispatch_Internal(REBFRM * const f)
 // updated to the parameter they are now being used in.
 //
 inline static void Finalize_Arg(REBFRM *f) {
-    assert(not Is_Param_Variadic(f->param)); // Use Finalize_Variadic_Arg()
+    assert(not Is_Param_Variadic(f->param));  // use Finalize_Variadic_Arg()
 
     REBYTE kind_byte = KIND_BYTE(f->arg);
 
@@ -154,13 +154,13 @@ inline static void Finalize_Arg(REBFRM *f) {
         return;
     }
 
-  #if defined(DEBUG_STALE_ARGS) // see notes on flag definition
+  #if defined(DEBUG_STALE_ARGS)  // see notes on flag definition
     assert(NOT_CELL_FLAG(f->arg, ARG_MARKED_CHECKED));
   #endif
 
     if (
         kind_byte == REB_BLANK
-        and TYPE_CHECK(f->param, REB_TS_NOOP_IF_BLANK) // e.g. <blank> param
+        and TYPE_CHECK(f->param, REB_TS_NOOP_IF_BLANK)  // e.g. <blank> param
     ){
         SET_CELL_FLAG(f->arg, ARG_MARKED_CHECKED);
         SET_EVAL_FLAG(f, FULFILL_ONLY);
@@ -226,7 +226,7 @@ inline static void Finalize_Arg(REBFRM *f) {
 // VARARGS!)
 //
 inline static void Finalize_Variadic_Arg_Core(REBFRM *f, bool enfix) {
-    assert(Is_Param_Variadic(f->param)); // use Finalize_Arg()
+    assert(Is_Param_Variadic(f->param));  // use Finalize_Arg()
 
     // Varargs are odd, because the type checking doesn't actually check the
     // types inside the parameter--it always has to be a VARARGS!.
@@ -397,7 +397,7 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
 
     SET_END(f->out);  // `1 x: comment "hi"` shouldn't set x to 1!
 
-    if (CURRENT_CHANGES_IF_FETCH_NEXT) { // must use new frame
+    if (CURRENT_CHANGES_IF_FETCH_NEXT) {  // must use new frame
         if (Eval_Step_In_Subframe_Throws(f->out, f, flags))
             return true;
     }
@@ -458,8 +458,8 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
     // https://stackoverflow.com/a/5069643/
     //
     union {
-        int byte; // values bigger than REB_64 are used for in-situ literals
-        enum Reb_Kind pun; // for debug viewing *if* byte < REB_MAX_PLUS_MAX
+        int byte;  // values bigger than REB_64 are used for in-situ literals
+        enum Reb_Kind pun;  // for debug viewing *if* byte < REB_MAX_PLUS_MAX
     } kind;
 
     const RELVAL *v;  // shorthand for the value we are switch()-ing on
@@ -482,14 +482,14 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
         | EVAL_FLAG_REEVALUATE_CELL
     )){
         if (GET_EVAL_FLAG(f, POST_SWITCH)) {
-            CLEAR_EVAL_FLAG(f, POST_SWITCH); // !!! necessary?
+            CLEAR_EVAL_FLAG(f, POST_SWITCH);  // !!! necessary?
             goto post_switch;
         }
 
         if (GET_EVAL_FLAG(f, PROCESS_ACTION)) {
             CLEAR_EVAL_FLAG(f, PROCESS_ACTION);
 
-            SET_CELL_FLAG(f->out, OUT_MARKED_STALE); // !!! necessary?
+            SET_CELL_FLAG(f->out, OUT_MARKED_STALE);  // !!! necessary?
             kind.byte = REB_ACTION;  // must init for UNEVALUATED check
             goto process_action;
         }
@@ -547,7 +547,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
     assert(NOT_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT));
     SET_CELL_FLAG(f->out, OUT_MARKED_STALE);  // internal use flag only
 
-    UPDATE_EXPRESSION_START(f); // !!! See FRM_INDEX() for caveats
+    UPDATE_EXPRESSION_START(f);  // !!! See FRM_INDEX() for caveats
 
     // If asked to evaluate `[]` then we have now done all the work the
     // evaluator needs to do--including marking the output stale.
@@ -580,7 +580,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
 
     // v-- This is the TG_Break_At_Tick or C-DEBUG-BREAK landing spot --v
 
-    if (KIND_BYTE(f_next) != REB_WORD) // right's kind - END would be REB_0
+    if (KIND_BYTE(f_next) != REB_WORD)  // right's kind - END would be REB_0
         goto give_up_backward_quote_priority;
 
     assert(not f_next_gotten);  // Fetch_Next_In_Frame() cleared it
@@ -613,7 +613,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
             VAL_PARAM_CLASS(first) == REB_P_SOFT_QUOTE
             or VAL_PARAM_CLASS(first) == REB_P_MODAL
         ){
-            goto give_up_backward_quote_priority; // yield as an exemption
+            goto give_up_backward_quote_priority;  // yield as an exemption
         }
     }
 
@@ -624,15 +624,15 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
     //
     if (GET_ACTION_FLAG(VAL_ACTION(f_next_gotten), SKIPPABLE_FIRST)) {
         REBVAL *first = First_Unspecialized_Param(VAL_ACTION(f_next_gotten));
-        if (not TYPE_CHECK(first, kind.byte)) // left's kind
+        if (not TYPE_CHECK(first, kind.byte))  // left's kind
             goto give_up_backward_quote_priority;
     }
 
     // Lookback args are fetched from f->out, then copied into an arg
     // slot.  Put the backwards quoted value into f->out.
     //
-    Derelativize(f->out, v, f_specifier); // for NEXT_ARG_FROM_OUT
-    SET_CELL_FLAG(f->out, UNEVALUATED); // so lookback knows it was quoted
+    Derelativize(f->out, v, f_specifier);  // for NEXT_ARG_FROM_OUT
+    SET_CELL_FLAG(f->out, UNEVALUATED);  // so lookback knows it was quoted
 
     // We skip over the word that invoked the action (e.g. <-, OF, =>).
     // v will then hold a pointer to that word (possibly now resident in the
@@ -643,7 +643,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
 
     if (
         IS_END(f_next)
-        and (kind.byte == REB_WORD or kind.byte == REB_PATH) // left kind
+        and (kind.byte == REB_WORD or kind.byte == REB_PATH)  // left kind
     ){
         // We make a special exemption for left-stealing arguments, when
         // they have nothing to their right.  They lose their priority
@@ -666,7 +666,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
         SET_EVAL_FLAG(f, DIDNT_LEFT_QUOTE_PATH);  // for better error message
         SET_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT);  // literal right op is arg
 
-        goto give_up_backward_quote_priority; // run PATH!/WORD! normal
+        goto give_up_backward_quote_priority;  // run PATH!/WORD! normal
     }
 
     // Wasn't the at-end exception, so run normal enfix with right winning.
@@ -768,9 +768,9 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
         Do_Process_Action_Checks_Debug(f);
       #endif
 
-        assert(DSP >= f->dsp_orig); // path processing may push REFINEMENT!s
+        assert(DSP >= f->dsp_orig);  // path processing may push REFINEMENT!s
 
-        TRASH_POINTER_IF_DEBUG(v); // shouldn't be used below
+        TRASH_POINTER_IF_DEBUG(v);  // shouldn't be used below
         TRASH_POINTER_IF_DEBUG(gotten);
 
         assert(NOT_EVAL_FLAG(f, DOING_PICKUPS));
@@ -820,7 +820,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
                 NOT_EVAL_FLAG(f, DOING_PICKUPS)
                 and not SPECIAL_IS_ARG_SO_TYPECHECKING
             ){
-                Prep_Stack_Cell(f->arg); // improve...
+                Prep_Stack_Cell(f->arg);  // improve...
             }
             else {
                 // If the incoming series came from a heap frame, just put
@@ -1010,7 +1010,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
                         or IS_VARARGS(f->special)
                     );
 
-                    Move_Value(f->arg, f->special); // won't copy the bit
+                    Move_Value(f->arg, f->special);  // won't copy the bit
                     SET_CELL_FLAG(f->arg, ARG_MARKED_CHECKED);
                 }
 
@@ -1050,7 +1050,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
                     Finalize_Variadic_Arg(f);
                 else
                     Finalize_Arg(f);
-                goto continue_arg_loop; // looping to verify args/refines
+                goto continue_arg_loop;  // looping to verify args/refines
             }
 
     //=//// HANDLE IF NEXT ARG IS IN OUT SLOT (e.g. ENFIX, CHAIN) /////////=//
@@ -1085,7 +1085,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
                     //
                     if (Is_Param_Variadic(f->param)) {
                         RESET_CELL(f->arg, REB_VARARGS, CELL_MASK_VARARGS);
-                        INIT_BINDING(f->arg, EMPTY_ARRAY); // feed finished
+                        INIT_BINDING(f->arg, EMPTY_ARRAY);  // feed finished
 
                         Finalize_Enfix_Variadic_Arg(f);
                         goto continue_arg_loop;
@@ -1120,7 +1120,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
                         Move_Value(ARR_SINGLE(feed), f->out);
 
                         array1 = Alloc_Singular(NODE_FLAG_MANAGED);
-                        Init_Block(ARR_SINGLE(array1), feed); // index 0
+                        Init_Block(ARR_SINGLE(array1), feed);  // index 0
                     }
 
                     RESET_CELL(f->arg, REB_VARARGS, CELL_MASK_VARARGS);
@@ -1281,7 +1281,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
             //
             if (Is_Param_Variadic(f->param)) {
                 RESET_CELL(f->arg, REB_VARARGS, CELL_MASK_VARARGS);
-                INIT_BINDING(f->arg, f->varlist); // frame-based VARARGS!
+                INIT_BINDING(f->arg, f->varlist);  // frame-based VARARGS!
 
                 Finalize_Variadic_Arg(f);
                 goto continue_arg_loop;
@@ -1367,11 +1367,11 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
 
               case REB_P_HARD_QUOTE:
                 if (not Is_Param_Skippable(f->param))
-                    Literal_Next_In_Frame(f->arg, f); // CELL_FLAG_UNEVALUATED
+                    Literal_Next_In_Frame(f->arg, f);  // CELL_FLAG_UNEVALUATED
                 else {
                     if (not Typecheck_Including_Quoteds(f->param, f_next)) {
                         assert(Is_Param_Endable(f->param));
-                        Init_Endish_Nulled(f->arg); // not EVAL_FLAG_BARRIER_HIT
+                        Init_Endish_Nulled(f->arg);  // !EVAL_FLAG_BARRIER_HIT
                         SET_CELL_FLAG(f->arg, ARG_MARKED_CHECKED);
                         goto continue_arg_loop;
                     }
@@ -1393,7 +1393,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
 
     //=//// MODAL ARG  ////////////////////////////////////////////////////=//
 
-            case REB_P_MODAL: {
+              case REB_P_MODAL: {
                 if (not ANY_SYM_KIND(VAL_TYPE(f_next)))  // not an @xxx
                     goto normal_handling;  // acquire as a regular argument
 
@@ -1504,7 +1504,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
             goto continue_arg_loop;
         }
 
-        assert(IS_END(f->arg)); // arg can otherwise point to any arg cell
+        assert(IS_END(f->arg));  // arg can otherwise point to any arg cell
 
         // There may have been refinements that were skipped because the
         // order of definition did not match the order of usage.  They were
@@ -1521,10 +1521,10 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
 
             assert(IS_SYM_WORD(DS_TOP));
 
-            if (not IS_WORD_BOUND(DS_TOP)) { // the loop didn't index it
+            if (not IS_WORD_BOUND(DS_TOP)) {  // the loop didn't index it
                 mutable_KIND_BYTE(DS_TOP) = REB_WORD;
                 mutable_MIRROR_BYTE(DS_TOP) = REB_WORD;
-                fail (Error_Bad_Refine_Raw(DS_TOP)); // so duplicate or junk
+                fail (Error_Bad_Refine_Raw(DS_TOP));  // so duplicate or junk
             }
 
             // FRM_ARGS_HEAD offsets are 0-based, while index is 1-based.
@@ -1540,11 +1540,11 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
             assert(TYPE_CHECK(f->param, REB_TS_REFINEMENT));
             DS_DROP();
 
-            if (Is_Typeset_Invisible(f->param)) {  /* no callsite arg, just drop */
+            if (Is_Typeset_Invisible(f->param)) {  // no callsite arg, drop
                 if (DSP != f->dsp_orig)
                     goto next_pickup;
 
-                f->param = END_NODE; // don't need f->param in paramlist
+                f->param = END_NODE;  // don't need f->param in paramlist
                 goto arg_loop_and_any_pickups_done;
             }
 
@@ -1613,7 +1613,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
             | NODE_FLAG_ROOT
         ));
 
-        f_next_gotten = nullptr; // arbitrary code changes fetched variables
+        f_next_gotten = nullptr;  // arbitrary code changes fetched variables
 
         // Note that the dispatcher may push ACTION! values to the data stack
         // which are used to process the return result after the switch.
@@ -1625,13 +1625,13 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
             assert(NOT_CELL_FLAG(f->out, OUT_MARKED_STALE));
             CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // other cases Move_Value()
         }
-        else if (not r) { // API and internal code can both return `nullptr`
+        else if (not r) {  // API and internal code can both return `nullptr`
             Init_Nulled(f->out);
         }
-        else if (GET_CELL_FLAG(r, ROOT)) { // API, from Alloc_Value()
+        else if (GET_CELL_FLAG(r, ROOT)) {  // API, from Alloc_Value()
             Handle_Api_Dispatcher_Result(f, r);
         }
-        else switch (KIND_BYTE(r)) { // it's a "pseudotype" instruction
+        else switch (KIND_BYTE(r)) {  // it's a "pseudotype" instruction
             //
             // !!! Thrown values used to be indicated with a bit on the value
             // itself, but now it's conveyed through a return value.  This
@@ -1705,9 +1705,9 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
                         f->special = CTX_VARS_HEAD(exemplar);
                         f->arg = FRM_ARGS_HEAD(f);
                         for (; NOT_END(f->arg); ++f->arg, ++f->special) {
-                            if (IS_NULLED(f->special)) // no specialization
+                            if (IS_NULLED(f->special))  // no specialization
                                 continue;
-                            Move_Value(f->arg, f->special); // reset it
+                            Move_Value(f->arg, f->special);  // reset it
                         }
                     }
 
@@ -1727,7 +1727,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
             // run the f->phase again.  The dispatcher may have changed the
             // value of what f->phase is, for instance.
 
-            if (not EXTRA(Any, r).flag) // R_REDO_UNCHECKED
+            if (not EXTRA(Any, r).flag)  // R_REDO_UNCHECKED
                 goto redo_unchecked;
 
           redo_checked:  // R_REDO_CHECKED
@@ -2010,7 +2010,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
             VAL_ARRAY(v),
             VAL_INDEX(v),
             Derive_Specifier(f_specifier, v),
-            nullptr, // `setval`: null means don't treat as SET-PATH!
+            nullptr,  // `setval`: null means don't treat as SET-PATH!
             EVAL_FLAG_PUSH_PATH_REFINES
         )){
             if (where != f->out)
@@ -2136,7 +2136,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
 // action, it is allowed to execute as a form of "functional getter".
 
       case REB_GET_GROUP: {
-        f_next_gotten = nullptr; // arbitrary code changes fetched variables
+        f_next_gotten = nullptr;  // arbitrary code changes fetched variables
 
         if (Do_Any_Array_At_Throws(f_spare, v, f_specifier)) {
             Move_Value(f->out, f_spare);
@@ -2159,7 +2159,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
                 = mutable_MIRROR_BYTE(f_spare)
                 = REB_GET_BLOCK;
         else if (IS_ACTION(f_spare)) {
-            if (Eval_Value_Throws(f->out, f_spare, SPECIFIED))  // only arity-0
+            if (Eval_Value_Throws(f->out, f_spare, SPECIFIED))  // only 0-args
                 goto return_thrown;
             goto post_switch;
         }
@@ -2187,7 +2187,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
         if (Rightward_Evaluate_Nonvoid_Into_Out_Throws(f, v))
             goto return_thrown;
 
-        f_next_gotten = nullptr; // arbitrary code changes fetched variables
+        f_next_gotten = nullptr;  // arbitrary code changes fetched variables
 
         if (Do_Any_Array_At_Throws(f_spare, v, f_specifier)) {
             Move_Value(f->out, f_spare);
@@ -2603,7 +2603,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
 
     if (kind.byte == REB_0_END) {
         CLEAR_FEED_FLAG(f->feed, NO_LOOKAHEAD);
-        goto finished; // hitting end is common, avoid do_next's switch()
+        goto finished;  // hitting end is common, avoid do_next's switch()
     }
 
     if (kind.byte == REB_PATH) {
@@ -2795,7 +2795,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
   abort_action:
 
     Drop_Action(f);
-    DS_DROP_TO(f->dsp_orig); // any unprocessed refinements or chains on stack
+    DS_DROP_TO(f->dsp_orig);  // any unprocessed refinements / chains on stack
 
   return_thrown:
 

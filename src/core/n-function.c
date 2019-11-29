@@ -171,17 +171,16 @@ REBNATIVE(return)
 
     REBFRM *f = frame_; // implicit parameter to REBNATIVE()
 
-    // The frame this RETURN is being called from may well not be the target
-    // function of the return (that's why it's a "definitional return").  The
-    // binding field of the frame contains a copy of whatever the binding was
-    // in the specific ACTION! value that was invoked.
+    // Each ACTION! cell for RETURN has a piece of information in it that can
+    // can be unique (the binding).  When invoked, that binding is held in the
+    // REBFRM*.  This generic RETURN dispatcher interprets that binding as the
+    // FRAME! which this instance is specifically intended to return from.
     //
-    REBFRM *target_frame;
     REBNOD *f_binding = FRM_BINDING(f);
     if (not f_binding)
-        fail (Error_Return_Archetype_Raw()); // must have binding to jump to
+        fail (Error_Return_Archetype_Raw());  // must have binding to jump to
 
-    target_frame = CTX_FRAME_MAY_FAIL(CTX(f_binding));
+    REBFRM *target_frame = CTX_FRAME_MAY_FAIL(CTX(f_binding));
 
     // !!! We only have a REBFRM via the binding.  We don't have distinct
     // knowledge about exactly which "phase" the original RETURN was

@@ -540,7 +540,7 @@ bool Specialize_Action_Throws(
 // The evaluator does not do any special "running" of a specialized frame.
 // All of the contribution that the specialization had to make was taken care
 // of when Eval_Core() used f->special to fill from the exemplar.  So all this
-// does is change the phase and binding to match the function this layer wa
+// does is change the phase and binding to match the function this layer was
 // specializing.
 //
 REB_R Specializer_Dispatcher(REBFRM *f)

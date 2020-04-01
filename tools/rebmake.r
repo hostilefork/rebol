@@ -485,6 +485,19 @@ gcc: make compiler-class [
             ]
             if D [
                 for-each flg D [
+                    ;
+                    ; !!! For cases like `#include MBEDTLS_CONFIG_FILE` then
+                    ; quotes are expected to work in defines...but when you
+                    ; pass quotes on the command line it's different than
+                    ; inside of a visual studio project (for instance) because
+                    ; bash strips them out unless escaped with backslash.
+                    ; This is a stopgap workaround that ultimately would
+                    ; permit cross-platform {MBEDTLS_CONFIG_FILE="filename.h"}
+                    ;
+                    if find [gcc g++] name [
+                        flg: replace/all copy flg {"} {\"}
+                    ]
+
                     keep ["-D" (filter-flag flg id else [continue])]
                 ]
             ]

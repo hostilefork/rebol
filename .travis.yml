@@ -1154,8 +1154,16 @@ script:
     # do it this way; we'd prefer more of this to be done with Rebol scripts.
     #
     - |
-      if [[ ${TRAVIS_BRANCH} != "master" || ${TRAVIS_PULL_REQUEST} != "false" || ${R3_EXIT_STATUS} != 0 ]]; then
-        exit 0  # skip the deploy step
+      if [[ ${R3_EXIT_STATUS} != 0 ]]; then
+        exit 0  # don't try to upload any files if the tests didn't work
+      fi
+
+      if [[ ${TRAVIS_REPO_SLUG} != "metaeducation/ren-c" ]]; then
+        exit 0  # secret AWS credentials to upload are only for metaeducation
+      fi
+
+      if [[ ${TRAVIS_BRANCH} != "master" || ${TRAVIS_PULL_REQUEST} != "false"]]; then
+        exit 0  # only direct pushes of master branch considered for upload
       fi
 
       function upload {

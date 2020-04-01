@@ -130,14 +130,14 @@ env:
 #
 matrix:
   include:
-    # [1] Emscripten, wasm + pthread, release
-    #
-    # The job of this build is to create a JavaScript library that can be
-    # loaded into a web page or Node.JS.  For an example:
-    #
-    # https://github.com/hostilefork/replpad-js
-    #
-    - os: linux
+    - name: "[1] WebAssembly w/pthreads, release"
+      #
+      # The job of this build is to create a JavaScript library that can be
+      # loaded into a web page or Node.JS.  For an example:
+      #
+      # https://github.com/hostilefork/replpad-js
+      #
+      os: linux
       dist: bionic  # Trying instead of xenial to check Firefox Marionette
       language: c
       env:
@@ -158,19 +158,19 @@ matrix:
           packages:
             - net-tools  # for netstat/etc. diagnosing network issues
 
-    # [2] Emscripten, wasm + asyncify, release
-    #
-    # Asyncify is a less-desirable way to achieve asynchronous code in a
-    # browser than using WebAssembly Threads.  However, some JavaScript
-    # hosts are missing that--or other features--which are needed for the
-    # "good" emscripten build.  (Alternatively they may have the features, but
-    # disable them by default, creating a usability barrier.)
-    #
-    # https://emscripten.org/docs/porting/asyncify.html
-    #
-    # This build varation is created as a fallback.
-    #
-    - os: linux
+    - name: "[2] WebAssembly no pthreads, release"
+      #
+      # Asyncify is a less-desirable way to achieve asynchronous code in a
+      # browser than using WebAssembly Threads.  However, some JavaScript
+      # hosts are missing that--or other features--which are needed for the
+      # "good" emscripten build.  (Alternatively they may have the features,
+      # but disable them by default, creating a usability barrier.)
+      #
+      # https://emscripten.org/docs/porting/asyncify.html
+      #
+      # This build varation is created as a fallback.
+      #
+      os: linux
       dist: xenial  # Travis recommended distribution as of Mar-2020
       language: c
       env:
@@ -191,13 +191,13 @@ matrix:
           packages:
             - net-tools  # for netstat/etc. diagnosing network issues
 
-    # [3] OSX x64, debug, clang++
-    #
-    # !!! Can't do all warnings as errors, because in clang the switch for
-    # files that end in .c as c++ ("-x c++") is deprecated for some overly
-    # prescriptive and annoying reason.
-    #
-    - os: osx
+    - name: "[3] OSX x64, debug, clang++"
+      #
+      # !!! Can't do all warnings as errors, because in clang the switch for
+      # files that end in .c as c++ ("-x c++") is deprecated for some overly
+      # prescriptive and annoying reason.
+      #
+      os: osx
       osx_image: xcode8.3  # try an older XCode (on OS X 10.12)
       language: cpp
       env:
@@ -215,22 +215,22 @@ matrix:
       # libraries (ODBC, ZeroMQ...) added via brew in `install` step below
       # Note: TCC extension has not been implemented for Mac
 
-    # [4] OSX x64, release, clang++
-    #
-    # Note that this build is a *release* C++ build (the only one currently
-    # on Travis).  This exercises the cast macros which create template code,
-    # which are disabled in debug builds:
-    #
-    # http://blog.hostilefork.com/c-casts-for-the-masses/
-    #
-    # They are disabled because casting is done frequently, and when these
-    # templates aren't inlined due to debugging they slow things down and are
-    # very irritating to debug.  The syntax of `cast(type, expression)` is
-    # however desirable to use pervasively.  So it's good to exercise them in
-    # at least one build.
-    #
-    - os: osx
-      osx_image: xcode9.1 # try a newer XCode (on OS X 10.12)
+    - name: "[4] OSX x64, release, clang++"
+      #
+      # Note that this build is a *release* C++ build (the only one currently
+      # on Travis).  This exercises the cast macros which create template
+      # code, which are disabled in debug builds:
+      #
+      # http://blog.hostilefork.com/c-casts-for-the-masses/
+      #
+      # They are disabled because casting is done frequently, and when these
+      # templates aren't inlined due to debugging they slow things down and
+      # are very irritating to debug.  The syntax of `cast(type, expression)`
+      # is however desirable to use pervasively.  So it's good to exercise
+      # them in at least one build.
+      #
+      os: osx
+      osx_image: xcode9.1  # try a newer XCode (on OS X 10.12)
       language: cpp
       env:
         - NUMBER=4
@@ -246,13 +246,13 @@ matrix:
         - BREW=yes
       # libraries (ODBC, ZeroMQ...) added via brew in `install` step below
 
-    # [5] OSX x64, release, clang
-    #
-    # This is the minimum bootstrap executable, built on the oldest image
-    # (to get lowest common denominator library support).  To avoid dylib
-    # dependencies on things like ODBC and ZeroMQ, it doesn't include them.
-    #
-    - os: osx
+    - name: "[5] OSX x64, release, clang"
+      #
+      # This is the minimum bootstrap executable, built on the oldest image
+      # (to get lowest common denominator library support).  To avoid dylib
+      # dependencies on things like ODBC and ZeroMQ, it doesn't include them.
+      #
+      os: osx
       osx_image: xcode7.3  # try an older XCode and OS X image (OS X 10.11)
       language: c
       env:
@@ -271,10 +271,11 @@ matrix:
        # their service on this older system.  It hangs.  So just don't use it.
        # Note: TCC extension has not been implemented for Mac
 
-
-    # [6] Linux x86, release, gcc
-    #
-    - os: linux
+    - name: "[6] Linux x86, release, gcc"
+      #
+      # 32-bit Release Linux Build
+      #
+      os: linux
       sudo: required  # "containers will be retired soon"
       language: c
       env:
@@ -299,20 +300,20 @@ matrix:
             - texinfo  # for makeinfo, required to build FFI
             # Note: Must build its own TCC for the TCC extension to work
 
-    # [7] Linux x64, debug, g++
-    #
-    # !!! Note this distribution does not support c++11 completely, it's an
-    # old gcc 4.6
-    #
-    # !!! This is currently the only build that supports FFI, due to the
-    # convenience of `-lffi` on this platform for getting the library.  It
-    # would take some improvements to Rebmake to get the right build switches
-    # and libraries for the other platform...but the groundwork is still here
-    # in the Travis file for that.
-    #
-    # https://forum.rebol.info/t/ffi-updates-and-notes/1201
-    #
-    - os: linux
+    - name: "[7] Linux x64, debug, g++"
+      #
+      # !!! Note this distribution does not support c++11 completely, it's an
+      # old gcc 4.6
+      #
+      # !!! This is currently the only build that supports FFI, due to the
+      # convenience of `-lffi` on this platform for getting the library.  It
+      # would take simprovements to Rebmake getting the right build switches
+      # and libraries for the other platform...but the groundwork is still
+      # here in the Travis file for that.
+      #
+      # https://forum.rebol.info/t/ffi-updates-and-notes/1201
+      #
+      os: linux
       dist: trusty  # Note: released in 2013
       sudo: false  # force new container-based infrastructure.
       language: cpp
@@ -347,17 +348,17 @@ matrix:
             #- tcc  # tcc executable (unused), but gets libtcc1.a + tcc headers
             - libffi-dev
 
-    # [8] Linux x64, release, gcc
-    #
-    # We try to create a bare-minimum Linux executable for bootstrap.  This
-    # has the least dependencies and run on the oldest systems.
-    #
-    # Note that this uses the older "precise" distribution, instead of the
-    # new default of "trusty".  In addition to providing some more build
-    # variations for testing, `libltdl-dev:i386` won't install on trusty.
-    # (also, gcc on Ubuntu 12.04 does not support sanitizers)
-    #
-    - os: linux
+    - name: "[8] Linux x64, release, gcc"
+      #
+      # We try to create a bare-minimum Linux executable for bootstrap.  This
+      # has the least dependencies and run on the oldest systems.
+      #
+      # Note that this uses the older "precise" distribution, instead of the
+      # new default of "trusty".  In addition to providing some more build
+      # variations for testing, `libltdl-dev:i386` won't install on trusty.
+      # (also, gcc on Ubuntu 12.04 does not support sanitizers)
+      #
+      os: linux
       dist: precise # old release (for lowest-common-denominator glibc)
       sudo: false # force new container-based infrastructure
       language: c
@@ -377,14 +378,14 @@ matrix:
           packages:
             - gcc-multilib  # !!! what was this for?
 
-    # [9] Windows x86, release, gcc
-    #
-    # !!! There was an issue where TCC is causing a panic on startup for this
-    # configuration.  It should be tested to see if that has been fixed.
-    #
-    # https://github.com/metaeducation/ren-c/issues/603
-    #
-    - os: linux
+    - name: "[9] Windows x86, release, gcc"
+      #
+      # !!! There was an issue where TCC caused a panic on startup for this
+      # configuration.  It should be tested to see if that has been fixed.
+      #
+      # https://github.com/metaeducation/ren-c/issues/603
+      #
+      os: linux
       sudo: false # force new container-based infrastructure.
       language: c
       env:
@@ -411,9 +412,11 @@ matrix:
             - texinfo  # for makeinfo, required to build FFI
             # Note: Must build its own TCC for the TCC extension to work
 
-    # [10] Windows x64, debug, gcc
-    #
-    - os: linux
+    - name: "[10] Windows x64, debug, gcc"
+      #
+      # Linux cross-compilation to 64-bit Windows
+      #
+      os: linux
       sudo: false  # force new container-based infrastructure.
       language: c
       env:
@@ -438,18 +441,18 @@ matrix:
             - mingw-w64
             # Note: Must build its own TCC for the TCC extension to work
 
-    # [11] Windows x64, debug, g++
-    #
-    # There is an issue where if you do a C++ build on this toolchain in the
-    # "precise" image, that newer MinGW will give an EXE with a superfluous
-    # dependency on the pthread MinGW DLL.  It could be dealt with a number of
-    # ways, but just use the "trusty" image for now because it is easier.
-    #
-    # https://github.com/metaeducation/ren-c/issues/624
-    #
-    # !!! Note this distribution does not support c++11 or above
-    #
-    - os: linux
+    - name: "[11] Windows x64, debug, g++"
+      #
+      # There is an issue where if you do a C++ build on this toolchain in the
+      # "precise" image, that newer MinGW will give an EXE with a superfluous
+      # dependency on the pthread MinGW DLL.  It could be dealt with many
+      # ways, but just use the "trusty" image for now because it is easier.
+      #
+      # https://github.com/metaeducation/ren-c/issues/624
+      #
+      # !!! Note this distribution does not support c++11 or above
+      #
+      os: linux
       dist: trusty  # see note above
       sudo: false  # force new container-based infrastructure
       language: cpp
@@ -475,9 +478,11 @@ matrix:
             - mingw-w64
             # Note: Must build its own tcc version
 
-    # [12] Android5, debug, gcc
-    #
-    - os: linux
+    - name: "[12] Android5, debug, gcc"
+      #
+      # Debug Android build
+      #
+      os: linux
       dist: trusty
       sudo: false  # force new container-based infrastructure
       language: c
@@ -494,9 +499,11 @@ matrix:
         - ODBC_REQUIRES_LTDL=no
         - EXTENSIONS=""
 
-    # [13] Android5, release, gcc
-    #
-    - os: linux
+    - name: "[13] Android5, release, gcc"
+      #
+      # Release Android build
+      #
+      os: linux
       dist: trusty
       sudo: false  # force new container-based infrastructure
       language: c
@@ -519,6 +526,7 @@ matrix:
         apt:
           packages:
             - gcc-multilib  # for cross-compiling
+
 
 # The install step occurs before the `script:` step runs.  The language that
 # was specified in the `matrix:` entry for each instance will guide certain

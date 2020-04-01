@@ -110,7 +110,7 @@ REBVAL *Find_Last_Event(REBINT model, uint32_t type)
     value = VAL_ARRAY_TAIL(state) - 1;
     for (; value >= VAL_ARRAY_HEAD(state); --value) {
         if (VAL_EVENT_MODEL(value) == model) {
-            if (VAL_EVENT_TYPE(value) == type) {
+            if (cast(uint32_t, VAL_EVENT_TYPE(value)) == type) {
                 return KNOWN(value);
             } else {
                 return NULL;

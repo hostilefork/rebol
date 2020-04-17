@@ -793,6 +793,31 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
             goto loop_body;  // optimized out
 
+          finalize_arg:
+
+            // If FEED_FLAG_NO_LOOKAHEAD was set going into the argument
+            // gathering above, it should have been cleared or converted into
+            // FEED_FLAG_DEFER_ENFIX.
+            //
+            //     1 + 2 * 3
+            //           ^-- this deferred its chance, so 1 + 2 will complete
+            //
+            assert(NOT_FEED_FLAG(f->feed, NO_LOOKAHEAD));
+
+    //=//// TYPE CHECKING FOR (MOST) ARGS AT END OF ARG LOOP //////////////=//
+
+            // Some arguments can be fulfilled and skip type checking or
+            // take care of it themselves.  But normal args pass through
+            // this code which checks the typeset and also handles it when
+            // a void arg signals the revocation of a refinement usage.
+
+            assert(
+                not SPECIAL_IS_ARG_SO_TYPECHECKING  // was handled, unless...
+                or NOT_EVAL_FLAG(f, FULLY_SPECIALIZED)  // ...this!
+            );
+
+            Finalize_Arg(f);
+
           continue_arg_loop:
 
             assert(GET_CELL_FLAG(f->arg, ARG_MARKED_CHECKED));
@@ -1395,16 +1420,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
                 //
                 // !!! But we want to avoid recursions.
                 //
-                goto continue_topmost_frame;
-
-              normal_arg_done_evaluating:
-                //
-                // !!! Previously we had called Eval_Throws() which would
-                // clear the stale flag; but just recursing the evaluator and
-                // jumping back up here leaves it intact.  Clear it now.
-                //
-                CLEAR_CELL_FLAG(f->arg, OUT_MARKED_STALE);
-                break; }
+                goto continue_topmost_frame; }
 
     //=//// HARD QUOTED ARG-OR-REFINEMENT-ARG /////////////////////////////=//
 
@@ -1521,29 +1537,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
                 assert(false);
             }
 
-            // If FEED_FLAG_NO_LOOKAHEAD was set going into the argument
-            // gathering above, it should have been cleared or converted into
-            // FEED_FLAG_DEFER_ENFIX.
-            //
-            //     1 + 2 * 3
-            //           ^-- this deferred its chance, so 1 + 2 will complete
-            //
-            assert(NOT_FEED_FLAG(f->feed, NO_LOOKAHEAD));
-
-    //=//// TYPE CHECKING FOR (MOST) ARGS AT END OF ARG LOOP //////////////=//
-
-            // Some arguments can be fulfilled and skip type checking or
-            // take care of it themselves.  But normal args pass through
-            // this code which checks the typeset and also handles it when
-            // a void arg signals the revocation of a refinement usage.
-
-            assert(
-                not SPECIAL_IS_ARG_SO_TYPECHECKING  // was handled, unless...
-                or NOT_EVAL_FLAG(f, FULLY_SPECIALIZED)  // ...this!
-            );
-
-            Finalize_Arg(f);
-            goto continue_arg_loop;
+            goto finalize_arg;  // have to put outside pclass initialization
         }
 
         assert(IS_END(f->arg));  // arg can otherwise point to any arg cell
@@ -1763,7 +1757,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
                     rebEND  // ...if `with` wasn't an END marker, need one
                 );
                 if (threw)
-                    goto continuation_threw;
+                    goto action_threw;
                 break; }
 
               case REB_BLANK:
@@ -1797,7 +1791,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
                     push_refinements
                 );
                 if (threw)
-                    goto continuation_threw;
+                    goto action_threw;
 
                 if (IS_VOID(f->out))  // need `[:x]` if it's void (unset)
                     fail (Error_Need_Non_Void_Core(
@@ -1838,7 +1832,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
                     f->u.cont.branch_specifier
                 );
                 if (threw)
-                    goto continuation_threw;
+                    goto action_threw;
 
                 // !!! This feature will currently corrupt the caller's
                 // RETURN cell, because there's no other place to put the
@@ -1866,86 +1860,8 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             // a performance win either way, but recovering the bit in the
             // values is a definite advantage--as header bits are scarce!
             //
-          continuation_threw:
-          case REB_R_THROWN: {
-            const REBVAL *label = VAL_THROWN_LABEL(f->out);
-            if (IS_ACTION(label)) {
-                if (
-                    VAL_ACTION(label) == NAT_ACTION(unwind)
-                    and VAL_BINDING(label) == NOD(f->varlist)
-                ){
-                    // Eval_Core catches unwinds to the current frame, so throws
-                    // where the "/name" is the JUMP native with a binding to
-                    // this frame, and the thrown value is the return code.
-                    //
-                    // !!! This might be a little more natural if the name of
-                    // the throw was a FRAME! value.  But that also would mean
-                    // throws named by frames couldn't be taken advantage by
-                    // the user for other features, while this only takes one
-                    // function away.
-                    //
-                    CATCH_THROWN(f->out, f->out);
-                    goto dispatch_completed;
-                }
-                else if (
-                    VAL_ACTION(label) == NAT_ACTION(redo)
-                    and VAL_BINDING(label) == NOD(f->varlist)
-                ){
-                    // This was issued by REDO, and should be a FRAME! with
-                    // the phase and binding we are to resume with.
-                    //
-                    CATCH_THROWN(f->out, f->out);
-                    assert(IS_FRAME(f->out));
-
-                    // !!! We are reusing the frame and may be jumping to an
-                    // "earlier phase" of a composite function, or even to
-                    // a "not-even-earlier-just-compatible" phase of another
-                    // function.  Type checking is necessary, as is zeroing
-                    // out any locals...but if we're jumping to any higher
-                    // or different phase we need to reset the specialization
-                    // values as well.
-                    //
-                    // Since dispatchers run arbitrary code to pick how (and
-                    // if) they want to change the phase on each redo, we
-                    // have no easy way to tell if a phase is "earlier" or
-                    // "later".  The only thing we have is if it's the same
-                    // we know we couldn't have touched the specialized args
-                    // (no binding to them) so no need to fill those slots
-                    // in via the exemplar.  Otherwise, we have to use the
-                    // exemplar of the phase.
-                    //
-                    // REDO is a fairly esoteric feature to start with, and
-                    // REDO of a frame phase that isn't the running one even
-                    // more esoteric, with REDO/OTHER being *extremely*
-                    // esoteric.  So having a fourth state of how to handle
-                    // f->special (in addition to the three described above)
-                    // seems like more branching in the baseline argument
-                    // loop.  Hence, do a pre-pass here to fill in just the
-                    // specializations and leave everything else alone.
-                    //
-                    REBCTX *exemplar;
-                    if (
-                        FRM_PHASE(f) != VAL_PHASE(f->out)
-                        and did (exemplar = ACT_EXEMPLAR(VAL_PHASE(f->out)))
-                    ){
-                        f->special = CTX_VARS_HEAD(exemplar);
-                        f->arg = FRM_ARGS_HEAD(f);
-                        for (; NOT_END(f->arg); ++f->arg, ++f->special) {
-                            if (IS_NULLED(f->special))  // no specialization
-                                continue;
-                            Move_Value(f->arg, f->special);  // reset it
-                        }
-                    }
-
-                    INIT_FRM_PHASE(f, VAL_PHASE(f->out));
-                    FRM_BINDING(f) = VAL_BINDING(f->out);
-                    goto redo_checked;
-                }
-            }
-
-            // Stay THROWN and let stack levels above try and catch
-            //
-            goto abort_action; }
+          case REB_R_THROWN:
+            goto action_threw;
 
           case REB_R_REDO:
             //
@@ -1956,15 +1872,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             if (not EXTRA(Any, r).flag)  // R_REDO_UNCHECKED
                 goto redo_unchecked;
 
-          redo_checked:  // R_REDO_CHECKED
-
-            Expire_Out_Cell_Unless_Invisible(f);
-
-            f->param = ACT_PARAMS_HEAD(FRM_PHASE(f));
-            f->arg = FRM_ARGS_HEAD(f);
-            f->special = f->arg;
-
-            goto process_action;
+            goto redo_checked;
 
           case REB_R_INVISIBLE: {
             assert(GET_ACTION_FLAG(FRM_PHASE(f), IS_INVISIBLE));
@@ -3053,6 +2961,87 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
     Fetch_Next_Forget_Lookback(f);  // advances next
     goto process_action;
 
+  action_threw:
+  blockscope {
+    const REBVAL *label = VAL_THROWN_LABEL(f->out);
+    if (IS_ACTION(label)) {
+        if (
+            VAL_ACTION(label) == NAT_ACTION(unwind)
+            and VAL_BINDING(label) == NOD(f->varlist)
+        ){
+            // Eval_Core catches unwinds to the current frame, so throws
+            // where the "/name" is the JUMP native with a binding to
+            // this frame, and the thrown value is the return code.
+            //
+            // !!! This might be a little more natural if the name of
+            // the throw was a FRAME! value.  But that also would mean
+            // throws named by frames couldn't be taken advantage by
+            // the user for other features, while this only takes one
+            // function away.
+            //
+            CATCH_THROWN(f->out, f->out);
+            goto dispatch_completed;
+        }
+        else if (
+            VAL_ACTION(label) == NAT_ACTION(redo)
+            and VAL_BINDING(label) == NOD(f->varlist)
+        ){
+            // This was issued by REDO, and should be a FRAME! with
+            // the phase and binding we are to resume with.
+            //
+            CATCH_THROWN(f->out, f->out);
+            assert(IS_FRAME(f->out));
+
+            // !!! We are reusing the frame and may be jumping to an
+            // "earlier phase" of a composite function, or even to
+            // a "not-even-earlier-just-compatible" phase of another
+            // function.  Type checking is necessary, as is zeroing
+            // out any locals...but if we're jumping to any higher
+            // or different phase we need to reset the specialization
+            // values as well.
+            //
+            // Since dispatchers run arbitrary code to pick how (and
+            // if) they want to change the phase on each redo, we
+            // have no easy way to tell if a phase is "earlier" or
+            // "later".  The only thing we have is if it's the same
+            // we know we couldn't have touched the specialized args
+            // (no binding to them) so no need to fill those slots
+            // in via the exemplar.  Otherwise, we have to use the
+            // exemplar of the phase.
+            //
+            // REDO is a fairly esoteric feature to start with, and
+            // REDO of a frame phase that isn't the running one even
+            // more esoteric, with REDO/OTHER being *extremely*
+            // esoteric.  So having a fourth state of how to handle
+            // f->special (in addition to the three described above)
+            // seems like more branching in the baseline argument
+            // loop.  Hence, do a pre-pass here to fill in just the
+            // specializations and leave everything else alone.
+            //
+            REBCTX *exemplar;
+            if (
+                FRM_PHASE(f) != VAL_PHASE(f->out)
+                and did (exemplar = ACT_EXEMPLAR(VAL_PHASE(f->out)))
+            ){
+                f->special = CTX_VARS_HEAD(exemplar);
+                f->arg = FRM_ARGS_HEAD(f);
+                for (; NOT_END(f->arg); ++f->arg, ++f->special) {
+                    if (IS_NULLED(f->special))  // no specialization
+                        continue;
+                    Move_Value(f->arg, f->special);  // reset it
+                }
+            }
+
+            INIT_FRM_PHASE(f, VAL_PHASE(f->out));
+            FRM_BINDING(f) = VAL_BINDING(f->out);
+
+            goto redo_checked;
+        }
+    }
+  }
+
+    // Stay THROWN and let stack levels above try and catch
+
   abort_action:
 
     Drop_Action(f);
@@ -3076,7 +3065,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
           case REB_BLOCK:
             Drop_Frame(f);  // will free feed
             f = FS_TOP;
-            goto continuation_threw;
+            goto action_threw;
 
           case REB_GROUP:
             Drop_Frame(f);  // will free feed
@@ -3089,6 +3078,16 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
     }
 
     return true;  // true => thrown
+
+  redo_checked:  // R_REDO_CHECKED
+
+    Expire_Out_Cell_Unless_Invisible(f);
+
+    f->param = ACT_PARAMS_HEAD(FRM_PHASE(f));
+    f->arg = FRM_ARGS_HEAD(f);
+    f->special = f->arg;
+
+    goto process_action;
 
   finished:
 
@@ -3114,7 +3113,13 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
           case REB_BLANK:
             Drop_Frame(f);
             f = FS_TOP;
-            goto normal_arg_done_evaluating;
+            //
+            // !!! Previously we had called Eval_Throws() which would
+            // clear the stale flag; but just recursing the evaluator and
+            // jumping back up here leaves it intact.  Clear it now.
+            //
+            CLEAR_CELL_FLAG(f->arg, OUT_MARKED_STALE);
+            goto finalize_arg;
 
           case REB_BLOCK:  // was a "Do to End" form, must loop
             if (NOT_END(f->feed->value))

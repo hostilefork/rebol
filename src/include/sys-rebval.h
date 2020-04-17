@@ -357,9 +357,9 @@ union Reb_Any {  // needed to beat strict aliasing, used in payload
     void *p;
     CFUNC *cfunc;  // C function/data pointers pointers may differ in size
 
-    // This is not legal to use in an EXTRA(), only the `PAYLOAD().first` slot
-    // (and perhaps in the future, the payload second slot).  If you do use
-    // a node in the cell, be sure to set CELL_FLAG_FIRST_IS_NODE!
+    // This is not legal to use in an EXTRA(), only the `PAYLOAD().first` and
+    // `PAYLOAD().second` slot.  If you do use these nodes in the payload,
+    // be sure to set CELL_FLAG_FIRST_IS_NODE and/or CELL_FLAG_SECOND_IS_NODE!
     //
     REBNOD *node;
 

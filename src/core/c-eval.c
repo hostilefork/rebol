@@ -7,7 +7,7 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Revolt Open Source Contributors
+// Copyright 2012-2020 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
@@ -648,7 +648,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
     // We skip over the word that invoked the action (e.g. <-, OF, =>).
     // v will then hold a pointer to that word (possibly now resident in the
-    // frame F_f_spare).  (f->out holds what was the left)
+    // frame's f_spare).  (f->out holds what was the left)
     //
     gotten = f_next_gotten;
     v = Lookback_While_Fetching_Next(f);
@@ -1380,7 +1380,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
                 flags |= EVAL_FLAG_CONTINUATION;
                 DECLARE_FRAME (subframe, f->feed, flags);
-                subframe->continuation_type = REB_ACTION;
+                subframe->continuation_type = REB_BLANK;
 
                 Push_Frame(f->arg, subframe);
                 //
@@ -1638,14 +1638,30 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
         Expire_Out_Cell_Unless_Invisible(f);
 
+        // The spare cell is used during reevaluation and argument gathering,
+        // including being a place to help cheat the "no going back" of
+        // lookback when necessary (enforced by va_list in C, even though a
+        // Rebol block can be looked back into).  But once the frame is built
+        // it's available for dispatcher or native use.  Initially there was
+        // no guarantee what would be in the spare cell, but for the cost of
+        // setting it to END (one byte, cheap!) we have a testable state for
+        // if it's the first run of a continuation.  This can be useful for
+        // functions that don't want to pay for an extra local cell.
+        //
+        // !!! Should f->out be initialized to END when non-invisibles are
+        // called (since they are committing to output) for a similar "cheap!"
+        // means of tracking extra state information?
+        //
+        SET_END(f_spare);
+
         // While you can't evaluate into an array cell (because it may move)
         // an evaluation is allowed to be performed into stable cells on the
         // stack -or- API handles.
         //
         // !!! Could get complicated if a manual lifetime is used and freed
         // during an evaluation.  Not currently possible since there's nothing
-        // like a rebValue() which targets a cell passed in by the user.  But if
-        // such a thing ever existed it would have that problem...and would
+        // like a rebValue() which targets a cell passed in by the user.  But
+        // if such a thing ever existed it would have that problem...and would
         // need to take a "hold" on the cell to prevent a rebFree() while the
         // evaluation was in progress.
         //
@@ -1660,12 +1676,24 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         // Note that the dispatcher may push ACTION! values to the data stack
         // which are used to process the return result after the switch.
         //
+      redo_continuation:
       blockscope {
+        //
+        // These flags are optionally set by the dispatcher for use with
+        // REB_R_CONTINUATION.  They are EVAL_FLAGs instead of part of the
+        // REB_R signal because they apply after the `r` has been processed
+        // and forgotten, and the continuation is resuming.  They are cleared
+        // by Drop_Action() but must be cleared on each dispatcher re-entry.
+        //
+        f->flags.bits &= ~(
+            EVAL_FLAG_DELEGATE_CONTROL
+        );
+
         const REBVAL *r = (*PG_Dispatch)(f);  // default just calls FRM_PHASE
 
-        if (r == f->out) {
+        if (r == f->out) {  // assume most common branch for speed
             assert(NOT_CELL_FLAG(f->out, OUT_MARKED_STALE));
-            CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // other cases Move_Value()
+            CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // others Move_Value()
         }
         else if (not r) {  // API and internal code can both return `nullptr`
             Init_Nulled(f->out);
@@ -1674,7 +1702,162 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             Handle_Api_Dispatcher_Result(f, r);
         }
         else switch (KIND_BYTE(r)) {  // it's a "pseudotype" instruction
+          case REB_R_CONTINUATION: {  // very common in stackless!
             //
+            // Continuations are a way for an ACTION! to retain its frame on
+            // the stack (so it shows up if you walk up through f->prior), but
+            // to take itself off the C stack during the use of the evaluator.
+            // It will be called again after the evaluative product is ready.
+            //
+            // Since all the C locals will be gone for the native, it is the
+            // responsibility of the action that requests the continuation to
+            // keep enough notes in its own frame that it can pick up where
+            // it left off when it got called back.
+            //
+            // !!! This code came from Do_Branch_XXX_Throws() which was not
+            // continuation-based, and hence holds some reusable logic for
+            // branch types that do not require evaluation...like REB_QUOTED.
+            // It's the easiest way to reuse the logic for the time being,
+            // though some performance gain could be achieved for instance
+            // if it were reused in a way that allowed something like IF to
+            // not bother running again (like if `CONTINUE()` would do a plain
+            // return in those cases).  But more complex scenarios may have
+            // broken control flow if such shortcuts were taken.  Review.
+
+          recontinue:
+
+            switch (VAL_TYPE(f->u.cont.branch)) {
+              case REB_QUOTED:
+                Unquotify(Derelativize(
+                    f->out,
+                    f->u.cont.branch,
+                    f->u.cont.branch_specifier
+                ), 1);
+                break;
+
+              case REB_BLOCK: {
+                //
+                // What we want to do is Do_Any_Array_At_Throws.  This means
+                // we must initialize to void (in case all invisibles) and
+                // we must clear off the stale flag at the end.
+                //
+                REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_CONTINUATION;
+                DECLARE_FRAME_AT_ALLOC_FEED_CORE (
+                    blockframe,
+                    f->u.cont.branch,
+                    f->u.cont.branch_specifier,
+                    flags
+                );
+
+                Init_Void(f->out);  // in case all invisibles, as usual
+                blockframe->continuation_type = REB_BLOCK;
+                Push_Frame(f->out, blockframe);
+                goto continue_topmost_frame; }
+
+              case REB_ACTION: {
+                bool threw = RunQ_Throws(
+                    f->out,
+                    false,  // !fully, arity-0 functions can ignore condition
+                    rebU1(KNOWN(f->u.cont.branch)),
+                    f->u.cont.with,  // END marker, if not CONTINUE_WITH()
+                    rebEND  // ...if `with` wasn't an END marker, need one
+                );
+                if (threw)
+                    goto continuation_threw;
+                break; }
+
+              case REB_BLANK:
+                Init_Nulled(f->out);
+                break;
+
+              case REB_SYM_WORD:
+              case REB_SYM_PATH: {
+                //
+                // !!! SYM-WORD! and SYM-PATH! were considered as speculative
+                // abbreviations for things like:
+                //
+                //     x: 10
+                //     >> if true @x
+                //     == 10
+                //
+                // One benefit of this over `if true [:x]` would be efficiency
+                // in both representation (lower cost for not needing an
+                // array at source level) and execution (lower cost for not
+                // needing a frame to be nested and indexed across).  Another
+                // would be that perhaps it could error on VOID! instead of
+                // tolerating it, and treating functions by value.
+                //
+                REBSTR *name;
+                const bool push_refinements = false;
+                bool threw = Get_If_Word_Or_Path_Throws(
+                    f->out,
+                    &name,
+                    f->u.cont.branch,
+                    f->u.cont.branch_specifier,
+                    push_refinements
+                );
+                if (threw)
+                    goto continuation_threw;
+
+                if (IS_VOID(f->out))  // need `[:x]` if it's void (unset)
+                    fail (Error_Need_Non_Void_Core(
+                        f->u.cont.branch,
+                        f->u.cont.branch_specifier
+                    ));
+                break; }
+
+              case REB_SYM_GROUP: {
+                //
+                // !!! Because of soft-quoting of branches, it's required to
+                // put anything that evaluates to a branch in a GROUP!.  The
+                // downside of this is that in order to seem consistent with
+                // expectations, code in that group runs regardless of whether
+                // the branch runs, e.g.
+                //
+                //    >> either 1 (print "both" [2 + 3]) (print "run" [4 + 5])
+                //    both
+                //    run
+                //    == 5
+                //
+                // An experimental idea was that a SYM-GROUP! could be used
+                // to generate a branch, but only if needed.  That falls in
+                // line with the expectation of what non-soft-quoting actions
+                // could do with their arguments, since SYM-GROUP! is not
+                // evaluative:
+                //
+                //    >> either 1 @(print "one" [2 + 3]) @(print "run" [4 + 5])
+                //    one
+                //    == 5
+                //
+                // It's not clear if this idea is important or not, but it
+                // was a pre-continuation experiment that was preserved.
+                //
+                bool threw = Do_Any_Array_At_Throws(
+                    f->out,
+                    f->u.cont.branch,
+                    f->u.cont.branch_specifier
+                );
+                if (threw)
+                    goto continuation_threw;
+
+                // !!! This feature will currently corrupt the caller's
+                // RETURN cell, because there's no other place to put the
+                // evaluative product.  Corrupting the spare could mess up
+                // the state of the continuations.  It's a hack that is fine
+                // for natives (that don't usually need their return anyway)
+                //
+                Move_Value(FRM_ARG(f, 1), f->out);
+                f->u.cont.branch = FRM_ARG(f, 1);
+                goto recontinue; }  // Note: Could infinite loop if SYM-GROUP!
+
+              default:
+                fail ("Bad branch type");  // !!! should be an assert or panic
+            }
+
+            if (NOT_END(f_spare))  // e.g. R_CONTINUATION_CALLBACK
+                goto redo_continuation;
+            break; }  // otherwise assume f->out has what they wanted
+
             // !!! Thrown values used to be indicated with a bit on the value
             // itself, but now it's conveyed through a return value.  This
             // means typical return values don't have to run through a test
@@ -1683,6 +1866,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             // a performance win either way, but recovering the bit in the
             // values is a definite advantage--as header bits are scarce!
             //
+          continuation_threw:
           case REB_R_THROWN: {
             const REBVAL *label = VAL_THROWN_LABEL(f->out);
             if (IS_ACTION(label)) {
@@ -2004,13 +2188,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         // This problem will exist for any native that wants to start an
         // enumeration of a new block.  Thinking will be required.
         //
-        struct Reb_Feed *subfeed = ALLOC(struct Reb_Feed);
-        Prep_Any_Array_Feed(
-            subfeed,
-            v,
-            f_specifier,
-            FS_TOP->feed->flags.bits
-        );
+        DECLARE_FEED_AT_ALLOC_CORE (subfeed, v, f_specifier);
 
         // Previous to the stackless model, this code would say:
         //
@@ -2889,15 +3067,19 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
     if (GET_EVAL_FLAG(f, CONTINUATION)) {
         switch (f->continuation_type) {
-          case REB_ACTION:
+          case REB_BLANK:
             Drop_Frame(f);
             f = FS_TOP;
             Move_Value(f->out, f->arg);
             goto abort_action;
 
+          case REB_BLOCK:
+            Drop_Frame(f);  // will free feed
+            f = FS_TOP;
+            goto continuation_threw;
+
           case REB_GROUP:
-            FREE(struct Reb_Feed, f->feed);
-            Drop_Frame(f);
+            Drop_Frame(f);  // will free feed
             f = FS_TOP;
             goto return_thrown;
 
@@ -2929,16 +3111,27 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
     if (GET_EVAL_FLAG(f, CONTINUATION)) {
         switch (f->continuation_type) {
-          case REB_ACTION:
+          case REB_BLANK:
             Drop_Frame(f);
             f = FS_TOP;
             goto normal_arg_done_evaluating;
 
+          case REB_BLOCK:  // was a "Do to End" form, must loop
+            if (NOT_END(f->feed->value))
+                goto continue_topmost_frame;
+            Drop_Frame(f);  // frees feed
+            f = FS_TOP;
+            CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);
+            if (GET_EVAL_FLAG(f, DELEGATE_CONTROL)) {
+                CLEAR_EVAL_FLAG(f, DELEGATE_CONTROL);
+                goto dispatch_completed;
+            }
+            goto redo_continuation;
+
           case REB_GROUP:  // was a "Do to End" form, must loop
             if (NOT_END(f->feed->value))
                 goto continue_topmost_frame;
-            FREE(struct Reb_Feed, f->feed);
-            Drop_Frame(f);
+            Drop_Frame(f);  // frees feed
             f = FS_TOP;
 
           #if !defined(NDEBUG)  // the feed changed, caches invalidated

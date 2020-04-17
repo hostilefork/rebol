@@ -290,6 +290,20 @@
 #define R_IMMEDIATE \
     cast(REBVAL*, &PG_R_Immediate)
 
+
+// Continuations are used to mitigate the problems that occur when the C stack
+// contains a mirror of frames corresponding to the frames for each stack
+// level.  Avoiding this means that routines that would be conceived as doing
+// a recursion instead return to the evaluator with a new request.  This helps
+// avoid crashes from C stack overflows and has many other advantages.  For a
+// similar approach and explanation, see:
+//
+// https://en.wikipedia.org/wiki/Stackless_Python
+//
+#define R_CONTINUATION \
+    cast(REBVAL*, &PG_R_Continuation)
+
+
 #define R_UNHANDLED \
     cast(REBVAL*, &PG_End_Node)
 

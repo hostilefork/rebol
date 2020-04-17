@@ -201,6 +201,23 @@ inline static const char* Frame_Label_Or_Anonymous_UTF8(REBFRM *f) {
 // optimize performance by working with the evaluator directly.
 
 inline static void Free_Frame_Internal(REBFRM *f) {
+    //
+    // Some continuation types have to free their feeds.  This is a central
+    // place to take care of that issue between both Abort_Frame() and
+    // Drop_Frame() variants.
+    //
+    if (GET_EVAL_FLAG(f, CONTINUATION)) {
+        switch (f->continuation_type) {
+          case REB_GROUP:
+          case REB_BLOCK:
+            FREE(struct Reb_Feed, f->feed);
+            break;
+
+          default:
+            break;
+        }
+    }
+
     FREE(REBFRM, f);
 }
 
@@ -370,6 +387,7 @@ inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
 #define Literal_Next_In_Frame(out,f) \
     Literal_Next_In_Feed((out), (f)->feed)
 
+
 inline static void Abort_Frame(REBFRM *f) {
     if (f->varlist and NOT_SERIES_FLAG(f->varlist, MANAGED))
         GC_Kill_Series(SER(f->varlist));  // not alloc'd with manuals tracking
@@ -487,14 +505,18 @@ inline static void Prep_Frame_Core(
 
 #define DECLARE_FRAME(name,feed,flags) \
     REBFRM * name = ALLOC(REBFRM); \
-    Prep_Frame_Core(name, feed, flags);
+    Prep_Frame_Core(name, (feed), (flags));
 
 #define DECLARE_FRAME_AT(name,any_array,flags) \
-    DECLARE_FEED_AT (name##feed, any_array); \
-    DECLARE_FRAME (name, name##feed, flags)
+    DECLARE_FEED_AT (name##feed, (any_array)); \
+    DECLARE_FRAME (name, name##feed, (flags))
+
+#define DECLARE_FRAME_AT_ALLOC_FEED_CORE(name,any_array,specifier,flags) \
+    DECLARE_FEED_AT_ALLOC_CORE (name##feed, (any_array), (specifier)); \
+    DECLARE_FRAME (name, name##feed, (flags))
 
 #define DECLARE_END_FRAME(name,flags) \
-    DECLARE_FRAME (name, &TG_Frame_Feed_End, flags)
+    DECLARE_FRAME (name, &TG_Frame_Feed_End, (flags))
 
 
 inline static void Begin_Action_Core(REBFRM *f, REBSTR *opt_label, bool enfix)
@@ -685,6 +707,8 @@ inline static void Drop_Action(REBFRM *f) {
     CLEAR_EVAL_FLAG(f, RUNNING_ENFIX);
     CLEAR_EVAL_FLAG(f, FULFILL_ONLY);
     CLEAR_EVAL_FLAG(f, REQUOTE_NULL);
+
+    CLEAR_EVAL_FLAG(f, DELEGATE_CONTROL);
 
     assert(
         GET_SERIES_INFO(f->varlist, INACCESSIBLE)
@@ -886,6 +910,46 @@ inline static REBVAL *D_ARG_Core(REBFRM *f, REBLEN n) {  // 1 for first arg
 //
 #define RETURN(v) \
     return Move_Value(D_OUT, (v));
+
+
+// Conveniences for returning a continuation.  The concept is that when a
+// R_CONTINUATION comes back via the C `return` for a native, that native's
+// C stack variables are all gone.  But the heap-allocated Rebol frame stays
+// intact and in the Rebol stack trace.  It will be resumed when the
+// continuation finishes, and its f->out pointer will contain whatever was
+// produced.
+//
+inline static REB_R Init_Continuation_With_Core(
+    REBFRM *f,
+    REBFLGS flags,  // EVAL_FLAG_(DELEGATE_CONTROL/DISPATCHER_CATCHES)
+    const RELVAL *branch,
+    REBSPC *branch_specifier,
+    const REBVAL *with
+){
+    f->flags.bits |= flags;
+    assert(branch != f->out and with != f->out);
+    f->u.cont.branch = branch;
+    f->u.cont.branch_specifier = branch_specifier;
+    f->u.cont.with = with;
+    return R_CONTINUATION;
+}
+
+#define Init_Continuation_With(f,flags,branch,with) \
+    Init_Continuation_With_Core((f), (flags), (branch), SPECIFIED, (with))
+
+#define DELEGATE(branch) \
+    return Init_Continuation_With( \
+        frame_, EVAL_FLAG_DELEGATE_CONTROL, (branch), END_NODE) 
+
+#define DELEGATE_WITH(branch,with) \
+    return Init_Continuation_With( \
+        frame_, EVAL_FLAG_DELEGATE_CONTROL, (branch), (with))
+
+#define CONTINUE(branch) \
+    return Init_Continuation_With(frame_, 0, (branch), END_NODE)
+
+#define CONTINUE_WITH(branch,with) \
+    return Init_Continuation_With(frame_, 0, (branch), (with))
 
 
 // The native entry prelude makes sure that once native code starts running,

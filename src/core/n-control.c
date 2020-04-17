@@ -8,7 +8,7 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2018 Revolt Open Source Contributors
+// Copyright 2012-2020 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
@@ -61,13 +61,17 @@ REBNATIVE(if)
 {
     INCLUDE_PARAMS_OF_IF;
 
-    if (IS_CONDITIONAL_FALSE(ARG(condition))) // fails on void, literal blocks
-        return nullptr;
+    if (not IS_END(D_SPARE)) {
+        assert(IS_BLANK(D_SPARE));  // our signal that this is a re-entry
+        return Voidify_If_Nulled(D_OUT);  // null reserved for branch not run
+    }
 
-    if (Do_Branch_With_Throws(D_OUT, D_SPARE, ARG(branch), ARG(condition)))
-        return R_THROWN;
+    if (IS_CONDITIONAL_FALSE(ARG(condition)))  // void or literal blocks fail
+        return nullptr;  // branch not run, null signals ELSE and THEN
 
-    return Voidify_If_Nulled(D_OUT); // null means no branch (cues ELSE, etc.)
+    Init_Blank(D_SPARE);  // indicate next re-entry should return voidifed out
+
+    CONTINUE_WITH (ARG(branch), ARG(condition));  // pass condition if action
 }
 
 
@@ -89,18 +93,12 @@ REBNATIVE(either)
 {
     INCLUDE_PARAMS_OF_EITHER;
 
-    if (Do_Branch_With_Throws(
-        D_OUT,
-        D_SPARE,
-        IS_CONDITIONAL_TRUE(ARG(condition)) // fails on void, literal blocks
+    DELEGATE_WITH (
+        IS_CONDITIONAL_TRUE(ARG(condition))  // fails on void, literal blocks
             ? ARG(true_branch)
             : ARG(false_branch),
-        ARG(condition)
-    )){
-        return R_THROWN;
-    }
-
-    return D_OUT;
+        ARG(condition)  // pass condition if branch being run is an action
+    );
 }
 
 

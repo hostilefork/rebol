@@ -76,8 +76,9 @@ STATIC_ASSERT(EVAL_FLAG_1_IS_FALSE == NODE_FLAG_FREE);
 
 //=//// EVAL_FLAG_3 ///////////////////////////////////////////////////////=//
 //
-// !!! Unused.  This bit is the same as NODE_FLAG_MARKED, which may make it
-// interesting for lining up with OUT_MARKED_STALE or ARG_MARKED_CHECKED.
+// !!! Note: This bit is the same as NODE_FLAG_MARKED, which may make it
+// desirable for lining up with OUT_MARKED_STALE or ARG_MARKED_CHECKED, if
+// some flag were determined to be more deserving of this bit.
 //
 #define EVAL_FLAG_3 \
     FLAG_LEFT_BIT(3)
@@ -183,11 +184,22 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_FALSE == NODE_FLAG_CELL);
 
 //=//// EVAL_FLAG_NO_PATH_GROUPS //////////////////////////////////////////=//
 //
+// When EVAL_FLAG_PATH_MODE:
+//
 // This feature is used in PATH! evaluations to request no side effects.
 // It prevents GET of a PATH! from running GROUP!s.
 //
-#define EVAL_FLAG_NO_PATH_GROUPS \
+// When not EVAL_FLAG_PATH_MODE:
+//
+// A dispatcher may want to run a "continuation" but not be called back.
+// This is referred to as delegation.
+//
+#define EVAL_FLAG_19 \
     FLAG_LEFT_BIT(19)
+
+#define EVAL_FLAG_NO_PATH_GROUPS EVAL_FLAG_19
+#define EVAL_FLAG_DELEGATE_CONTROL EVAL_FLAG_19
+
 
 
 //=//// EVAL_FLAG_PATH_MODE ///////////////////////////////////////////////=//
@@ -718,6 +730,14 @@ struct Reb_Frame {
     struct {
         const REBVAL *value;
     } reval;
+
+    // Used to parameterize REB_R_CONTINUATION.
+    //
+    struct {
+        const RELVAL *branch;
+        REBSPC *branch_specifier;
+        const REBVAL *with;
+    } cont;
   } u;
 
    #if defined(DEBUG_COUNT_TICKS)

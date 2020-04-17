@@ -690,16 +690,22 @@ inline static void Prep_Any_Array_Feed(
     );
 }
 
-#define DECLARE_FEED_AT(name,any_array) \
-    struct Reb_Feed name##struct; \
-    Prep_Any_Array_Feed(&name##struct, \
-        (any_array), SPECIFIED, FS_TOP->feed->flags.bits \
-    ); \
-    struct Reb_Feed *name = &name##struct
-
 #define DECLARE_FEED_AT_CORE(name,any_array,specifier) \
     struct Reb_Feed name##struct; \
     Prep_Any_Array_Feed(&name##struct, \
         (any_array), (specifier), FS_TOP->feed->flags.bits \
     ); \
     struct Reb_Feed *name = &name##struct
+
+#define DECLARE_FEED_AT(name,any_array) \
+    DECLARE_FEED_AT_CORE (name, (any_array), SPECIFIED)
+
+#define DECLARE_FEED_AT_ALLOC_CORE(name,any_array,specifier) \
+    struct Reb_Feed *name##struct = ALLOC(struct Reb_Feed); \
+    Prep_Any_Array_Feed(name##struct, \
+        (any_array), (specifier), FS_TOP->feed->flags.bits \
+    ); \
+    struct Reb_Feed *name = name##struct
+
+#define DECLARE_FEED_AT_ALLOC(name,any_array) \
+    DECLARE_FEED_AT_ALLOC_CORE (name, (any_array), SPECIFIED)

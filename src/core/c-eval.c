@@ -1844,7 +1844,59 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
                 f->u.cont.branch = FRM_ARG(f, 1);
                 goto recontinue; }  // Note: Could infinite loop if SYM-GROUP!
 
+              case REB_FRAME: {
+                REBCTX *c = VAL_CONTEXT(f->u.cont.branch);  // check accessible
+                REBACT *phase = VAL_PHASE(f->u.cont.branch);
+
+                assert(not CTX_FRAME_IF_ON_STACK(c));
+
+                // To DO a FRAME! will "steal" its data.  If a user wishes to
+                // use a frame multiple times, they must say DO COPY FRAME, so
+                // that the data is stolen from the copy.  This allows for
+                // efficient reuse of the context's memory in the cases where
+                // a copy isn't needed.
+
+                REBFLGS flags = EVAL_MASK_DEFAULT
+                    | EVAL_FLAG_FULLY_SPECIALIZED
+                    | EVAL_FLAG_PROCESS_ACTION
+                    | EVAL_FLAG_CONTINUATION;
+
+                DECLARE_END_FRAME (subframe, flags);
+
+                assert(CTX_KEYS_HEAD(c) == ACT_PARAMS_HEAD(phase));
+                subframe->param = CTX_KEYS_HEAD(c);
+                REBCTX *stolen = Steal_Context_Vars(c, NOD(phase));
+
+                // v-- This changes CTX_KEYS_HEAD()
+                //
+                INIT_LINK_KEYSOURCE(stolen, NOD(subframe));
+
+                // Its data stolen, the context's node should now be GC'd when
+                // references in other FRAME! value cells have all gone away.
+                //
+                assert(GET_SERIES_FLAG(c, MANAGED));
+                assert(GET_SERIES_INFO(c, INACCESSIBLE));
+
+                Push_Frame_No_Varlist(f->out, subframe);
+                subframe->varlist = CTX_VARLIST(stolen);
+                subframe->rootvar = CTX_ARCHETYPE(stolen);
+                subframe->arg = subframe->rootvar + 1;
+                // subframe->param set above
+                subframe->special = subframe->arg;
+
+                // !!! Original code said "Should archetype match?"
+                //
+                assert(FRM_PHASE(subframe) == phase);
+                FRM_BINDING(subframe) = VAL_BINDING(f->u.cont.branch);
+
+                REBSTR *opt_label = nullptr;
+                Begin_Prefix_Action(subframe, opt_label);
+
+                subframe->continuation_type = REB_FRAME;
+                goto continue_topmost_frame; }
+
               default:
+                assert(!"Bad branch type");
                 fail ("Bad branch type");  // !!! should be an assert or panic
             }
 
@@ -3072,6 +3124,11 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             f = FS_TOP;
             goto return_thrown;
 
+          case REB_FRAME:
+            Drop_Frame(f);  // no feed freeing necessary (was empty feed)
+            f = FS_TOP;
+            goto action_threw;
+
           default:
             assert(!"Bad continuation type in frame");
         }
@@ -3144,6 +3201,12 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             kind.byte = REB_T_TRASH;
           #endif
             goto continue_group;
+
+          case REB_FRAME:
+            assert(IS_END(f->feed->value));  // started at END
+            Drop_Frame(f);
+            f = FS_TOP;
+            goto dispatch_completed;
 
           default:
             assert(!"Bad continuation_type in frame");

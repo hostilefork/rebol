@@ -422,61 +422,14 @@ REBNATIVE(do)
         if (NOT_END(param))
             fail (Error_Use_Reeval_For_Do_Raw());
 
-        if (Eval_Value_Throws(D_OUT, source, SPECIFIED))
-            return R_THROWN;
-        return D_OUT; }
+        DELEGATE (source); }
 
       case REB_FRAME: {
-        REBCTX *c = VAL_CONTEXT(source); // checks for INACCESSIBLE
-        REBACT *phase = VAL_PHASE(source);
-
-        if (CTX_FRAME_IF_ON_STACK(c)) // see REDO for tail-call recursion
+        REBCTX *c = VAL_CONTEXT(source);  // checks for INACCESSIBLE
+        if (CTX_FRAME_IF_ON_STACK(c))  // see REDO for tail-call recursion
             fail ("Use REDO to restart a running FRAME! (not DO)");
 
-        // To DO a FRAME! will "steal" its data.  If a user wishes to use a
-        // frame multiple times, they must say DO COPY FRAME, so that the
-        // data is stolen from the copy.  This allows for efficient reuse of
-        // the context's memory in the cases where a copy isn't needed.
-
-        REBFLGS flags = EVAL_MASK_DEFAULT
-            | EVAL_FLAG_FULLY_SPECIALIZED
-            | EVAL_FLAG_PROCESS_ACTION;
-
-        DECLARE_END_FRAME (f, flags);
-
-        assert(CTX_KEYS_HEAD(c) == ACT_PARAMS_HEAD(phase));
-        f->param = CTX_KEYS_HEAD(c);
-        REBCTX *stolen = Steal_Context_Vars(c, NOD(phase));
-        INIT_LINK_KEYSOURCE(stolen, NOD(f));  // changes CTX_KEYS_HEAD()
-
-        // Its data stolen, the context's node should now be GC'd when
-        // references in other FRAME! value cells have all gone away.
-        //
-        assert(GET_SERIES_FLAG(c, MANAGED));
-        assert(GET_SERIES_INFO(c, INACCESSIBLE));
-
-        Push_Frame_No_Varlist(D_OUT, f);
-        f->varlist = CTX_VARLIST(stolen);
-        f->rootvar = CTX_ARCHETYPE(stolen);
-        f->arg = f->rootvar + 1;
-        // f->param set above
-        f->special = f->arg;
-
-        assert(FRM_PHASE(f) == phase);
-        FRM_BINDING(f) = VAL_BINDING(source); // !!! should archetype match?
-
-        REBSTR *opt_label = nullptr;
-        Begin_Prefix_Action(f, opt_label);
-
-        bool threw = Eval_Throws(f);
-        assert(threw or IS_END(f->feed->value));  // we started at END_FLAG
-
-        Drop_Frame(f);
-
-        if (threw)
-            return R_THROWN; // prohibits recovery from exits
-
-        return D_OUT; }
+        DELEGATE (source); }
 
       default:
         break;

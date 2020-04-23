@@ -1920,6 +1920,21 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
           case REB_R_THROWN:
             goto action_threw;
 
+          case REB_R_DEWIND:  // accept that `f` was changed
+            f = FS_TOP;
+
+            // !!! As written, a DEWIND operation must unwind to an action
+            // frame.  A reason for this is the action frame may be tied to
+            // a feed that has only one instance...jumping above it to try
+            // and "continue" would drop off instructions that were pending
+            // to be processed in the frame.  This may suggest a better
+            // architecture is needed, because it means you can't keep
+            // a yielder's frame itself alive... it terminates so the YIELD
+            // instruction must be updated with the new frame each time.
+            //
+            assert(Is_Action_Frame(f));
+            break;
+
           case REB_R_REDO:
             //
             // This instruction represents the idea that it is desired to

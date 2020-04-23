@@ -122,7 +122,8 @@ REB_R MAKE_Action(
     REBACT *act = Make_Interpreted_Action_May_Fail(
         spec,
         body,
-        MKF_ANY_VALUE
+        MKF_ANY_VALUE | MKF_GATHER_LETS,
+        1  // details capacity, just the slot filled by the relativized body
     );
 
     return Init_Action_Unbound(out, act);

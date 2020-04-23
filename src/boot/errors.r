@@ -200,7 +200,8 @@ Script: [
     bad-cast:           [{cannot cast} :arg1 {as} :arg2]
     alias-constrains:   [{AS constrains unlocked input, so must be mutable}]
 
-    return-archetype:   {RETURN called with no generator providing it in use}
+    return-archetype:   {RETURN called with no action providing it in use}
+    yield-archetype:    {YIELD called with no generator providing it in use}
 
     parse-rule:         {PARSE - invalid rule or usage of rule}
     parse-end:          {PARSE - unexpected end of rule}

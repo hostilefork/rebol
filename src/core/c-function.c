@@ -1299,16 +1299,18 @@ void Get_Maybe_Fake_Action_Body(REBVAL *out, const REBVAL *action)
 REBACT *Make_Interpreted_Action_May_Fail(
     const REBVAL *spec,
     const REBVAL *body,
-    REBFLGS mkf_flags  // MKF_RETURN, etc.
-) {
+    REBFLGS mkf_flags,  // MKF_RETURN, etc.
+    REBLEN details_capacity
+){
     assert(IS_BLOCK(spec) and IS_BLOCK(body));
+    assert(details_capacity >= 1);  // relativized body put in details[0]
 
     REBACT *a = Make_Action(
         Make_Paramlist_Managed_May_Fail(spec, mkf_flags),
         &Null_Dispatcher,  // will be overwritten if non-[] body
         nullptr,  // no underlying action (use paramlist)
         nullptr,  // no specialization exemplar (or inherited exemplar)
-        1  // details array capacity
+        details_capacity  // we fill in details[0], caller fills any extra
     );
 
     // We look at the *actual* function flags; e.g. the person may have used
@@ -1353,7 +1355,7 @@ REBACT *Make_Interpreted_Action_May_Fail(
             body,  // new copy has locals bound relatively to the new action
             ACT_PARAMLIST(a),
             TS_WORD,
-            true  // gather the LETs (transitional method)
+            did (mkf_flags & MKF_GATHER_LETS) // transitional LET technique
         );
     }
 

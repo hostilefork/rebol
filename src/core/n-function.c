@@ -49,7 +49,8 @@ REBNATIVE(func_p)
     REBACT *func = Make_Interpreted_Action_May_Fail(
         ARG(spec),
         ARG(body),
-        MKF_RETURN | MKF_KEYWORDS
+        MKF_RETURN | MKF_KEYWORDS | MKF_GATHER_LETS,
+        1  // details capacity... just the one array slot (will be filled)
     );
 
     return Init_Action_Unbound(D_OUT, func);

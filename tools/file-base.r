@@ -47,6 +47,7 @@ core: [
     c-specialize.c
     c-value.c
     c-word.c
+    c-yielder.c
 
     ; (D)ebug
     d-crash.c

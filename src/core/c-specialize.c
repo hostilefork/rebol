@@ -1077,10 +1077,15 @@ bool Make_Frame_From_Varargs_Throws(
 
 
 //
-//  Make_Action_From_Exemplar: C
+//  Alloc_Action_From_Exemplar: C
 //
-REBACT *Make_Action_From_Exemplar(REBCTX *exemplar)
-{
+// Leaves details blank, and lets you specify the dispatcher.
+//
+REBACT *Alloc_Action_From_Exemplar(
+    REBCTX *exemplar,
+    REBNAT dispatcher,
+    REBLEN details_capacity
+){
     REBACT *unspecialized = ACT(CTX_KEYLIST(exemplar));
 
     REBLEN num_slots = ACT_NUM_PARAMS(unspecialized) + 1;
@@ -1122,12 +1127,28 @@ REBACT *Make_Action_From_Exemplar(REBCTX *exemplar)
 
     REBACT *action = Make_Action(
         paramlist,
-        &Specializer_Dispatcher,
-        ACT_UNDERLYING(unspecialized), // common underlying action
-        exemplar, // also provide a context of specialization values
-        1 // details array capacity
+        dispatcher,
+        ACT_UNDERLYING(unspecialized),  // common underlying action
+        exemplar,  // also provide a context of specialization values
+        details_capacity
     );
 
+    return action;
+}
+
+
+//
+//  Make_Action_From_Exemplar: C
+//
+// Assumes you want a Specializer_Dispatcher with the exemplar in details.
+//
+REBACT *Make_Action_From_Exemplar(REBCTX *exemplar)
+{
+    REBACT *action = Alloc_Action_From_Exemplar(
+        exemplar,
+        &Specializer_Dispatcher,
+        1  // details capacity
+    );
     Init_Frame(ARR_HEAD(ACT_DETAILS(action)), exemplar);
     return action;
 }

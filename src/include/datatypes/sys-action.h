@@ -304,6 +304,19 @@
     cast(REBVAL*, &PG_R_Continuation)
 
 
+// DEWIND is a formalization of the concept of a function changing the stack
+// out from under the evaluator.  This confuses its idea of what the `f` was
+// that it started out with, so it must refresh that from FS_TOP.  This is
+// used to implement YIELD.
+//
+// !!! How this approach compares to THROW (e.g. how RETURN was implemented)
+// isn't yet known.  Although the meaning of RETURN was implemented as if it
+// could be done by users.
+//
+#define R_DEWIND \
+    cast(REBVAL*, &PG_R_Dewind)
+
+
 #define R_UNHANDLED \
     cast(REBVAL*, &PG_End_Node)
 

@@ -751,6 +751,9 @@ static void Init_Root_Vars(void)
     Prep_Non_Stack_Cell(&PG_R_Continuation);
     RESET_CELL(&PG_R_Continuation, REB_R_CONTINUATION, CELL_MASK_NONE);
 
+    Prep_Non_Stack_Cell(&PG_R_Dewind);
+    RESET_CELL(&PG_R_Dewind, REB_R_DEWIND, CELL_MASK_NONE);
+
     REBSER *locker = nullptr;
 
     Root_Empty_Block = Init_Block(Alloc_Value(), PG_Empty_Array);

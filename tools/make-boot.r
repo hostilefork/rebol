@@ -267,6 +267,7 @@ e-types/emit {
         REB_TS_QUOTED_WORD = PSEUDOTYPE_SIX,  /* !!! temp compatibility */
 
         PSEUDOTYPE_SEVEN,
+        REB_R_DEWIND,
         REB_TS_QUOTED_PATH = PSEUDOTYPE_SEVEN,  /* !!! temp compatibility */
         REB_G_XYF = PSEUDOTYPE_SEVEN,  /* used by GOB, compact 2xfloat */
 

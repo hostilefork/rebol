@@ -963,7 +963,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
                 // of clearing the locals, they may not be null...
                 //
                 if (SPECIAL_IS_ARBITRARY_SO_SPECIALIZED)
-                    assert(IS_NULLED(f->special));
+                    assert(IS_NULLED(f->special) or IS_VOID(f->special));
 
                 Init_Void(f->arg);
                 SET_CELL_FLAG(f->arg, ARG_MARKED_CHECKED);

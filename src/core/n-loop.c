@@ -1665,27 +1665,36 @@ REBNATIVE(while)
 {
     INCLUDE_PARAMS_OF_WHILE;
 
-    Init_Blank(D_OUT); // result if body never runs
+    REBVAL * const is_running_body = D_SPARE;  // alias (optimized out)
 
-    do {
-        if (Do_Branch_Throws(D_SPARE, nullptr, ARG(condition))) {
-            Move_Value(D_OUT, D_SPARE);
-            return R_THROWN;  // don't see BREAK/CONTINUE in the *condition*
+    if (IS_END(is_running_body)) {  // initial state of D_SPARE
+        Init_Blank(ARG(return));  // result if body never runs
+        Init_False(is_running_body);  // run condition for starters
+        CONTINUE (ARG(condition));
+    }
+
+    if (not VAL_LOGIC(is_running_body)) {  // just ran the condition
+        if (IS_FALSEY(D_OUT)) {  // will error if void, neither true nor false
+            Move_Value(D_OUT, ARG(return));  // restore last body run
+            Voidify_If_Nulled_Or_Blank(D_OUT);  // null->BREAK, blank->not run
+            RETURN (ARG(return));  // condition false, return last body result
         }
+        Init_True(is_running_body);
+        CONTINUE_CATCHABLE (ARG(body));  // run the body
+    }
 
-        if (IS_FALSEY(D_SPARE))  // will error if void, neither true nor false
-            return D_OUT;  // condition was false, so return last body result
+    if (D_THROWING) {
+        bool broke;
+        if (not Catching_Break_Or_Continue(D_OUT, &broke))
+            return R_THROWN;
 
-        if (Do_Branch_With_Throws(D_OUT, nullptr, ARG(body), D_SPARE)) {
-            bool broke;
-            if (not Catching_Break_Or_Continue(D_OUT, &broke))
-                return R_THROWN;
+        if (broke)
+            return nullptr;  // unique signal that a break occurred
 
-            if (broke)
-                return Init_Nulled(D_OUT);
-        }
+        // fall through for CONTINUE (D_OUT holds continue's argument, if any)
+    }
 
-        Voidify_If_Nulled_Or_Blank(D_OUT);  // null->BREAK, blank->never ran
-
-    } while (true);
+    Move_Value(ARG(return), D_OUT);  // save body result
+    Init_False(is_running_body);
+    CONTINUE (ARG(condition));  // run the condition, no catching of throws
 }

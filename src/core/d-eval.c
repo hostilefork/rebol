@@ -162,7 +162,7 @@ static void Eval_Core_Shared_Checks_Debug(REBFRM *f) {
     if (IS_END(*next))
         return;
 
-    if (NOT_END(f->out) and Is_Evaluator_Throwing_Debug())
+    if (NOT_END(f->out) and Is_Throwing(f))
         return;
 
     //=//// v-- BELOW CHECKS ONLY APPLY IN EXITS CASE WITH MORE CODE //////=//
@@ -210,7 +210,7 @@ void Eval_Core_Expression_Checks_Debug(REBFRM *f)
 
     Eval_Core_Shared_Checks_Debug(f);
 
-    assert(not Is_Evaluator_Throwing_Debug()); // no evals between throws
+    assert(not Is_Throwing(f));  // no evals between throws
 
     // Trash fields that GC won't be seeing unless Is_Action_Frame()
     //
@@ -256,7 +256,7 @@ void Do_Process_Action_Checks_Debug(REBFRM *f) {
 //
 void Do_After_Action_Checks_Debug(REBFRM *f) {
     assert(NOT_END(f->out));
-    assert(not Is_Evaluator_Throwing_Debug());
+    assert(not Is_Throwing(f));
 
     if (GET_SERIES_INFO(f->varlist, INACCESSIBLE)) // e.g. ENCLOSE
         return;
@@ -308,7 +308,7 @@ void Eval_Core_Exit_Checks_Debug(REBFRM *f) {
         if (f->feed->index > ARR_LEN(f->feed->array)) {
             assert(
                 (f->feed->pending and IS_END(f->feed->pending))
-                or Is_Evaluator_Throwing_Debug()
+                or Is_Throwing(f)
             );
             assert(f->feed->index == ARR_LEN(f->feed->array) + 1);
         }
@@ -320,7 +320,7 @@ void Eval_Core_Exit_Checks_Debug(REBFRM *f) {
     // exposed to the user, at the moment.
     //
     if (NOT_END(f->out))
-        assert(Is_Evaluator_Throwing_Debug() or VAL_TYPE(f->out) < REB_MAX);
+        assert(Is_Throwing(f) or VAL_TYPE(f->out) < REB_MAX);
 }
 
 #endif

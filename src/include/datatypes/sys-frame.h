@@ -708,6 +708,7 @@ inline static void Drop_Action(REBFRM *f) {
     CLEAR_EVAL_FLAG(f, FULFILL_ONLY);
     CLEAR_EVAL_FLAG(f, REQUOTE_NULL);
 
+    CLEAR_EVAL_FLAG(f, DISPATCHER_CATCHES);
     CLEAR_EVAL_FLAG(f, DELEGATE_CONTROL);
 
     assert(
@@ -890,6 +891,7 @@ inline static void Drop_Dummy_Frame_Unbalanced(REBFRM *f) {
 #define D_FRAME     frame_
 #define D_OUT       FRM_OUT(frame_)         // GC-safe slot for output value
 #define D_SPARE     FRM_SPARE(frame_)       // scratch GC-safe cell
+#define D_THROWING  Is_Throwing(frame_)     // check continuation throw state
 
 // !!! Numbered arguments got more complicated with the idea of moving the
 // definitional returns into the first slot (if applicable).  This makes it
@@ -950,6 +952,10 @@ inline static REB_R Init_Continuation_With_Core(
 
 #define CONTINUE_WITH(branch,with) \
     return Init_Continuation_With(frame_, 0, (branch), (with))
+
+#define CONTINUE_CATCHABLE(branch) \
+    return Init_Continuation_With( \
+        frame_, EVAL_FLAG_DISPATCHER_CATCHES, (branch), END_NODE)
 
 
 // Common behavior shared by dispatchers which execute on BLOCK!s of code.

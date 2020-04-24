@@ -61,11 +61,11 @@
 //   more checking that thrown values aren't being dropped or misused.
 //
 
-#if !defined(NDEBUG)
-    inline static bool Is_Evaluator_Throwing_Debug(void) {
-        return NOT_END(&TG_Thrown_Arg);
-    }
-#endif
+inline static bool Is_Throwing(REBFRM *f) {
+    assert(f == FS_TOP);  // only allow asking for top frame for now
+    UNUSED(f);  // a global state, but we pass in frame for futureproofing
+    return NOT_END(&TG_Thrown_Arg);
+}
 
 #if defined(NDEBUG)
     #define VAL_THROWN_LABEL(thrown) \

@@ -1680,7 +1680,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         // by Drop_Action() but must be cleared on each dispatcher re-entry.
         //
         f->flags.bits &= ~(
-            EVAL_FLAG_DELEGATE_CONTROL
+            EVAL_FLAG_DELEGATE_CONTROL | EVAL_FLAG_DISPATCHER_CATCHES
         );
 
         const REBVAL *r = (*PG_Dispatch)(f);  // default just calls FRM_PHASE
@@ -3117,6 +3117,8 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
           case REB_BLOCK:
             Drop_Frame(f);  // will free feed
             f = FS_TOP;
+            if (GET_EVAL_FLAG(f, DISPATCHER_CATCHES))
+                goto redo_continuation;
             goto action_threw;
 
           case REB_GROUP:

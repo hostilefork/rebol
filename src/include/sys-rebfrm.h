@@ -68,9 +68,15 @@ STATIC_ASSERT(EVAL_FLAG_0_IS_TRUE == NODE_FLAG_NODE);
 STATIC_ASSERT(EVAL_FLAG_1_IS_FALSE == NODE_FLAG_FREE);
 
 
-//=//// EVAL_FLAG_2 ///////////////////////////////////////////////////////=//
+//=//// EVAL_FLAG_DISPATCHER_CATCHES //////////////////////////////////////=//
 //
-#define EVAL_FLAG_2 \
+// While a continuation is running, the native or dispatcher that made the
+// request is no longer on the stack.  But if something like a WHILE loop
+// wishes to catch a BREAK, it has to be told about it.  Setting this flag
+// when asking for a continuation will give a callback in the thrown state,
+// which can be tested with Is_Throwing().
+//
+#define EVAL_FLAG_DISPATCHER_CATCHES \
     FLAG_LEFT_BIT(2)
 
 

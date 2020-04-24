@@ -313,9 +313,9 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_FALSE == NODE_FLAG_CELL);
     FLAG_LEFT_BIT(27)
 
 
-//=//// EVAL_FLAG_NEXT_ARG_FROM_OUT ///////////////////////////////////=//
+//=//// EVAL_FLAG_28 //////////////////////////////////////////////////////=//
 //
-#define EVAL_FLAG_NEXT_ARG_FROM_OUT \
+#define EVAL_FLAG_28 \
     FLAG_LEFT_BIT(28)
 
 

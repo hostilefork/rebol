@@ -522,7 +522,7 @@ inline static void Begin_Action_Core(REBFRM *f, REBSTR *opt_label, bool enfix)
 
     if (enfix) {
         SET_EVAL_FLAG(f, RUNNING_ENFIX);  // set for duration of function call
-        SET_EVAL_FLAG(f, NEXT_ARG_FROM_OUT);  // only set during first arg
+        SET_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT);  // only during first arg
 
         // All the enfix call sites cleared this flag on the feed, so it was
         // moved into the Begin_Enfix_Action() case.  Note this has to be done

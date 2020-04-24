@@ -244,7 +244,7 @@ void Do_Process_Action_Checks_Debug(REBFRM *f) {
 
     assert(GET_ARRAY_FLAG(ACT_PARAMLIST(phase), IS_PARAMLIST));
 
-    if (NOT_EVAL_FLAG(f, NEXT_ARG_FROM_OUT)) {
+    if (NOT_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT)) {
         if (NOT_CELL_FLAG(f->out, OUT_MARKED_STALE))
             assert(GET_ACTION_FLAG(phase, IS_INVISIBLE));
     }

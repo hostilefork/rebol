@@ -224,7 +224,8 @@ REBNATIVE(shove)
             SET_CELL_FLAG(D_OUT, UNEVALUATED);
     }
 
-    REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_NEXT_ARG_FROM_OUT;
+    REBFLGS flags = EVAL_MASK_DEFAULT;
+    SET_FEED_FLAG(frame_->feed, NEXT_ARG_FROM_OUT);
 
     if (Reevaluate_In_Subframe_Maybe_Stale_Throws(
         D_OUT,

@@ -207,7 +207,7 @@ REBNATIVE(return)
     // So TYPESET! bits in the RETURN param are used for legal return types.
     //
     REBVAL *typeset = ACT_PARAMS_HEAD(target_fun);
-    assert(VAL_PARAM_CLASS(typeset) == REB_P_RETURN);
+    assert(VAL_PARAM_CLASS(typeset) == REB_P_LOCAL);
     assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
 
     if (GET_ACTION_FLAG(target_fun, IS_INVISIBLE) and IS_ENDISH_NULLED(v)) {
@@ -996,7 +996,7 @@ REBNATIVE(reskinned)
         if (IS_WORD(item))
             pclass = REB_P_NORMAL;
         else if (IS_SET_WORD(item))
-            pclass = REB_P_RETURN;
+            pclass = REB_P_LOCAL;
         else if (IS_GET_WORD(item))
             pclass = REB_P_HARD_QUOTE;
         else if (IS_SYM_WORD(item))

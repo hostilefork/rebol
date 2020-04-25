@@ -237,12 +237,8 @@ bool Redo_Action_Throws(REBVAL *out, REBFRM *f, REBACT *run)
 
         Reb_Param_Class pclass = VAL_PARAM_CLASS(f->param);
 
-        if (
-            pclass == REB_P_LOCAL
-            or pclass == REB_P_RETURN
-        ){
-             continue; // don't add a callsite expression for it (can't)!
-        }
+        if (pclass == REB_P_LOCAL)
+             continue;  // don't add a callsite expression for it (can't)!
 
         if (TYPE_CHECK(f->param, REB_TS_SKIPPABLE) and IS_NULLED(f->arg))
             continue;  // don't throw in skippable args that are nulled out

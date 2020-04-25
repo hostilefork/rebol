@@ -209,10 +209,6 @@ typedef enum Reb_Kind Reb_Param_Class;
     // `REB_P_REFINEMENT`
     //
 
-    // REB_P_RETURN acts like a pure local, but is pre-filled with a
-    // ACTION! bound to the frame, that takes 0 or 1 arg and returns it.
-    //
-
     // `REB_P_SOFT_QUOTE` is cued by a LIT-WORD! in the function spec
     // dialect.  It quotes with the exception of GROUP!, GET-WORD!, and
     // GET-PATH!...which will be evaluated:
@@ -279,10 +275,10 @@ inline static Reb_Param_Class VAL_PARAM_CLASS(const RELVAL *v) {
 // Can't be reflected (set with PROTECT/HIDE) or specialized out
 //
 // !!! Note: Currently, the semantics of Is_Param_Hidden() are rather sketchy.
-// The flag (REB_TS_HIDDEN) is not put on REB_P_LOCAL/REB_P_RETURN
-// and it hasn't been figured out how such a flag would be managed on a per
-// object or frame instance while sharing the same paramlist/keylist (a method
-// like CELL_FLAG_PROTECTED might be needed if that feature is interesting).
+// The flag (REB_TS_HIDDEN) is not put on REB_P_LOCAL and it hasn't been
+// figured out how such a flag would be managed on a per object or frame
+// instance while sharing the same paramlist/keylist (a method like
+// CELL_FLAG_PROTECTED might be needed if that feature is interesting).
 //
 #define Is_Param_Hidden(v) \
     TYPE_CHECK((v), REB_TS_HIDDEN)

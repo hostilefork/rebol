@@ -319,7 +319,7 @@ inline static enum Reb_Kind SYMIFY_ANY_PLAIN_KIND(REBYTE k) {
 // of parameter flags is something planned for the near future.
 
 inline static bool IS_PARAM_KIND(REBYTE k)
-    { return k >= REB_P_NORMAL and k <= REB_P_RETURN; }
+    { return k >= REB_P_NORMAL and k <= REB_P_LOCAL; }
 
 #define IS_PARAM(v) \
     IS_PARAM_KIND(KIND_BYTE(v))

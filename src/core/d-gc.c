@@ -405,8 +405,7 @@ void Assert_Cell_Marked_Correctly(const RELVAL *v)
       case REB_P_HARD_QUOTE:
       case REB_P_MODAL:
       case REB_P_SOFT_QUOTE:
-      case REB_P_LOCAL:
-      case REB_P_RETURN: {
+      case REB_P_LOCAL: {
         REBSTR *s = VAL_TYPESET_STRING(v);
         assert(Is_Marked(s));
         assert(MIRROR_BYTE(v) == REB_TYPESET);

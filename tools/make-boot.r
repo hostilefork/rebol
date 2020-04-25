@@ -264,7 +264,6 @@ e-types/emit {
 
         PSEUDOTYPE_SIX,
         REB_R_CONTINUATION = PSEUDOTYPE_SIX,
-        REB_P_RETURN = PSEUDOTYPE_SIX,
         REB_TS_QUOTED_WORD = PSEUDOTYPE_SIX,  /* !!! temp compatibility */
 
         PSEUDOTYPE_SEVEN,

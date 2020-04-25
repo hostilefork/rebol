@@ -8,7 +8,7 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Revolt Open Source Contributors
+// Copyright 2012-2020 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
@@ -557,7 +557,7 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
             //
             Init_Param(
                 DS_PUSH(),
-                REB_P_RETURN,
+                REB_P_LOCAL,
                 Canon(SYM_RETURN),
                 TS_OPT_VALUE
             );
@@ -568,16 +568,7 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
         }
         else {
             REBVAL *param = DS_AT(definitional_return_dsp);
-
-            // Note: AUGMENT may be copying an already REB_P_RETURN'd argument
-            // from a pre-existing parameter list.  Else REB_P_LOCAL.
-            //
-            assert(
-                VAL_PARAM_CLASS(param) == REB_P_LOCAL
-                or VAL_PARAM_CLASS(param) == REB_P_RETURN
-            );
-            mutable_KIND_BYTE(param) = REB_P_RETURN;
-
+            assert(VAL_PARAM_CLASS(param) == REB_P_LOCAL);
             assert(MIRROR_BYTE(param) == REB_TYPESET);
         }
 
@@ -1749,15 +1740,9 @@ REB_R Adapter_Dispatcher(REBFRM *f)
         // !!! Note: If the prelude throws--including a RETURN--that means the
         // adaptee will not be run.
         //
-        RELVAL* prelude = ARR_AT(details, 0);
+        assert(IS_BLOCK(ARR_HEAD(details)));  // the prelude
         Init_Blank(FRM_SPARE(f));  // Indicate we're on "phase two"
-        return Init_Continuation_With_Core(
-            f,
-            0,  // not EVAL_FLAG_DELEGATE_CONTROL, we want a callback
-            prelude,
-            SPC(f->varlist),
-            END_NODE
-        );
+        return Interpreted_Continuation(f);  // runs block in head slot
     }
 
     assert(IS_BLANK(FRM_SPARE(f)));  // how we indicated second run

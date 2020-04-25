@@ -945,14 +945,25 @@ inline static REB_R Init_Continuation_With_Core(
 
 
 // Common behavior shared by dispatchers which execute on BLOCK!s of code.
+// Assumes the code to be run is in the first details slot, and is relative
+// to the varlist of the frame.
 //
 inline static REB_R Interpreted_Continuation_Core(
     REBFRM *f,
     REBFLGS flags
 ){
-    REBARR *details = ACT_DETAILS(FRM_PHASE(f));
+    REBACT *phase = FRM_PHASE(f);
+    REBARR *details = ACT_DETAILS(phase);
     RELVAL *body = ARR_HEAD(details);  // usually CONST (doesn't have to be)
     assert(IS_BLOCK(body) and IS_RELATIVE(body) and VAL_INDEX(body) == 0);
+
+    if (GET_ACTION_FLAG(phase, HAS_RETURN)) {
+        assert(VAL_PARAM_SYM(ACT_PARAMS_HEAD(phase)) == SYM_RETURN);
+        REBVAL *cell = FRM_ARG(f, 1);
+        Move_Value(cell, NAT_VALUE(return));
+        INIT_BINDING(cell, f->varlist);
+        SET_CELL_FLAG(cell, ARG_MARKED_CHECKED);  // necessary?
+    }
 
     // The function body contains relativized words, that point to the
     // paramlist but do not have an instance of an action to line them up

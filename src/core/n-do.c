@@ -117,8 +117,8 @@ REBNATIVE(shove)
 
     REBVAL *left = ARG(left);
 
-    if (IS_END(*v)) // ...shouldn't happen for WORD!/PATH! unless APPLY
-        RETURN (ARG(left)) // ...because evaluator wants `help <-` to work
+    if (IS_END(*v))  // ...shouldn't happen for WORD!/PATH! unless APPLY
+        RETURN (ARG(left));  // ...because evaluator wants `help <-` to work
 
     // It's best for SHOVE to do type checking here, as opposed to setting
     // some kind of EVAL_FLAG_SHOVING and passing that into the evaluator, then

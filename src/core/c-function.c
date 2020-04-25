@@ -1578,34 +1578,24 @@ REB_R Typeset_Checker_Dispatcher(REBFRM *f)
 }
 
 
-// Common behavior shared by dispatchers which execute on BLOCK!s of code.
-//
-inline static bool Interpreted_Dispatch_Throws(
-    REBVAL *out,  // Note: Elider_Dispatcher() doesn't have `out = f->out`
-    REBFRM *f
-){
-    REBARR *details = ACT_DETAILS(FRM_PHASE(f));
-    RELVAL *body = ARR_HEAD(details);  // usually CONST (doesn't have to be)
-    assert(IS_BLOCK(body) and IS_RELATIVE(body) and VAL_INDEX(body) == 0);
-
-    // The function body contains relativized words, that point to the
-    // paramlist but do not have an instance of an action to line them up
-    // with.  We use the frame (identified by varlist) as the "specifier".
-    //
-    return Do_Any_Array_At_Throws(out, body, SPC(f->varlist));
-}
-
-
 //
 //  Unchecked_Dispatcher: C
 //
 // Runs block, then no typechecking (e.g. had no RETURN: [...] type spec)
 //
+// Doubles as common behavior shared by dispatchers which execute on BLOCK!s
+// of code.  (Should it be called "Interpreted_Dispatcher" or similar?)
+//
+// In order to do additional checking or output tweaking, the best way is to
+// change the phase of the frame so that instead of re-entering this unchecked
+// dispatcher, it will call some other function to do it.  This is different
+// from natives which are their own dispatchers, and able to declare locals
+// in their frames to act as a kind of state machine.  But the dispatchers
+// are for generic code--hence messing with the frames is not ideal.
+//
 REB_R Unchecked_Dispatcher(REBFRM *f)
 {
-    if (Interpreted_Dispatch_Throws(f->out, f))
-        return R_THROWN;
-    return f->out;
+    return Interpreted_Delegation(f);
 }
 
 
@@ -1616,9 +1606,13 @@ REB_R Unchecked_Dispatcher(REBFRM *f)
 //
 REB_R Voider_Dispatcher(REBFRM *f)
 {
-    if (Interpreted_Dispatch_Throws(f->out, f))  // action body is a BLOCK!
-        return R_THROWN;
-    return Init_Void(f->out);
+    if (IS_END(FRM_SPARE(f))) {  // first run
+        Init_Blank(FRM_SPARE(f));  // mark we are no longer on first entry
+        return Interpreted_Continuation(f);  // ask for re-entry after eval
+    }
+    assert(IS_BLANK(FRM_SPARE(f)));  // should not have changed
+
+    return Init_Void(f->out);  // on our second entry, so we're finished
 }
 
 
@@ -1628,15 +1622,18 @@ REB_R Voider_Dispatcher(REBFRM *f)
 // Runs block, ensure type matches RETURN: [...] specification, else fail.
 //
 // Note: Natives get this check only in the debug build, but not here (their
-// dispatcher *is* the native!)  So the extra check is in Eval_Core().
+// "dispatcher" *is* the native!)  So the extra check is in Eval_Core().
 //
 REB_R Returner_Dispatcher(REBFRM *f)
 {
-    if (Interpreted_Dispatch_Throws(f->out, f))
-        return R_THROWN;
+    if (IS_END(FRM_SPARE(f))) {  // first run
+        Init_Blank(FRM_SPARE(f));  // mark we are no longer on first entry
+        return Interpreted_Continuation(f);  // ask for re-entry after eval
+    }
+    assert(IS_BLANK(FRM_SPARE(f)));  // should not have changed
 
     FAIL_IF_BAD_RETURN_TYPE(f);
-    return f->out;
+    return f->out;  // on our second entry, so we're finished
 }
 
 
@@ -1644,40 +1641,42 @@ REB_R Returner_Dispatcher(REBFRM *f)
 //  Elider_Dispatcher: C
 //
 // Used by "invisible" functions (who in their spec say `RETURN: []`).  Runs
-// block but without changing any value already in f->out.
+// block but with no net change to f->out.
+//
+// We'd like to allow RETURN from within eliders, which would corrupt f->out.
+// And more generally, it would be costly to add conditionality in the
+// evaluator to not write to f->out when an invisible has products.  So this
+// addresses the issue by caching the output into the spare and then restoring
+// it--giving the impression that no change happened.  While it does mean
+// paying for the move and proxying the unevaluated flag (not copied by move)
+// it is probably the cheaper option overall to get the effect.
+//
+// !!! Review enforcement of arity-0 return in invisibles only!
 //
 REB_R Elider_Dispatcher(REBFRM *f)
 {
-    REBVAL * const discarded = FRM_SPARE(f);  // spare usable during dispatch
-
-    if (Interpreted_Dispatch_Throws(discarded, f)) {
-        //
-        // !!! In the implementation of invisibles, it seems reasonable to
-        // want to be able to RETURN to its own frame.  But in that case, we
-        // don't want to actually overwrite the f->out content or this would
-        // be no longer invisible.  Until a better idea comes along, repeat
-        // the work of catching here.  (Note this does not handle REDO too,
-        // and the hypothetical better idea should do so.)
-        //
-        const REBVAL *label = VAL_THROWN_LABEL(discarded);
-        if (IS_ACTION(label)) {
-            if (
-                VAL_ACTION(label) == NAT_ACTION(unwind)
-                and VAL_BINDING(label) == NOD(f->varlist)
-            ){
-                CATCH_THROWN(discarded, discarded);
-                if (IS_NULLED(discarded)) // !!! catch loses "endish" flag
-                    return R_INVISIBLE;
-
-                fail ("Only 0-arity RETURN should be used in invisibles.");
-            }
+    if (IS_END(FRM_SPARE(f))) {  // first run
+        if (IS_END(f->out)) {  // could happen :-/ e.g. `do [comment "" ...]`
+            Init_Void(FRM_SPARE(f));
+            SET_CELL_FLAG(FRM_SPARE(f), SPARE_MARKED_END);  // be tricky
         }
-
-        Move_Value(f->out, discarded);
-        return R_THROWN;
+        else {
+            Move_Value(FRM_SPARE(f), f->out);  // cache, mark first step done
+            if (GET_CELL_FLAG(f->out, UNEVALUATED))
+                SET_CELL_FLAG(FRM_SPARE(f), UNEVALUATED);  // proxy eval flag
+        }
+        return Interpreted_Continuation(f);  // ask for re-entry after eval
     }
 
-    return R_INVISIBLE;
+    if (GET_CELL_FLAG(FRM_SPARE(f), SPARE_MARKED_END)) {
+        assert(IS_VOID(FRM_SPARE(f)));
+        SET_END(f->out);
+    } else {
+        Move_Value(f->out, FRM_SPARE(f));  // restore output
+        if (GET_CELL_FLAG(FRM_SPARE(f), UNEVALUATED))
+            SET_CELL_FLAG(f->out, UNEVALUATED);
+    }
+    return R_INVISIBLE;  // invisibles should always return this
 }
 
 
@@ -1719,6 +1718,9 @@ REB_R Hijacker_Dispatcher(REBFRM *f)
     // We need to build a new frame compatible with the hijacker, and
     // transform the parameters we've gathered to be compatible with it.
     //
+    // !!! Note this ad-hoc process is not stackless at the moment, but
+    // hijacking should act stacklessly if the frames are compatible.
+    //
     if (Redo_Action_Throws(f->out, f, VAL_ACTION(hijacker)))
         return R_THROWN;
 
@@ -1739,20 +1741,33 @@ REB_R Adapter_Dispatcher(REBFRM *f)
     REBARR *details = ACT_DETAILS(FRM_PHASE(f));
     assert(ARR_LEN(details) == 2);
 
-    RELVAL* prelude = ARR_AT(details, 0);
-    REBVAL* adaptee = KNOWN(ARR_AT(details, 1));
-
-    // The first thing to do is run the prelude code, which may throw.  If it
-    // does throw--including a RETURN--that means the adapted function will
-    // not be run.
-
-    REBVAL * const discarded = FRM_SPARE(f);
-
-    if (Do_Any_Array_At_Throws(discarded, prelude, SPC(f->varlist))) {
-        Move_Value(f->out, discarded);
-        return R_THROWN;
+    if (IS_END(FRM_SPARE(f))) {
+        //
+        // The first time we are called, we return with a request to run the
+        // prelude code.
+        //
+        // !!! Note: If the prelude throws--including a RETURN--that means the
+        // adaptee will not be run.
+        //
+        RELVAL* prelude = ARR_AT(details, 0);
+        Init_Blank(FRM_SPARE(f));  // Indicate we're on "phase two"
+        return Init_Continuation_With_Core(
+            f,
+            0,  // not EVAL_FLAG_DELEGATE_CONTROL, we want a callback
+            prelude,
+            SPC(f->varlist),
+            END_NODE
+        );
     }
 
+    assert(IS_BLANK(FRM_SPARE(f)));  // how we indicated second run
+
+    // We perform a "REDO_CHECKED" which is like a continuation that makes
+    // sure none of the frame cells were given types that would potentially
+    // confuse the adapted function (which might be native and could crash
+    // if it thought there was typechecking but got unexpected bits).
+
+    REBVAL* adaptee = KNOWN(ARR_AT(details, 1));
     INIT_FRM_PHASE(f, VAL_ACTION(adaptee));
     FRM_BINDING(f) = VAL_BINDING(adaptee);
 
@@ -1814,11 +1829,17 @@ REB_R Encloser_Dispatcher(REBFRM *f)
     //
     SET_SERIES_FLAG(f->varlist, MANAGED);
 
-    const bool fully = true;
-    if (RunQ_Throws(f->out, fully, rebU1(outer), rootvar, rebEND))
-        return R_THROWN;
-
-    return f->out;
+    // It's important we use EVAL_FLAG_DELEGATE_CONTROL because because we
+    // have stolen the original frame--there is no longer a complete entity to
+    // come back and reinvoke.
+    //
+    return Init_Continuation_With_Core(
+        f,
+        EVAL_FLAG_DELEGATE_CONTROL,
+        outer,
+        SPECIFIED,
+        rootvar
+    );
 }
 
 

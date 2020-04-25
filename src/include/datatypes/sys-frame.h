@@ -952,6 +952,36 @@ inline static REB_R Init_Continuation_With_Core(
     return Init_Continuation_With(frame_, 0, (branch), (with))
 
 
+// Common behavior shared by dispatchers which execute on BLOCK!s of code.
+//
+inline static REB_R Interpreted_Continuation_Core(
+    REBFRM *f,
+    REBFLGS flags
+){
+    REBARR *details = ACT_DETAILS(FRM_PHASE(f));
+    RELVAL *body = ARR_HEAD(details);  // usually CONST (doesn't have to be)
+    assert(IS_BLOCK(body) and IS_RELATIVE(body) and VAL_INDEX(body) == 0);
+
+    // The function body contains relativized words, that point to the
+    // paramlist but do not have an instance of an action to line them up
+    // with.  We use the frame (identified by varlist) as the "specifier".
+    //
+    return Init_Continuation_With_Core(
+        f,
+        flags,
+        body,
+        SPC(f->varlist),
+        END_NODE
+    );
+}
+
+#define Interpreted_Continuation(f) \
+    Interpreted_Continuation_Core((f), 0)
+
+#define Interpreted_Delegation(f) \
+    Interpreted_Continuation_Core((f), EVAL_FLAG_DELEGATE_CONTROL)
+
+
 // The native entry prelude makes sure that once native code starts running,
 // then the frame's stub is flagged to indicate access via a FRAME! should
 // not have write access to variables.  That could cause crashes, as raw C

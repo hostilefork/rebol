@@ -220,6 +220,10 @@ TVAR REBFRM *TG_Top_Frame;
 TVAR REBFRM *TG_Bottom_Frame;
 TVAR struct Reb_Feed TG_Frame_Feed_End;
 
+#ifdef DEBUG_FEED_ALLOC
+    TVAR struct Reb_Feed *TG_Feed_List_Debug;
+#endif
+
 
 // When Drop_Frame() happens, it may have an allocated varlist REBARR that
 // can be reused by the next Push_Frame().  Reusing this has a significant

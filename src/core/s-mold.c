@@ -517,7 +517,7 @@ bool Form_Reduce_Throws(
 
     DECLARE_ARRAY_FEED (feed, array, index, specifier);
 
-    DECLARE_FRAME (f, feed, EVAL_MASK_DEFAULT);
+    DECLARE_FRAME (f, feed, EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED);
     Push_Frame(nullptr, f);
 
     bool pending = false;  // pending delimiter output, *if* more non-nulls

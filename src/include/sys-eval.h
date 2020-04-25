@@ -312,14 +312,22 @@ inline static bool Eval_Step_In_Any_Array_At_Throws(
 ){
     SET_END(out);
 
-    DECLARE_FEED_AT_CORE (feed, any_array, specifier);
-
-    if (IS_END(feed->value)) {
+    if (IS_END(VAL_ARRAY_AT(any_array))) {
+        //
+        // !!! This optimization likely is worth it, as it's avoiding a feed
+        // and frame allocation...and happens once while evaluating basically
+        // all arrays.  Review.
+        //
         *index_out = 0xDECAFBAD;  // avoid compiler warning
         return false;
     }
 
-    DECLARE_FRAME (f, feed, flags);
+    DECLARE_FRAME_AT_CORE (
+        f,
+        any_array,
+        specifier,
+        flags | EVAL_FLAG_ALLOCATED_FEED
+    );
 
     Push_Frame(out, f);
     bool threw = Eval_Throws(f);

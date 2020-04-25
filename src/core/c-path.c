@@ -326,7 +326,11 @@ bool Eval_Path_Throws_Core(
     }
 
     DECLARE_ARRAY_FEED (feed, array, index, specifier);
-    DECLARE_FRAME (pvs, feed, flags | EVAL_FLAG_PATH_MODE);
+    DECLARE_FRAME (
+        pvs,
+        feed,
+        flags | EVAL_FLAG_PATH_MODE | EVAL_FLAG_ALLOCATED_FEED
+    );
 
     SHORTHAND (v, pvs->feed->value, NEVERNULL(const RELVAL*));
     ASSERT_NOT_END(*v);  // tested 0-length path previously

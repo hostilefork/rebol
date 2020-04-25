@@ -201,22 +201,8 @@ inline static const char* Frame_Label_Or_Anonymous_UTF8(REBFRM *f) {
 // optimize performance by working with the evaluator directly.
 
 inline static void Free_Frame_Internal(REBFRM *f) {
-    //
-    // Some continuation types have to free their feeds.  This is a central
-    // place to take care of that issue between both Abort_Frame() and
-    // Drop_Frame() variants.
-    //
-    if (GET_EVAL_FLAG(f, CONTINUATION)) {
-        switch (f->continuation_type) {
-          case REB_GROUP:
-          case REB_BLOCK:
-            FREE(struct Reb_Feed, f->feed);
-            break;
-
-          default:
-            break;
-        }
-    }
+    if (GET_EVAL_FLAG(f, ALLOCATED_FEED))
+        Free_Feed(f->feed);  // didn't inherit from parent, and not END_FRAME
 
     FREE(REBFRM, f);
 }
@@ -237,7 +223,7 @@ inline static void Reuse_Varlist_If_Available(REBFRM *f) {
 inline static void Push_Frame_No_Varlist(REBVAL *out, REBFRM *f)
 {
     assert(f->feed->value != nullptr);
-    assert(SECOND_BYTE(f->flags) == 0); // END signal
+    assert(SECOND_BYTE(f->flags) == 0);  // END signal
     assert(not (f->flags.bits & NODE_FLAG_CELL));
 
     // All calls through to Eval_Core() are assumed to happen at the same C
@@ -509,11 +495,11 @@ inline static void Prep_Frame_Core(
 
 #define DECLARE_FRAME_AT(name,any_array,flags) \
     DECLARE_FEED_AT (name##feed, (any_array)); \
-    DECLARE_FRAME (name, name##feed, (flags))
+    DECLARE_FRAME (name, name##feed, (flags) | EVAL_FLAG_ALLOCATED_FEED)
 
-#define DECLARE_FRAME_AT_ALLOC_FEED_CORE(name,any_array,specifier,flags) \
-    DECLARE_FEED_AT_ALLOC_CORE (name##feed, (any_array), (specifier)); \
-    DECLARE_FRAME (name, name##feed, (flags))
+#define DECLARE_FRAME_AT_CORE(name,any_array,specifier,flags) \
+    DECLARE_FEED_AT_CORE (name##feed, (any_array), (specifier)); \
+    DECLARE_FRAME (name, name##feed, (flags) | EVAL_FLAG_ALLOCATED_FEED)
 
 #define DECLARE_END_FRAME(name,flags) \
     DECLARE_FRAME (name, &TG_Frame_Feed_End, (flags))

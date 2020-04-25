@@ -779,7 +779,11 @@ static void Run_Va_May_Fail_Core(
         Eval_Sigmask &= ~SIG_HALT;  // disable
 
     DECLARE_VA_FEED (feed, p, vaptr, flags);
-    bool threw = Do_Feed_To_End_Maybe_Stale_Throws(out, feed);
+    bool threw = Do_Feed_To_End_Maybe_Stale_Throws(
+        out,
+        feed,
+        EVAL_MASK_DEFAULT
+    );
 
     // (see also Reb_State->saved_sigmask RE: if a longjmp happens)
     Eval_Sigmask = saved_sigmask;

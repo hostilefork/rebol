@@ -49,9 +49,10 @@
 //
 inline static bool Do_Feed_To_End_Maybe_Stale_Throws(
     REBVAL *out,  // must be initialized, unchanged if all empty/invisible
-    struct Reb_Feed *feed  // feed mechanics always call va_end() if va_list
+    struct Reb_Feed *feed,  // feed mechanics always call va_end() if va_list
+    REBFLGS flags
 ){
-    DECLARE_FRAME (f, feed, EVAL_MASK_DEFAULT);
+    DECLARE_FRAME (f, feed, flags);
 
     bool threw;
     Push_Frame(out, f);
@@ -73,7 +74,11 @@ inline static bool Do_Any_Array_At_Throws(
 
     Init_Void(out);  // ^-- *after* feed initialization (if any_array == out)
 
-    bool threw = Do_Feed_To_End_Maybe_Stale_Throws(out, feed);
+    bool threw = Do_Feed_To_End_Maybe_Stale_Throws(
+        out,
+        feed,
+        EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
+    );
     CLEAR_CELL_FLAG(out, OUT_MARKED_STALE);
     return threw;
 }
@@ -104,7 +109,7 @@ inline static bool Do_At_Mutable_Maybe_Stale_Throws(
         FEED_MASK_DEFAULT  // different: does not 
     );
 
-    return Do_Feed_To_End_Maybe_Stale_Throws(out, feed);
+    return Do_Feed_To_End_Maybe_Stale_Throws(out, feed, EVAL_MASK_DEFAULT);
 }
 
 inline static bool Do_At_Mutable_Throws(

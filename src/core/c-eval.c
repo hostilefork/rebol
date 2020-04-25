@@ -1736,7 +1736,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
                 // we must clear off the stale flag at the end.
                 //
                 REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_CONTINUATION;
-                DECLARE_FRAME_AT_ALLOC_FEED_CORE (
+                DECLARE_FRAME_AT_CORE (
                     blockframe,
                     f->u.cont.branch,
                     f->u.cont.branch_specifier,
@@ -2140,16 +2140,6 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
       blockscope {
         //
-        // !!! We need to dynamically allocate the feed here, because it's
-        // a new one and has to outlive this scope.  So we can't just say:
-        //
-        //     DECLARE_FEED_AT_CORE (subfeed, v, f_specifier);
-        //
-        // This problem will exist for any native that wants to start an
-        // enumeration of a new block.  Thinking will be required.
-        //
-        DECLARE_FEED_AT_ALLOC_CORE (subfeed, v, f_specifier);
-
         // Previous to the stackless model, this code would say:
         //
         //     if (Do_Feed_To_End_Maybe_Stale_Throws(f->out, subfeed))
@@ -2161,7 +2151,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         // so we have to create a frame dynamically and use a goto.
 
         REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_CONTINUATION;
-        DECLARE_FRAME (subframe, subfeed, flags);
+        DECLARE_FRAME_AT_CORE (subframe, v, f_specifier, flags);
         subframe->continuation_type = REB_GROUP;
 
         Push_Frame(f->out, subframe);

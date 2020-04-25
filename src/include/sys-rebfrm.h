@@ -339,9 +339,18 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_FALSE == NODE_FLAG_CELL);
     FLAG_LEFT_BIT(27)
 
 
-//=//// EVAL_FLAG_28 //////////////////////////////////////////////////////=//
+//=//// EVAL_FLAG_ALLOCATED_FEED //////////////////////////////////////////=//
 //
-#define EVAL_FLAG_28 \
+// Some frame recursions re-use a feed that already existed, while others will
+// allocate them.  This re-use allows recursions to keep index positions and
+// fetched "gotten" values in sync.  The dynamic allocation means that feeds
+// can be kept alive across contiuations--which wouldn't be possible if they
+// were on the C stack.
+//
+// If a frame allocated a feed, then it has to be freed...which is done when
+// the frame is dropped or aborted.
+//
+#define EVAL_FLAG_ALLOCATED_FEED \
     FLAG_LEFT_BIT(28)
 
 
@@ -561,6 +570,16 @@ struct Reb_Feed {
     // !!! Test currently leaks on shutdown, review how to not leak.
     //
     RELVAL *stress;
+  #endif
+
+    // A bug during stack overflow exceptions (old method) would leak some
+    // feeds due to not managing to get the frame pushed.  This code for
+    // keeping track of it was easy enough to keep around.
+    //
+  #ifdef DEBUG_FEED_ALLOC
+    REBTCK tick;
+    struct Reb_Feed *next;
+    struct Reb_Feed *prev;
   #endif
 };
 

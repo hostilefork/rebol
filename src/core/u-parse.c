@@ -199,13 +199,11 @@ static bool Subparse_Throws(
     REBVAL *out,
     RELVAL *input,
     REBSPC *input_specifier,
-    struct Reb_Feed *rules_feed,
+    REBFRM *f,
     REBARR *opt_collection,
     REBFLGS flags
 ){
     assert(ANY_SERIES_KIND(CELL_KIND(VAL_UNESCAPED(input))));
-
-    DECLARE_FRAME (f, rules_feed, EVAL_MASK_DEFAULT);
 
     Push_Frame(out, f);  // checks for C stack overflow
     Push_Action(f, NAT_ACTION(subparse), UNBOUND);
@@ -515,10 +513,16 @@ static REB_R Parse_One_Rule(
         REBLEN pos_before = P_POS;
         P_POS = pos; // modify input position
 
-        DECLARE_ARRAY_FEED(subfeed,
+        DECLARE_ARRAY_FEED (subfeed,
             VAL_ARRAY(rule),
             VAL_INDEX(rule),
             P_RULE_SPECIFIER
+        );
+
+        DECLARE_FRAME (
+            subframe,
+            subfeed,
+            EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
         );
 
         DECLARE_LOCAL (subresult);
@@ -528,7 +532,7 @@ static REB_R Parse_One_Rule(
             SET_END(subresult),
             P_INPUT_VALUE, // affected by P_POS assignment above
             SPECIFIED,
-            subfeed,
+            subframe,
             P_COLLECTION,
             P_FIND_FLAGS & ~PF_ONE_RULE
         )){
@@ -1635,6 +1639,8 @@ REBNATIVE(subparse)
                     );
                     PUSH_GC_GUARD(collection);
 
+                    DECLARE_FRAME (subframe, f->feed, EVAL_MASK_DEFAULT);
+
                     bool interrupted;
                     assert(IS_END(P_OUT));  // invariant until finished
                     bool threw = Subparse_Throws(
@@ -1642,7 +1648,7 @@ REBNATIVE(subparse)
                         P_OUT,
                         P_INPUT_VALUE, // affected by P_POS assignment above
                         SPECIFIED,
-                        f->feed,
+                        subframe,
                         collection,
                         P_FIND_FLAGS | PF_ONE_RULE
                     );
@@ -1729,6 +1735,8 @@ REBNATIVE(subparse)
                     }
                     else {  // Ordinary rule (may be block, may not be)
 
+                        DECLARE_FRAME (subframe, f->feed, EVAL_MASK_DEFAULT);
+
                         bool interrupted;
                         assert(IS_END(P_OUT));  // invariant until finished
                         bool threw = Subparse_Throws(
@@ -1736,7 +1744,7 @@ REBNATIVE(subparse)
                             P_OUT,
                             P_INPUT_VALUE,
                             SPECIFIED,
-                            f->feed,
+                            subframe,
                             P_COLLECTION,
                             P_FIND_FLAGS | PF_ONE_RULE
                         );
@@ -2255,13 +2263,19 @@ REBNATIVE(subparse)
                         P_RULE_SPECIFIER
                     );
 
+                    DECLARE_FRAME (
+                        subframe,
+                        subrules_feed,
+                        EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
+                    );
+
                     bool interrupted;
                     if (Subparse_Throws(
                         &interrupted,
                         SET_END(P_OUT),
                         into,
                         P_INPUT_SPECIFIER,  // harmless if specified API value
-                        subrules_feed,
+                        subframe,
                         P_COLLECTION,
                         P_FIND_FLAGS
                     )){
@@ -2319,13 +2333,19 @@ REBNATIVE(subparse)
                     P_RULE_SPECIFIER
                 );
 
+                DECLARE_FRAME (
+                    subframe,
+                    subrules_feed,
+                    EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
+                );
+
                 bool interrupted;
                 if (Subparse_Throws(
                     &interrupted,
                     SET_END(P_CELL),
                     P_INPUT_VALUE,
                     SPECIFIED,
-                    subrules_feed,
+                    subframe,
                     P_COLLECTION,
                     P_FIND_FLAGS & ~(PF_ONE_RULE)
                 )) {
@@ -2748,12 +2768,18 @@ REBNATIVE(parse)
         VAL_SPECIFIER(ARG(rules))
     );
 
+    DECLARE_FRAME (
+        f,
+        rules_feed,
+        EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
+    );
+
     bool interrupted;
     if (Subparse_Throws(
         &interrupted,
         SET_END(D_OUT),
         ARG(input), SPECIFIED,
-        rules_feed,
+        f,
         nullptr,  // start out with no COLLECT in effect, so no P_COLLECTION
         REF(case) ? AM_FIND_CASE : 0
         //

@@ -577,6 +577,41 @@ inline static void Literal_Next_In_Feed(REBVAL *out, struct Reb_Feed *feed) {
 }
 
 
+#ifdef DEBUG_FEED_ALLOC
+    inline static struct Reb_Feed* Alloc_Feed(void) {
+        struct Reb_Feed* feed = ALLOC(struct Reb_Feed);
+        feed->tick = TG_Tick;
+        if (TG_Feed_List_Debug)
+            TG_Feed_List_Debug->prev = feed;
+        feed->next = TG_Feed_List_Debug;
+        feed->prev = nullptr;
+        TG_Feed_List_Debug = feed;
+        return feed;
+    }
+
+    inline static void Free_Feed(struct Reb_Feed *feed) {
+        if (feed == TG_Feed_List_Debug) {
+            TG_Feed_List_Debug = feed->next;
+            if (TG_Feed_List_Debug)
+                TG_Feed_List_Debug->prev = nullptr;
+        }
+        else {
+            feed->prev->next = feed->next;
+            if (feed->next)
+                feed->next->prev = feed->prev;
+        }
+
+        FREE(struct Reb_Feed, feed);
+    }
+#else
+    #define Alloc_Feed() \
+        ALLOC(struct Reb_Feed)
+
+    #define Free_Feed(feed) \
+        FREE(struct Reb_Feed, feed)
+#endif
+
+
 // It is more pleasant to have a uniform way of speaking of frames by pointer,
 // so this macro sets that up for you, the same way DECLARE_LOCAL does.  The
 // optimizer should eliminate the extra pointer.
@@ -626,11 +661,12 @@ inline static void Prep_Array_Feed(
 }
 
 #define DECLARE_ARRAY_FEED(name,array,index,specifier) \
-    struct Reb_Feed name##struct; \
-    Prep_Array_Feed(&name##struct, \
+    struct Reb_Feed *name##struct = Alloc_Feed(); \
+    Prep_Array_Feed(name##struct, \
         nullptr, (array), (index), (specifier), FEED_MASK_DEFAULT \
     ); \
-    struct Reb_Feed *name = &name##struct
+    struct Reb_Feed *name = name##struct
+
 
 inline static void Prep_Va_Feed(
     struct Reb_Feed *feed,
@@ -691,21 +727,11 @@ inline static void Prep_Any_Array_Feed(
 }
 
 #define DECLARE_FEED_AT_CORE(name,any_array,specifier) \
-    struct Reb_Feed name##struct; \
-    Prep_Any_Array_Feed(&name##struct, \
-        (any_array), (specifier), FS_TOP->feed->flags.bits \
-    ); \
-    struct Reb_Feed *name = &name##struct
-
-#define DECLARE_FEED_AT(name,any_array) \
-    DECLARE_FEED_AT_CORE (name, (any_array), SPECIFIED)
-
-#define DECLARE_FEED_AT_ALLOC_CORE(name,any_array,specifier) \
-    struct Reb_Feed *name##struct = ALLOC(struct Reb_Feed); \
+    struct Reb_Feed *name##struct = Alloc_Feed(); \
     Prep_Any_Array_Feed(name##struct, \
         (any_array), (specifier), FS_TOP->feed->flags.bits \
     ); \
     struct Reb_Feed *name = name##struct
 
-#define DECLARE_FEED_AT_ALLOC(name,any_array) \
-    DECLARE_FEED_AT_ALLOC_CORE (name, (any_array), SPECIFIED)
+#define DECLARE_FEED_AT(name,any_array) \
+    DECLARE_FEED_AT_CORE (name, (any_array), SPECIFIED)

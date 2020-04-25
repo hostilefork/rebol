@@ -74,7 +74,7 @@ void Shutdown_Data_Stack(void)
 //
 //  Startup_Frame_Stack: C
 //
-// We always push one unused frame at the top of the stack.  This way, it is
+// We always push one unused frame at the end of the stack.  This way, it is
 // not necessary for unused frames to check if `f->prior` is null; it may be
 // assumed that it never is.
 //
@@ -173,6 +173,20 @@ void Shutdown_Frame_Stack(void)
     TG_Bottom_Frame = nullptr;
 
     PG_Dummy_Action = nullptr; // was GC protected as FS_BOTTOM's f->original
+
+  #ifdef DEBUG_FEED_ALLOC
+  blockscope {
+    struct Reb_Feed *leaked_feed = TG_Feed_List_Debug;
+    while (leaked_feed != nullptr) {
+        printf(
+            "** FEED LEAKED at tick %lu\n",
+            cast(unsigned long, leaked_feed->tick)
+        );
+        leaked_feed = leaked_feed->next;
+    }
+    TG_Feed_List_Debug = nullptr;
+  }
+  #endif
 }
 
 

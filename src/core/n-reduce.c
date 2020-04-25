@@ -41,7 +41,7 @@ bool Reduce_To_Stack_Throws(
         specifier
     );
 
-    DECLARE_FRAME (f, feed, EVAL_MASK_DEFAULT);
+    DECLARE_FRAME (f, feed, EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED);
     SHORTHAND (v, f->feed->value, NEVERNULL(const RELVAL*));
 
     Push_Frame(nullptr, f);
@@ -175,9 +175,7 @@ REB_R Compose_To_Stack_Core(
 
     bool changed = false;
 
-    DECLARE_FEED_AT_CORE (feed, any_array, specifier);
-
-    DECLARE_FRAME (f, feed, EVAL_MASK_DEFAULT);
+    DECLARE_FRAME_AT_CORE (f, any_array, specifier, EVAL_MASK_DEFAULT);
     SHORTHAND (v, f->feed->value, NEVERNULL(const RELVAL*));
 
     Push_Frame(nullptr, f);
@@ -232,7 +230,11 @@ REB_R Compose_To_Stack_Core(
                 Fetch_Next_In_Feed(subfeed, false);  // wasn't possibly at END
 
             Init_Nulled(out);  // want empty `()` to vanish as a null would
-            if (Do_Feed_To_End_Maybe_Stale_Throws(out, subfeed)) {
+            if (Do_Feed_To_End_Maybe_Stale_Throws(
+                out,
+                subfeed,
+                EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
+            )){
                 DS_DROP_TO(dsp_orig);
                 Abort_Frame(f);
                 return R_THROWN;

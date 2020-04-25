@@ -1729,16 +1729,42 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
                 goto continue_topmost_frame; }
 
               case REB_ACTION: {
-                bool threw = RunQ_Throws(
-                    f->out,
-                    false,  // !fully, arity-0 functions can ignore condition
-                    rebU1(KNOWN(f->u.cont.branch)),
-                    f->u.cont.with,  // END marker, if not CONTINUE_WITH()
-                    rebEND  // ...if `with` wasn't an END marker, need one
+                REBACT * const action = VAL_ACTION(f->u.cont.branch);
+                REBNOD * const binding = VAL_BINDING(f->u.cont.branch);
+
+                // CONTINUE_WITH when used with a 0-arity function will omit
+                // the WITH parameter.  If an error is desired, that must be
+                // done at a higher level (e.g. see DO of ACTION!)
+                //
+                struct Reb_Feed *subfeed = Alloc_Feed();
+                Prep_Array_Feed(subfeed,
+                    First_Unspecialized_Param(action) == nullptr
+                        ? nullptr  // 0-arity throws away `with`
+                        : (IS_END(f->u.cont.with) ? nullptr : f->u.cont.with),
+                    EMPTY_ARRAY,  // unused (just leveraging `with` preload)
+                    0,
+                    SPECIFIED,
+                    FEED_MASK_DEFAULT
                 );
-                if (threw)
-                    goto action_threw;
-                break; }
+
+                DECLARE_FRAME (
+                    subframe,
+                    subfeed,
+                    EVAL_MASK_DEFAULT
+                        | EVAL_FLAG_CONTINUATION
+                        | EVAL_FLAG_PROCESS_ACTION
+                        | EVAL_FLAG_ALLOCATED_FEED
+                );
+
+                Init_Void(f->out);
+                SET_CELL_FLAG(f->out, OUT_MARKED_STALE);
+                Push_Frame(f->out, subframe);
+                Push_Action(subframe, action, binding);
+                REBSTR *opt_label = nullptr;
+                Begin_Prefix_Action(subframe, opt_label);
+
+                subframe->continuation_type = REB_ACTION;
+                goto continue_topmost_frame; }
 
               case REB_BLANK:
                 Init_Nulled(f->out);
@@ -3077,33 +3103,20 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
   #endif
 
     if (GET_EVAL_FLAG(f, CONTINUATION)) {
-        switch (f->continuation_type) {
-          case REB_BLANK:
-            Drop_Frame(f);
-            f = FS_TOP;
-            Move_Value(f->out, f->arg);
-            goto abort_action;
-
-          case REB_BLOCK:
-            Drop_Frame(f);  // will free feed
-            f = FS_TOP;
-            if (GET_EVAL_FLAG(f, DISPATCHER_CATCHES))
-                goto redo_continuation;
-            goto action_threw;
-
-          case REB_GROUP:
-            Drop_Frame(f);  // will free feed
-            f = FS_TOP;
-            goto return_thrown;
-
-          case REB_FRAME:
-            Drop_Frame(f);  // no feed freeing necessary (was empty feed)
-            f = FS_TOP;
-            goto action_threw;
-
-          default:
-            assert(!"Bad continuation type in frame");
+        if (GET_EVAL_FLAG(f, FULFILLING_ARG)) {  // *before* function runs
+            assert(NOT_EVAL_FLAG(f->prior, DISPATCHER_CATCHES));  // no catch
+            assert(f->prior->original);  // must be running function
+            assert(f->prior->arg == f->out);  // must be fulfilling f->arg
+            Move_Value(f->prior->out, f->out);  // throw must be in out
         }
+        Drop_Frame(f);
+        f = FS_TOP;
+        if (f->original) {  // function is in process of running, can catch
+            if (GET_EVAL_FLAG(f, DISPATCHER_CATCHES))
+                goto redo_continuation;  // might want to see BREAK/CONTINUE
+            goto action_threw;  // could be an UNWIND or similar
+        }
+        goto return_thrown;  // no action to drop so this frame just ends
     }
 
     return true;  // true => thrown
@@ -3156,11 +3169,12 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             Drop_Frame(f);  // frees feed
             f = FS_TOP;
             CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);
-            if (GET_EVAL_FLAG(f, DELEGATE_CONTROL)) {
-                CLEAR_EVAL_FLAG(f, DELEGATE_CONTROL);
-                goto dispatch_completed;
-            }
-            goto redo_continuation;
+            break;
+
+          case REB_ACTION:
+            Drop_Frame(f);  // frees feed
+            f = FS_TOP;
+            break;
 
           case REB_GROUP:  // was a "Do to End" form, must loop
             if (NOT_END(f->feed->value))
@@ -3178,11 +3192,18 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             assert(IS_END(f->feed->value));  // started at END
             Drop_Frame(f);
             f = FS_TOP;
-            goto dispatch_completed;
+            break;
 
           default:
             assert(!"Bad continuation_type in frame");
         }
+
+        assert(f->original);  // this should only happen if function was run
+        if (GET_EVAL_FLAG(f, DELEGATE_CONTROL)) {
+            CLEAR_EVAL_FLAG(f, DELEGATE_CONTROL);
+            goto dispatch_completed;
+        }
+        goto redo_continuation;
     }
 
     return false;  // false => not thrown

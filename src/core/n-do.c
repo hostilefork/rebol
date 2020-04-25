@@ -409,17 +409,9 @@ REBNATIVE(do)
 
       case REB_ACTION: {
         //
-        // Revolt will only run arity 0 functions from DO, otherwise REEVAL
-        // must be used.  Look for the first non-local parameter to tell.
+        // Only run arity 0 functions from DO, otherwise REEVAL must be used.
         //
-        REBVAL *param = ACT_PARAMS_HEAD(VAL_ACTION(source));
-        while (
-            NOT_END(param)
-            and (VAL_PARAM_CLASS(param) == REB_P_LOCAL)
-        ){
-            ++param;
-        }
-        if (NOT_END(param))
+        if (First_Unspecialized_Param(VAL_ACTION(source)) != nullptr)
             fail (Error_Use_Reeval_For_Do_Raw());
 
         DELEGATE (source); }

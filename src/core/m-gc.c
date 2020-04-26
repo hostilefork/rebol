@@ -165,11 +165,11 @@ static void Queue_Mark_Pairing_Deep(REBVAL *paired)
 //
 static void Queue_Mark_Node_Deep(void *p)
 {
-    REBYTE *bp = cast(REBYTE*, p);
-    if (*bp & NODE_BYTEMASK_0x10_MARKED)
+    REBYTE first = *cast(REBYTE*, p);
+    if (first & NODE_BYTEMASK_0x10_MARKED)
         return;  // may not be finished marking yet, but has been queued
 
-    if (*bp & NODE_BYTEMASK_0x01_CELL) {  // e.g. a pairing
+    if (first & NODE_BYTEMASK_0x01_CELL) {  // e.g. a pairing
         REBVAL *v = VAL(p);
         if (GET_CELL_FLAG(v, MANAGED))
             Queue_Mark_Pairing_Deep(v);
@@ -674,7 +674,7 @@ static void Mark_Guarded_Nodes(void)
     REBLEN n = SER_USED(GC_Guarded);
     for (; n > 0; --n, ++np) {
         REBNOD *node = *np;
-        if (node->header.bits & NODE_FLAG_CELL) {
+        if (Is_Node_Cell(node)) {
             //
             // !!! What if someone tried to GC_GUARD a managed paired REBSER?
             //

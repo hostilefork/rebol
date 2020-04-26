@@ -73,6 +73,18 @@
 #endif
 
 
+#if defined(NDEBUG)
+    #define Is_Node_Cell(n) \
+        (did (FIRST_BYTE((n)->header) & NODE_BYTEMASK_0x01_CELL))
+#else
+    inline static bool Is_Node_Cell(REBNOD *n) {
+        REBYTE first = FIRST_BYTE(n->header);
+        assert(first & NODE_BYTEMASK_0x80_NODE);
+        return did (first & NODE_BYTEMASK_0x01_CELL);
+    }
+#endif
+
+
 // Allocate a node from a pool.  Returned node will not be zero-filled, but
 // the header will have NODE_FLAG_FREE set when it is returned (client is
 // responsible for changing that if they plan to enumerate the pool and

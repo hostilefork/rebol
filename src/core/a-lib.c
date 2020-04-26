@@ -1679,7 +1679,7 @@ REBVAL *RL_rebManage(REBVAL *v)
 void RL_rebUnmanage(void *p)
 {
     REBNOD *nod = NOD(p);
-    if (not (nod->header.bits & NODE_FLAG_CELL))
+    if (not Is_Node_Cell(nod))
         fail ("rebUnmanage() not yet implemented for rebMalloc() data");
 
     REBVAL *v = cast(REBVAL*, nod);

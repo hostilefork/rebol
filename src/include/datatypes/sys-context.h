@@ -143,7 +143,7 @@ inline static REBVAL *CTX_ARCHETYPE(REBCTX *c) {
 // possible--even in an unoptimized build.
 //
 inline static REBARR *CTX_KEYLIST(REBCTX *c) {
-    if (not (LINK_KEYSOURCE(c)->header.bits & NODE_FLAG_CELL))
+    if (not Is_Node_Cell(LINK_KEYSOURCE(c)))
         return ARR(LINK_KEYSOURCE(c)); // not a REBFRM, so use keylist
 
     // If the context in question is a FRAME! value, then the ->phase
@@ -191,12 +191,12 @@ static inline void INIT_CTX_KEYLIST_UNIQUE(REBCTX *c, REBARR *keylist) {
 
 inline static bool Is_Frame_On_Stack(REBCTX *c) {
     assert(IS_FRAME(CTX_ARCHETYPE(c)));
-    return (LINK_KEYSOURCE(c)->header.bits & NODE_FLAG_CELL);
+    return Is_Node_Cell(LINK_KEYSOURCE(c));
 }
 
 inline static REBFRM *CTX_FRAME_IF_ON_STACK(REBCTX *c) {
     REBNOD *keysource = LINK_KEYSOURCE(c);
-    if (not (keysource->header.bits & NODE_FLAG_CELL))
+    if (not Is_Node_Cell(keysource))
         return nullptr; // e.g. came from MAKE FRAME! or Encloser_Dispatcher
 
     assert(NOT_SERIES_INFO(CTX_VARLIST(c), INACCESSIBLE));

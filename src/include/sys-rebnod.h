@@ -534,18 +534,16 @@ struct Reb_Node {
 
 #ifdef NDEBUG
     #define IS_FREE_NODE(p) \
-        (did (cast(struct Reb_Node*, (p))->header.bits & NODE_FLAG_FREE))
+        (did (FIRST_BYTE(cast(struct Reb_Node*, (p))->header) \
+            & NODE_BYTEMASK_0x40_FREE))  // byte access defeats strict alias
 #else
     inline static bool IS_FREE_NODE(void *p) {
-        struct Reb_Node *n = cast(struct Reb_Node*, p);
+        REBYTE first = FIRST_BYTE(cast(struct Reb_Node*, p)->header);
 
-        if (not (n->header.bits & NODE_FLAG_FREE))
-            return false;
+        if (not (first & NODE_BYTEMASK_0x40_FREE))
+            return false;  // byte access defeats strict alias
 
-        assert(
-            FIRST_BYTE(n->header) == FREED_SERIES_BYTE
-            or FIRST_BYTE(n->header) == FREED_CELL_BYTE
-        );
+        assert(first == FREED_SERIES_BYTE or first == FREED_CELL_BYTE);
         return true;
     }
 #endif

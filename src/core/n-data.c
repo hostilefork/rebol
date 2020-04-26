@@ -532,7 +532,8 @@ inline static void Get_Var_May_Fail(
             VAL_INDEX(source),
             Derive_Specifier(specifier, source),
             NULL, // not requesting value to set means it's a get
-            hard ? EVAL_FLAG_PATH_HARD_QUOTE : EVAL_FLAG_NO_PATH_GROUPS
+            EVAL_MASK_DEFAULT |
+                (hard ? EVAL_FLAG_PATH_HARD_QUOTE : EVAL_FLAG_NO_PATH_GROUPS)
         )){
             panic (out); // shouldn't be possible... no executions!
         }
@@ -655,7 +656,7 @@ void Set_Var_May_Fail(
         // present), the flag tells it to enfix a word in a context, or
         // it will error if that's not what it looks up to.
         //
-        REBFLGS flags = 0;
+        REBFLGS flags = EVAL_MASK_DEFAULT;
         if (hard)
             flags |= EVAL_FLAG_PATH_HARD_QUOTE;
         else

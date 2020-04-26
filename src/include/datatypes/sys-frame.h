@@ -223,8 +223,6 @@ inline static void Reuse_Varlist_If_Available(REBFRM *f) {
 inline static void Push_Frame_No_Varlist(REBVAL *out, REBFRM *f)
 {
     assert(f->feed->value != nullptr);
-    assert(SECOND_BYTE(f->flags) == 0);  // END signal
-    assert(not (f->flags.bits & NODE_FLAG_CELL));
 
     // All calls through to Eval_Core() are assumed to happen at the same C
     // stack level for a pushed frame (though this is not currently enforced).
@@ -473,11 +471,23 @@ inline static void Drop_Frame(REBFRM *f)
 inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
     assert(NOT_FEED_FLAG(feed, BARRIER_HIT));  // couldn't do anything
 
+    // We could OR the required true flags in automatically, but this helps
+    // to ensure that EVAL_MASK_DEFAULT was OR'd in...which may have some
+    // flags that want to be true by default but are optionally flipped off.
+    //
+    assert(
+        (flags & (
+            EVAL_FLAG_0_IS_TRUE
+            | EVAL_FLAG_1_IS_FALSE
+            | EVAL_FLAG_7_IS_TRUE
+        )) == (EVAL_FLAG_0_IS_TRUE | EVAL_FLAG_7_IS_TRUE)
+    );
+    f->flags.bits = flags;
+
     f->feed = feed;
     Prep_Stack_Cell(&f->spare);
     Init_Unreadable_Blank(&f->spare);
     f->dsp_orig = DS_Index;
-    f->flags = Endlike_Header(flags);
     TRASH_POINTER_IF_DEBUG(f->out);
 
   #ifdef DEBUG_ENSURE_FRAME_EVALUATES

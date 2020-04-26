@@ -98,7 +98,7 @@ inline static bool Get_Path_Throws_Core(
         VAL_INDEX(any_path),
         Derive_Specifier(specifier, any_path),
         NULL, // not requesting value to set means it's a get
-        0 // Name contains Get_Path_Throws() so it shouldn't be neutral
+        EVAL_MASK_DEFAULT  // Name contains Get_Path_Throws() so it shouldn't be neutral
     );
 }
 
@@ -117,7 +117,7 @@ inline static void Get_Path_Core(
         VAL_INDEX(any_path),
         Derive_Specifier(specifier, any_path),
         NULL, // not requesting value to set means it's a get
-        EVAL_FLAG_NO_PATH_GROUPS
+        EVAL_MASK_DEFAULT | EVAL_FLAG_NO_PATH_GROUPS
     )){
         panic (out); // shouldn't be possible... no executions!
     }
@@ -139,7 +139,8 @@ inline static bool Set_Path_Throws_Core(
         VAL_INDEX(any_path),
         Derive_Specifier(specifier, any_path),
         setval,
-        0 // Name contains Set_Path_Throws() so it shouldn't be neutral
+        EVAL_MASK_DEFAULT
+        // ^-- Name contains Set_Path_Throws() so no NO_PATH_GROUPS
     );
 }
 
@@ -156,7 +157,7 @@ inline static void Set_Path_Core(  // !!! Appears to be unused.  Unnecessary?
     //
     DECLARE_LOCAL (out);
 
-    REBFLGS flags = EVAL_FLAG_NO_PATH_GROUPS;
+    REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_NO_PATH_GROUPS;
 
     if (Eval_Path_Throws_Core(
         out,

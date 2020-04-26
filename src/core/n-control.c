@@ -1323,7 +1323,8 @@ REBNATIVE(default)
             VAL_INDEX(target),
             VAL_SPECIFIER(target),
             NULL, // not requesting value to set means it's a get
-            EVAL_FLAG_PATH_HARD_QUOTE // pre-COMPOSE'd, so GROUP!s are literal
+            EVAL_MASK_DEFAULT
+                | EVAL_FLAG_PATH_HARD_QUOTE  // pre-COMPOSE'd, literal GROUP!s
         )){
             panic (D_OUT); // shouldn't be possible... no executions!
         }
@@ -1352,7 +1353,8 @@ REBNATIVE(default)
             VAL_INDEX(target),
             VAL_SPECIFIER(target),
             D_OUT,
-            EVAL_FLAG_PATH_HARD_QUOTE  // precomposed, no double evaluating
+            EVAL_MASK_DEFAULT
+                | EVAL_FLAG_PATH_HARD_QUOTE  // precomposed, no double eval
         )){
             panic (dummy); // shouldn't be possible, no executions!
         }

@@ -48,12 +48,6 @@
 
 // Default for Eval_Core_May_Throw() is just a single EVALUATE step.
 //
-#if defined(NDEBUG)
-    #define EVAL_MASK_DEFAULT 0
-#else
-    #define EVAL_MASK_DEFAULT \
-        (EVAL_FLAG_DEFAULT_DEBUG)
-#endif
 
 
 // See Endlike_Header() for why these are chosen the way they are.  This
@@ -66,6 +60,9 @@ STATIC_ASSERT(EVAL_FLAG_0_IS_TRUE == NODE_FLAG_NODE);
 
 #define EVAL_FLAG_1_IS_FALSE FLAG_LEFT_BIT(1) // is NOT free
 STATIC_ASSERT(EVAL_FLAG_1_IS_FALSE == NODE_FLAG_FREE);
+
+#define EVAL_FLAG_7_IS_TRUE FLAG_LEFT_BIT(7)  // !!! Temporary...claims CELL
+STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 
 
 //=//// EVAL_FLAG_DISPATCHER_CATCHES //////////////////////////////////////=//
@@ -125,8 +122,6 @@ STATIC_ASSERT(EVAL_FLAG_1_IS_FALSE == NODE_FLAG_FREE);
     FLAG_LEFT_BIT(6)
 
 
-#define EVAL_FLAG_7_IS_FALSE FLAG_LEFT_BIT(7) // is NOT a cell
-STATIC_ASSERT(EVAL_FLAG_7_IS_FALSE == NODE_FLAG_CELL);
 
 
 //=//// BITS 8-15 ARE 0 FOR END SIGNAL ////////////////////////////////////=//
@@ -395,23 +390,19 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_FALSE == NODE_FLAG_CELL);
     FLAG_LEFT_BIT(30)
 
 
-#if !defined(NDEBUG)
-
-    //=//// EVAL_FLAG_DEFAULT_DEBUG ///////////////////////////////////////=//
-    //
-    // It may be advantageous to have some bits set to true by default instead
-    // of false, so all evaluations should describe their settings relative
-    // to EVAL_MASK_DEFAULT, and purposefully mask out any truthy flags that
-    // apply by default they don't want.  The default mask includes this flag
-    // just so the evaluator can make sure EVAL_MASK_DEFAULT was used.
-    //
-    #define EVAL_FLAG_DEFAULT_DEBUG \
-        FLAG_LEFT_BIT(31)
-
-#endif
+//=//// EVAL_FLAG_31 ///////////////////////////////////////=//
+//
+#define EVAL_FLAG_31 \
+    FLAG_LEFT_BIT(31)
 
 
-STATIC_ASSERT(31 < 32); // otherwise EVAL_FLAG_XXX too high
+STATIC_ASSERT(31 < 32);  // otherwise EVAL_FLAG_XXX too high
+
+
+// Default for Eval_Core_May_Throw() is just a single EVALUATE step.
+//
+#define EVAL_MASK_DEFAULT \
+    (EVAL_FLAG_0_IS_TRUE | EVAL_FLAG_7_IS_TRUE)
 
 
 #define SET_EVAL_FLAG(f,name) \

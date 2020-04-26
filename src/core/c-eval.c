@@ -459,7 +459,6 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
     assert(DSP >= f->dsp_orig);  // REDUCE accrues, APPLY adds refinements
     assert(not IS_TRASH_DEBUG(f->out));  // all invisible will preserve output
     assert(f->out != f_spare);  // overwritten by temporary calculations
-    assert(GET_EVAL_FLAG(f, DEFAULT_DEBUG));  // must use EVAL_MASK_DEFAULT
     assert(NOT_FEED_FLAG(f->feed, BARRIER_HIT));
 
     // Caching KIND_BYTE(*at) in a local can make a slight performance
@@ -2216,7 +2215,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             VAL_INDEX(v),
             Derive_Specifier(f_specifier, v),
             nullptr,  // `setval`: null means don't treat as SET-PATH!
-            EVAL_FLAG_PUSH_PATH_REFINES
+            EVAL_MASK_DEFAULT | EVAL_FLAG_PUSH_PATH_REFINES
         )){
             if (where != f->out)
                 Move_Value(f->out, where);

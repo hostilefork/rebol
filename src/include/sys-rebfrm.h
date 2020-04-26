@@ -46,20 +46,46 @@
 //
 
 
-// Default for Eval_Core_May_Throw() is just a single EVALUATE step.
-//
-
-
-// See Endlike_Header() for why these are chosen the way they are.  This
-// means that the Reb_Frame->flags field can function as an implicit END for
-// Reb_Frame->cell, as well as be distinguished from a REBVAL*, a REBSER*, or
-// a UTF8 string.
-//
-#define EVAL_FLAG_0_IS_TRUE FLAG_LEFT_BIT(0) // IS a node
+#define EVAL_FLAG_0_IS_TRUE FLAG_LEFT_BIT(0)  // IS a node
 STATIC_ASSERT(EVAL_FLAG_0_IS_TRUE == NODE_FLAG_NODE);
 
-#define EVAL_FLAG_1_IS_FALSE FLAG_LEFT_BIT(1) // is NOT free
+#define EVAL_FLAG_1_IS_FALSE FLAG_LEFT_BIT(1)  // is NOT free
 STATIC_ASSERT(EVAL_FLAG_1_IS_FALSE == NODE_FLAG_FREE);
+
+
+//=//// EVAL_FLAG_DISPATCHER_CATCHES //////////////////////////////////////=//
+//
+#define EVAL_FLAG_2 \
+    FLAG_LEFT_BIT(2)
+
+
+//=//// EVAL_FLAG_MARKED //////////////////////////////////////////////////=//
+//
+// REBFRM are a REBNOD subclass, and may be referred to by FRAME! values that
+// keep them alive such that they need to be GC'd.
+//
+#define EVAL_FLAG_MARKED \
+    FLAG_LEFT_BIT(3)
+STATIC_ASSERT(EVAL_FLAG_MARKED == NODE_FLAG_MARKED);
+
+
+//=//// EVAL_FLAG_4 ///////////////////////////////////////////////////////=//
+//
+#define EVAL_FLAG_4 \
+    FLAG_LEFT_BIT(4)
+
+
+//=//// EVAL_FLAG_5 ///////////////////////////////////////////////////////=//
+//
+#define EVAL_FLAG_5 \
+    FLAG_LEFT_BIT(5)
+
+
+//=//// EVAL_FLAG_6 ///////////////////////////////////////////////////////=//
+//
+#define EVAL_FLAG_6 \
+    FLAG_LEFT_BIT(6)
+
 
 #define EVAL_FLAG_7_IS_TRUE FLAG_LEFT_BIT(7)  // !!! Temporary...claims CELL
 STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
@@ -74,17 +100,7 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 // which can be tested with Is_Throwing().
 //
 #define EVAL_FLAG_DISPATCHER_CATCHES \
-    FLAG_LEFT_BIT(2)
-
-
-//=//// EVAL_FLAG_3 ///////////////////////////////////////////////////////=//
-//
-// !!! Note: This bit is the same as NODE_FLAG_MARKED, which may make it
-// desirable for lining up with OUT_MARKED_STALE or ARG_MARKED_CHECKED, if
-// some flag were determined to be more deserving of this bit.
-//
-#define EVAL_FLAG_3 \
-    FLAG_LEFT_BIT(3)
+    FLAG_LEFT_BIT(8)
 
 
 //=//// EVAL_FLAG_REEVALUATE_CELL /////////////////////////////////////////=//
@@ -97,7 +113,7 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 // new flags, and may have other purposes as well.
 //
 #define EVAL_FLAG_REEVALUATE_CELL \
-    FLAG_LEFT_BIT(4)
+    FLAG_LEFT_BIT(9)
 
 
 //=//// EVAL_FLAG_POST_SWITCH /////////////////////////////////////////////=//
@@ -108,7 +124,7 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 // the point after the switch() statement, with a preloaded f->out.
 //
 #define EVAL_FLAG_POST_SWITCH \
-    FLAG_LEFT_BIT(5)
+    FLAG_LEFT_BIT(10)
 
 
 //=//// EVAL_FLAG_FULFILLING_ARG //////////////////////////////////////////=//
@@ -119,17 +135,31 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 // also means that `add 1 <| 2` will act as an error.
 //
 #define EVAL_FLAG_FULFILLING_ARG \
-    FLAG_LEFT_BIT(6)
+    FLAG_LEFT_BIT(11)
 
 
+//=//// EVAL_FLAG_12 //////////////////////////////////////////////////////=//
+//
+#define EVAL_FLAG_12 \
+    FLAG_LEFT_BIT(12)
 
 
-//=//// BITS 8-15 ARE 0 FOR END SIGNAL ////////////////////////////////////=//
+//=//// EVAL_FLAG_13 //////////////////////////////////////////////////////=//
+//
+#define EVAL_FLAG_13 \
+    FLAG_LEFT_BIT(13)
 
-// The flags are resident in the frame after the frame's cell.  In order to
-// let the cell act like a terminated array (if one needs that), the flags
-// have the byte for the IS_END() signal set to 0.  This sacrifices some
-// flags, and may or may not be worth it for the feature.
+
+//=//// EVAL_FLAG_14 //////////////////////////////////////////////////////=//
+//
+#define EVAL_FLAG_14 \
+    FLAG_LEFT_BIT(14)
+
+
+//=//// EVAL_FLAG_15 //////////////////////////////////////////////////////=//
+//
+#define EVAL_FLAG_15 \
+    FLAG_LEFT_BIT(15)
 
 
 //=//// EVAL_FLAG_RUNNING_ENFIX ///////////////////////////////////////////=//
@@ -581,6 +611,21 @@ struct Reb_Feed {
 //
 struct Reb_Frame {
     //
+    // These are EVAL_FLAG_XXX or'd together--see their documentation above.
+    // See REBNOD for the idea of fitting into the Rebol pointer ecology.
+    // A REBFRM* needs to be distinguishable from a REBSER*.
+    //
+    union Reb_Header flags;  // See Endlike_Header()
+
+    // The prior call frame.  This never needs to be checked against nullptr,
+    // because the bottom of the stack is FS_BOTTOM which is allocated at
+    // startup and never used to run code.
+    //
+    // Note: This platform-pointer-sized item is in position 2 so that the
+    // `spare` cell is 64-bit aligned on 32-bit platforms.
+    //
+    struct Reb_Frame *prior;
+
     // The frame's "spare" is used for different purposes.  PARSE uses it as a
     // scratch storage space.  Path evaluation uses it as where the calculated
     // "picker" goes (so if `foo/(1 + 2)`, the 3 would be stored there to be
@@ -595,11 +640,6 @@ struct Reb_Frame {
     //
     RELVAL spare;
 
-    // These are EVAL_FLAG_XXX or'd together--see their documentation above.
-    // A Reb_Header is used so that it can implicitly terminate `cell`, if
-    // that comes in useful (e.g. there's an apparent END after cell)
-    //
-    union Reb_Header flags; // See Endlike_Header()
 
     // !!! There was quite a bit of tweaking done to avoid caching a Reb_Kind
     // in the frame state.  However, with a non-recursive evaluator that just
@@ -608,12 +648,6 @@ struct Reb_Frame {
     // moment use an enumeration just to get things going.
     //
     uintptr_t continuation_type;
-
-    // The prior call frame.  This never needs to be checked against nullptr,
-    // because the bottom of the stack is FS_BOTTOM which is allocated at
-    // startup and never used to run code.
-    //
-    struct Reb_Frame *prior;
 
     // The data stack pointer captured on entry to the evaluation.  It is used
     // by debug checks to make sure the data stack stays balanced after each

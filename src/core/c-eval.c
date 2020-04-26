@@ -314,7 +314,7 @@ inline static void Expire_Out_Cell_Unless_Invisible(REBFRM *f) {
 //
 // Returns TRUE if it set the flag.
 //
-bool Lookahead_To_Sync_Enfix_Defer_Flag(struct Reb_Feed *feed) {
+bool Lookahead_To_Sync_Enfix_Defer_Flag(REBFED *feed) {
     assert(NOT_FEED_FLAG(feed, DEFERRING_ENFIX));
     assert(not feed->gotten);
 
@@ -1736,7 +1736,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
                 // the WITH parameter.  If an error is desired, that must be
                 // done at a higher level (e.g. see DO of ACTION!)
                 //
-                struct Reb_Feed *subfeed = Alloc_Feed();
+                REBFED *subfeed = Alloc_Feed();
                 Prep_Array_Feed(subfeed,
                     First_Unspecialized_Param(action) == nullptr
                         ? nullptr  // 0-arity throws away `with`

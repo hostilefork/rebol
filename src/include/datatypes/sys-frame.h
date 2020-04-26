@@ -204,7 +204,7 @@ inline static void Free_Frame_Internal(REBFRM *f) {
     if (GET_EVAL_FLAG(f, ALLOCATED_FEED))
         Free_Feed(f->feed);  // didn't inherit from parent, and not END_FRAME
 
-    FREE(REBFRM, f);
+    Free_Node(FRM_POOL, NOD(f));
 }
 
 
@@ -470,11 +470,7 @@ inline static void Drop_Frame(REBFRM *f)
     Drop_Frame_Unbalanced(f);
 }
 
-inline static void Prep_Frame_Core(
-    REBFRM *f,
-    struct Reb_Feed *feed,
-    REBFLGS flags
-){
+inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
     assert(NOT_FEED_FLAG(feed, BARRIER_HIT));  // couldn't do anything
 
     f->feed = feed;
@@ -490,7 +486,7 @@ inline static void Prep_Frame_Core(
 }
 
 #define DECLARE_FRAME(name,feed,flags) \
-    REBFRM * name = ALLOC(REBFRM); \
+    REBFRM * name = cast(REBFRM*, Make_Node(FRM_POOL)); \
     Prep_Frame_Core(name, (feed), (flags));
 
 #define DECLARE_FRAME_AT(name,any_array,flags) \

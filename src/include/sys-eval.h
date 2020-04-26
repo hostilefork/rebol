@@ -148,7 +148,7 @@ inline static bool Eval_Throws(REBFRM *f) {  assert(f == FS_TOP);
 //
 inline static bool Did_Init_Inert_Optimize_Complete(
     REBVAL *out,
-    struct Reb_Feed *feed,
+    REBFED *feed,
     REBFLGS *flags
 ){
     assert(not (*flags & EVAL_FLAG_POST_SWITCH));  // we might set it
@@ -406,8 +406,8 @@ inline static bool Eval_Value_Throws(
 
     SET_END(out);
 
-    struct Reb_Feed feed_struct;  // opt_first so can't use DECLARE_ARRAY_FEED
-    struct Reb_Feed *feed = &feed_struct;
+    REBFED feed_struct;  // opt_first so can't use DECLARE_ARRAY_FEED
+    REBFED *feed = &feed_struct;
     Prep_Array_Feed(
         feed,
         value,  // opt_first--in this case, the only value in the feed...

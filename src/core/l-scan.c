@@ -1549,7 +1549,7 @@ void Init_Va_Scan_Level_Core(
     REBSTR *file,
     REBLIN line,
     const REBYTE *opt_begin,  // preload the scanner outside the va_list
-    struct Reb_Feed *feed
+    REBFED *feed
 ){
     level->ss = ss;
     ss->feed = feed;

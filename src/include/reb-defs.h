@@ -197,10 +197,13 @@ struct Reb_Collector;
 // helpful for the moment to give them a different name.
 //
 
+struct Reb_Feed;
 struct Reb_Frame;
 
 typedef struct Reb_Frame REBFRM;
 typedef struct Reb_Frame REBPVS;
+
+typedef struct Reb_Feed REBFED;
 
 struct Reb_State;
 

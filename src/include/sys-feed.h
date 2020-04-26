@@ -36,7 +36,13 @@
 // to keep it within a certain boundary of complexity.
 
 
-#define FEED_MASK_DEFAULT 0
+#define FEED_FLAG_0_IS_TRUE \
+    FLAG_LEFT_BIT(0)
+STATIC_ASSERT(FEED_FLAG_0_IS_TRUE == NODE_FLAG_NODE);
+
+#define FEED_FLAG_1_IS_FALSE \
+    FLAG_LEFT_BIT(1)
+STATIC_ASSERT(FEED_FLAG_1_IS_FALSE == NODE_FLAG_FREE);
 
 
 // SERIES_INFO_HOLD is used to make a temporary read-only lock of an array
@@ -46,7 +52,7 @@
 // release the hold when it's done.
 //
 #define FEED_FLAG_TOOK_HOLD \
-    FLAG_LEFT_BIT(0)
+    FLAG_LEFT_BIT(2)
 
 
 // Infix functions may (depending on the #tight or non-tight parameter
@@ -57,7 +63,7 @@
 // finished its processing.
 //
 #define FEED_FLAG_NO_LOOKAHEAD \
-    FLAG_LEFT_BIT(1)
+    FLAG_LEFT_BIT(3)
 
 
 // Defer notes when there is a pending enfix operation that was seen while an
@@ -79,7 +85,7 @@
 // flag is needed, vs complex marking of a parameter to re-enter eval with.)
 //
 #define FEED_FLAG_DEFERRING_ENFIX \
-    FLAG_LEFT_BIT(2)
+    FLAG_LEFT_BIT(4)
 
 
 // Evaluation of arguments can wind up seeing a barrier and "consuming" it.
@@ -94,7 +100,7 @@
 // get a later argument fulfilled.
 //
 #define FEED_FLAG_BARRIER_HIT \
-    FLAG_LEFT_BIT(3)
+    FLAG_LEFT_BIT(5)
 
 
 // When processing something like enfix, the output cell of a frame is the
@@ -107,7 +113,14 @@
 // consumed or there will be an error.
 //
 #define FEED_FLAG_NEXT_ARG_FROM_OUT \
-    FLAG_LEFT_BIT(4)
+    FLAG_LEFT_BIT(6)
+
+
+STATIC_ASSERT(FLAG_LEFT_BIT(7) == NODE_FLAG_CELL);  // !!! use it or not?
+
+
+#define FEED_MASK_DEFAULT \
+    FEED_FLAG_0_IS_TRUE
 
 
 //=//// BITS 8...15 ARE THE QUOTING LEVEL /////////////////////////////////=//
@@ -171,7 +184,7 @@ STATIC_ASSERT(FEED_FLAG_CONST == CELL_FLAG_CONST);
 #if !defined __cplusplus
     #define FEED(f) f
 #else
-    #define FEED(f) static_cast<struct Reb_Feed*>(f)
+    #define FEED(f) static_cast<REBFED*>(f)
 #endif
 
 #define SET_FEED_FLAG(f,name) \
@@ -196,7 +209,7 @@ STATIC_ASSERT(FEED_FLAG_CONST == CELL_FLAG_CONST);
 // cannot have its first parameter in the variadic, va_list* is insufficient)
 //
 inline static const RELVAL *Detect_Feed_Pointer_Maybe_Fetch(
-    struct Reb_Feed *feed,
+    REBFED *feed,
     const void *p,
     bool preserve
 ){
@@ -435,7 +448,7 @@ inline static const RELVAL *Detect_Feed_Pointer_Maybe_Fetch(
 // signal that the vaptr (if any) should be consulted next.
 //
 inline static const RELVAL *Fetch_Next_In_Feed_Core(
-    struct Reb_Feed *feed,
+    REBFED *feed,
     bool preserve
 ){
   #ifdef DEBUG_EXPIRED_LOOKBACK
@@ -528,7 +541,7 @@ inline static const RELVAL *Fetch_Next_In_Feed_Core(
     Fetch_Next_In_Feed_Core((feed), false)  // !!! not used at time of writing
 
 inline static const RELVAL *Fetch_Next_In_Feed(  // adds not-end checking
-    struct Reb_Feed *feed,
+    REBFED *feed,
     bool preserve
 ){
     ASSERT_NOT_END(feed->value);
@@ -563,7 +576,7 @@ inline static const RELVAL *Fetch_Next_In_Feed(  // adds not-end checking
 inline static void Inertly_Derelativize_Inheriting_Const(
     REBVAL *out,
     const RELVAL *v,
-    struct Reb_Feed *feed
+    REBFED *feed
 ){
     Derelativize(out, v, feed->specifier);
     SET_CELL_FLAG(out, UNEVALUATED);
@@ -571,45 +584,22 @@ inline static void Inertly_Derelativize_Inheriting_Const(
         out->header.bits |= (feed->flags.bits & FEED_FLAG_CONST);
 }
 
-inline static void Literal_Next_In_Feed(REBVAL *out, struct Reb_Feed *feed) {
+inline static void Literal_Next_In_Feed(REBVAL *out, REBFED *feed) {
     Inertly_Derelativize_Inheriting_Const(out, feed->value, feed);
     (void)(Fetch_Next_In_Feed(feed, false));
 }
 
 
-#ifdef DEBUG_FEED_ALLOC
-    inline static struct Reb_Feed* Alloc_Feed(void) {
-        struct Reb_Feed* feed = ALLOC(struct Reb_Feed);
-        feed->tick = TG_Tick;
-        if (TG_Feed_List_Debug)
-            TG_Feed_List_Debug->prev = feed;
-        feed->next = TG_Feed_List_Debug;
-        feed->prev = nullptr;
-        TG_Feed_List_Debug = feed;
-        return feed;
-    }
+inline static REBFED* Alloc_Feed(void) {
+    REBFED* feed = cast(REBFED*, Make_Node(FED_POOL));
+  #ifdef DEBUG_COUNT_TICKS
+    feed->tick = TG_Tick;
+  #endif
+    return feed;
+}
 
-    inline static void Free_Feed(struct Reb_Feed *feed) {
-        if (feed == TG_Feed_List_Debug) {
-            TG_Feed_List_Debug = feed->next;
-            if (TG_Feed_List_Debug)
-                TG_Feed_List_Debug->prev = nullptr;
-        }
-        else {
-            feed->prev->next = feed->next;
-            if (feed->next)
-                feed->next->prev = feed->prev;
-        }
-
-        FREE(struct Reb_Feed, feed);
-    }
-#else
-    #define Alloc_Feed() \
-        ALLOC(struct Reb_Feed)
-
-    #define Free_Feed(feed) \
-        FREE(struct Reb_Feed, feed)
-#endif
+inline static void Free_Feed(REBFED *feed)
+  { Free_Node(FED_POOL, cast(REBNOD*, feed)); }
 
 
 // It is more pleasant to have a uniform way of speaking of frames by pointer,
@@ -625,7 +615,7 @@ inline static void Literal_Next_In_Feed(REBVAL *out, struct Reb_Feed *feed) {
 //
 
 inline static void Prep_Array_Feed(
-    struct Reb_Feed *feed,
+    REBFED *feed,
     const RELVAL *opt_first,
     REBARR *array,
     REBLEN index,
@@ -661,15 +651,14 @@ inline static void Prep_Array_Feed(
 }
 
 #define DECLARE_ARRAY_FEED(name,array,index,specifier) \
-    struct Reb_Feed *name##struct = Alloc_Feed(); \
-    Prep_Array_Feed(name##struct, \
+    REBFED *name = Alloc_Feed(); \
+    Prep_Array_Feed(name, \
         nullptr, (array), (index), (specifier), FEED_MASK_DEFAULT \
-    ); \
-    struct Reb_Feed *name = name##struct
+    );
 
 
 inline static void Prep_Va_Feed(
-    struct Reb_Feed *feed,
+    REBFED *feed,
     const void *p,
     va_list *vaptr,
     REBFLGS flags
@@ -696,12 +685,12 @@ inline static void Prep_Va_Feed(
 // FLAG_QUOTING_BYTE() to take effect, it must be passed in up front.
 //
 #define DECLARE_VA_FEED(name,p,vaptr,flags) \
-    struct Reb_Feed name##struct; \
+    REBFED name##struct; \
     Prep_Va_Feed(&name##struct, (p), (vaptr), (flags)); \
-    struct Reb_Feed *name = &name##struct
+    REBFED *name = &name##struct
 
 inline static void Prep_Any_Array_Feed(
-    struct Reb_Feed *feed,
+    REBFED *feed,
     const RELVAL *any_array,
     REBSPC *specifier,
     REBFLGS parent_flags  // only reads FEED_FLAG_CONST out of this
@@ -727,11 +716,10 @@ inline static void Prep_Any_Array_Feed(
 }
 
 #define DECLARE_FEED_AT_CORE(name,any_array,specifier) \
-    struct Reb_Feed *name##struct = Alloc_Feed(); \
-    Prep_Any_Array_Feed(name##struct, \
+    REBFED *name = Alloc_Feed(); \
+    Prep_Any_Array_Feed(name, \
         (any_array), (specifier), FS_TOP->feed->flags.bits \
-    ); \
-    struct Reb_Feed *name = name##struct
+    );
 
 #define DECLARE_FEED_AT(name,any_array) \
     DECLARE_FEED_AT_CORE (name, (any_array), SPECIFIED)

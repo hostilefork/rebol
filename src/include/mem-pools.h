@@ -79,6 +79,8 @@ enum Mem_Pool_Specs {
   #else
     PAR_POOL = SER_POOL,
   #endif
+    FRM_POOL,  // struct Reb_Frame => REBFRM
+    FED_POOL,  // struct Reb_Feed => REBFED
     SYSTEM_POOL,
     MAX_POOLS
 };

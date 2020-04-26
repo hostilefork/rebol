@@ -204,11 +204,14 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
     DEF_POOL(sizeof(REBSER), 4096), // Series headers
 
-  #ifdef UNUSUAL_REBVAL_SIZE // sizeof(REBVAL)*2 not sizeof(REBSER)
-    DEF_POOL(sizeof(REBVAL) * 2, 16), // Pairings, PAR_POOL
+  #ifdef UNUSUAL_REBVAL_SIZE  // sizeof(REBVAL)*2 not sizeof(REBSER)
+    DEF_POOL(sizeof(REBVAL) * 2, 16),  // Pairings, PAR_POOL
   #endif
 
-    DEF_POOL(sizeof(REBI64), 1), // Just used for tracking main memory
+    DEF_POOL(sizeof(REBFRM), 256),  // Frames
+    DEF_POOL(sizeof(REBFED), 128),  // Feeds
+
+    DEF_POOL(sizeof(REBI64), 1)  // Just used for tracking main memory
 };
 
 

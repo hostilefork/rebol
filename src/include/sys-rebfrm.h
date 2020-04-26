@@ -434,7 +434,17 @@ STATIC_ASSERT(31 < 32); // otherwise EVAL_FLAG_XXX too high
 
 
 struct Reb_Feed {
+    union Reb_Header flags;  // quoting level included
+
+    // A frame may be sourced from a va_list of pointers, or not.  If this is
+    // NULL it is assumed that the values are sourced from a simple array.
     //
+    // Note: This second platform-pointer-sized thing is in the second slot
+    // to offset the ensuing cells so that they align on 64-bit boundaries
+    // on a 32-bit platform.  See ALIGN_SIZE for more details.
+    //
+    va_list *vaptr;
+
     // Sometimes the frame can be advanced without keeping track of the
     // last cell.  And sometimes the last cell lives in an array that is
     // being held onto and read only, so its pointer is guaranteed to still
@@ -453,8 +463,6 @@ struct Reb_Feed {
     //
     RELVAL fetched;
 
-    union Reb_Header flags;  // quoting level included
-
     // If the binder isn't NULL, then any words or arrays are bound into it
     // during the loading process.  
     //
@@ -472,11 +480,6 @@ struct Reb_Feed {
     struct Reb_Binder *binder;
     REBCTX *lib;  // does not expand, has negative indices in binder
     REBCTX *context;  // expands, has positive indices in binder
-
-    // A frame may be sourced from a va_list of pointers, or not.  If this is
-    // NULL it is assumed that the values are sourced from a simple array.
-    //
-    va_list *vaptr;
 
     // This contains an IS_END() marker if the next fetch should be an attempt
     // to consult the va_list (if any).  That end marker may be resident in
@@ -572,14 +575,8 @@ struct Reb_Feed {
     RELVAL *stress;
   #endif
 
-    // A bug during stack overflow exceptions (old method) would leak some
-    // feeds due to not managing to get the frame pushed.  This code for
-    // keeping track of it was easy enough to keep around.
-    //
-  #ifdef DEBUG_FEED_ALLOC
-    REBTCK tick;
-    struct Reb_Feed *next;
-    struct Reb_Feed *prev;
+   #if defined(DEBUG_COUNT_TICKS)
+    uintptr_t tick;
   #endif
 };
 
@@ -651,7 +648,7 @@ struct Reb_Frame {
     // Since frames may share source information, this needs to be done with
     // a dereference.
     //
-    struct Reb_Feed *feed;
+    REBFED *feed;
 
     // The error reporting machinery doesn't want where `index` is right now,
     // but where it was at the beginning of a single EVALUATE step.

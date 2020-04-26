@@ -49,7 +49,7 @@
 //
 inline static bool Do_Feed_To_End_Maybe_Stale_Throws(
     REBVAL *out,  // must be initialized, unchanged if all empty/invisible
-    struct Reb_Feed *feed,  // feed mechanics always call va_end() if va_list
+    REBFED *feed,  // feed mechanics always call va_end() if va_list
     REBFLGS flags
 ){
     DECLARE_FRAME (f, feed, flags);
@@ -98,8 +98,8 @@ inline static bool Do_At_Mutable_Maybe_Stale_Throws(
     REBLEN index,
     REBSPC *specifier  // must match array, but also opt_first if relative
 ){
-    struct Reb_Feed feed_struct;  // opt_first so can't use DECLARE_ARRAY_FEED
-    struct Reb_Feed *feed = &feed_struct;
+    REBFED feed_struct;  // opt_first so can't use DECLARE_ARRAY_FEED
+    REBFED *feed = &feed_struct;
     Prep_Array_Feed(
         feed,
         opt_first,

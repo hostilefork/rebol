@@ -297,7 +297,7 @@ typedef struct rebol_scan_state {  // shared across all levels of a scan
     // the UTF-8 data to scan.  Otherwise, it is a variadic feed of UTF-8
     // strings and values that are spliced in.
     //
-    struct Reb_Feed *feed;
+    REBFED *feed;
 
     REBSTR *file;  // file currently being scanned (or anonymous)
 

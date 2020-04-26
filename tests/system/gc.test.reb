@@ -19,6 +19,9 @@
     (load file) = data
 )
 
+; REEVAL needs to hold the copied GROUP! alive.
+;
+(<done> = reeval copy '(recycle <done>))
 
 ;
 ; "Mold Stack" tests

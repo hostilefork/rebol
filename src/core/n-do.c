@@ -690,11 +690,12 @@ REBNATIVE(applique)
 
     REBVAL *applicand = ARG(applicand);
 
-    // Need to do this up front, because it captures f->dsp.  Note that the
-    // EVAL_FLAG_PROCESS_ACTION causes the evaluator to jump straight to the
-    // point in the switch() where a function is invoked.
-    //
-    DECLARE_END_FRAME (f, EVAL_MASK_DEFAULT | EVAL_FLAG_PROCESS_ACTION);
+    REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_PROCESS_ACTION;
+    if (not REF(opt))
+        flags |= EVAL_FLAG_FULLY_SPECIALIZED;
+
+    DECLARE_END_FRAME (f, flags);  // up front (captures f->dsp)
+    Push_Frame_No_Varlist(D_OUT, f);  // to avoid GC during `def` evaluation
 
     // Argument can be a literal action (APPLY :APPEND) or a WORD!/PATH!.
     // If it is a path, we push the refinements to the stack so they can
@@ -788,11 +789,9 @@ REBNATIVE(applique)
         // on the stack isn't needed.  Eval_Core() will just treat a
         // slot with an INTEGER! for a refinement as if it were "true".
         //
-        f->flags.bits |= EVAL_FLAG_FULLY_SPECIALIZED;
         DS_DROP_TO(lowest_ordered_dsp); // zero refinements on stack, now
     }
 
-    Push_Frame_No_Varlist(D_OUT, f);
     f->varlist = CTX_VARLIST(stolen);
     SET_SERIES_FLAG(f->varlist, STACK_LIFETIME);
     f->rootvar = CTX_ARCHETYPE(stolen);

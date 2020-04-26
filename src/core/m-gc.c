@@ -8,7 +8,7 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Revolt Open Source Contributors
+// Copyright 2012-2020 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
@@ -97,6 +97,7 @@ static void Mark_Devices_Deep(void);
 
 
 static void Queue_Mark_Opt_End_Cell_Deep(const RELVAL *v);
+static void Queue_Mark_Frame_And_Priors(REBFRM *f);
 
 inline static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
 {
@@ -176,10 +177,15 @@ static void Queue_Mark_Node_Deep(void *p)
         else {
             // !!! It's a frame?  API handle?  Skip frame case (keysource)
             // for now, but revisit as technique matures.
+            //
+            REBFRM *f = FRM(p);
+            f->flags.bits |= NODE_FLAG_MARKED;
+            goto append_to_stack;
         }
         return;  // it's 2 cells, sizeof(REBSER), but no room for REBSER data
     }
 
+  blockscope {
     REBSER *s = SER(p);
     if (GET_SERIES_INFO(s, INACCESSIBLE)) {
         //
@@ -228,11 +234,16 @@ static void Queue_Mark_Node_Deep(void *p)
         // !!! Should this use a "bumping a NULL at the end" technique to
         // grow, like the data stack?
         //
-        if (SER_FULL(GC_Mark_Stack))
-            Extend_Series(GC_Mark_Stack, 8);
-        *SER_AT(REBARR*, GC_Mark_Stack, SER_USED(GC_Mark_Stack)) = ARR(s);
-        SET_SERIES_USED(GC_Mark_Stack, SER_USED(GC_Mark_Stack) + 1);  // !term
+        goto append_to_stack;
     }
+    return;
+  }
+
+  append_to_stack:  // note not terminated...
+    if (SER_FULL(GC_Mark_Stack))
+        Extend_Series(GC_Mark_Stack, 8);
+    *SER_AT(REBNOD*, GC_Mark_Stack, SER_USED(GC_Mark_Stack)) = NOD(p);
+    SET_SERIES_USED(GC_Mark_Stack, SER_USED(GC_Mark_Stack) + 1);
 }
 
 
@@ -265,6 +276,20 @@ static void Queue_Mark_Opt_End_Cell_Deep(const RELVAL *v)
         REBNOD *binding = EXTRA(Binding, v).node;
         if (binding != UNBOUND and (binding->header.bits & NODE_FLAG_MANAGED))
             Queue_Mark_Node_Deep(ARR(binding));
+
+        // We have to mark stray REBFRM* chains that have been unhooked from
+        // the call stack.  We find these in FRAME! values (such as held in
+        // ACT_DETAILS() of a suspended generator).  There's not a great
+        // finesse for marking these odd structures so we just do it here.
+        //
+        if (kind == REB_FRAME) {
+            REBARR *varlist = ARR(PAYLOAD(Any, v).first.node);
+            if (NOT_SERIES_INFO(varlist, INACCESSIBLE)) {
+                REBNOD *keysource = LINK_KEYSOURCE(varlist);
+                if (keysource->header.bits & NODE_FLAG_CELL)  // REBFRM*
+                    Queue_Mark_Node_Deep(keysource);
+            }
+        }
     }
 
     if (GET_CELL_FLAG(v, FIRST_IS_NODE) and PAYLOAD(Any, v).first.node)
@@ -300,20 +325,31 @@ static void Propagate_All_GC_Marks(void)
         // Data pointer may change in response to an expansion during
         // Mark_Array_Deep_Core(), so must be refreshed on each loop.
         //
-        REBARR *a = *SER_AT(REBARR*, GC_Mark_Stack, SER_USED(GC_Mark_Stack));
+        REBNOD *n = *SER_AT(REBNOD*, GC_Mark_Stack, SER_USED(GC_Mark_Stack));
 
         // Termination is not required in the release build (the length is
         // enough to know where it ends).  But overwrite with trash in debug.
         //
         TRASH_POINTER_IF_DEBUG(
-            *SER_AT(REBARR*, GC_Mark_Stack, SER_USED(GC_Mark_Stack))
+            *SER_AT(REBNOD*, GC_Mark_Stack, SER_USED(GC_Mark_Stack))
         );
+
+        REBYTE first = FIRST_BYTE(n->header);
 
         // We should have marked this series at queueing time to keep it from
         // being doubly added before the queue had a chance to be processed
-         //
-        assert(SER(a)->header.bits & NODE_FLAG_MARKED);
+        //
+        assert(first & NODE_BYTEMASK_0x10_MARKED);
 
+        // Might be a REBFRM node which was found in a cell, and then needed
+        // to mark more cells (so it had to be queued)
+        //
+        if (first & NODE_BYTEMASK_0x01_CELL) {
+            Queue_Mark_Frame_And_Priors(FRM(n));
+            continue;
+        }
+
+        REBARR *a = ARR(n);
         RELVAL *v = ARR_HEAD(a);
         for (; NOT_END(v); ++v) {
             Queue_Mark_Opt_Value_Deep(v);
@@ -329,7 +365,7 @@ static void Propagate_All_GC_Marks(void)
                 and NOT_ARRAY_FLAG(a, IS_VARLIST)
                 and NOT_ARRAY_FLAG(a, NULLEDS_LEGAL)
             ){
-                panic(a);
+                panic (a);
             }
           #endif
         }
@@ -633,12 +669,12 @@ static void Mark_Data_Stack(void)
 static void Mark_Symbol_Series(void)
 {
     REBSTR **canon = SER_HEAD(REBSTR*, PG_Symbol_Canons);
-    assert(IS_POINTER_TRASH_DEBUG(*canon)); // SYM_0 for all non-builtin words
+    assert(IS_POINTER_TRASH_DEBUG(*canon));  // SYM_0 means non-builtin word
     ++canon;
     for (; *canon != nullptr; ++canon)
         SER(*canon)->header.bits |= NODE_FLAG_MARKED;
 
-    ASSERT_NO_GC_MARKS_PENDING(); // doesn't ues any queueing
+    ASSERT_NO_GC_MARKS_PENDING();  // doesn't use any queueing
 }
 
 
@@ -689,172 +725,176 @@ static void Mark_Guarded_Nodes(void)
 
 
 //
+//  Queue_Mark_Frame_And_Priors: C
+//
+// This routine should always be called by something that will mark not just
+// the frame it's looking at, but also the frames in the prior stack.  Short
+// circuiting on marks should be done during that walk and terminate it.
+//
+// If a function is running, then this will keep the function itself live,
+// as well as the arguments.  Since argument slots are not pre-initialized,
+// how far the function has gotten in its fulfillment (f->param, f->arg, etc.)
+// must be taken into account.  Only arguments that fulfillment has reached
+// have initialized bits that it makes sense to GC protect.
+//
+static void Queue_Mark_Frame_And_Priors(REBFRM *f) {
+    assert(GET_EVAL_FLAG(f, MARKED));  // submitted with Queue_Mark_Node_Deep
+
+    if (f != FS_BOTTOM and f->prior)
+        Queue_Mark_Node_Deep(f->prior);  // might already be marked...
+
+    // Should have taken care of reifying all the VALIST on the stack earlie
+    // in the recycle process (don't want to create new arrays once the
+    // recycling has started...)
+    //
+    assert(not f->feed->vaptr or IS_POINTER_TRASH_DEBUG(f->feed->vaptr));
+
+    // Note: f->feed->pending should either live in f->feed->array, or it may
+    // be trash (e.g. if it's an apply).  GC can ignore it.
+    //
+    Queue_Mark_Node_Deep(f->feed->array);
+
+    // END is possible, because the frame could be sitting at the end of a
+    // block when a function runs, e.g. `do [does [recycle]]`.  That `does`
+    // will stay on the stack while the zero-arity function is running.
+    // The array still might be used in an error, so can't GC it.
+    //
+    Queue_Mark_Opt_End_Cell_Deep(f->feed->value);
+
+    // If `gotten` is set, it usually shouldn't need marking because it's
+    // fetched via f->value and so would be kept alive by it.  Any code that a
+    // frame runs that could disrupt that (e.g. reassigning a variable so it
+    // would no longer fetch the value) should have cleared `gotten`.
+    //
+    if (f->feed->gotten)
+        assert(
+            f->feed->gotten
+            == Try_Get_Opt_Var(f->feed->value, f->feed->specifier)
+        );
+
+    // At the outset, REBFRM* do not actually manage the array that holds the
+    // function's arguments.  It only gets managed if there is a FRAME! value
+    // that gets "reified" in a way that it could outlive the C REBFRM*.
+    // We avoid the assertion if we tried to mark unmanaged values.
+    if (
+        f->feed->specifier != SPECIFIED
+        and (f->feed->specifier->header.bits & NODE_FLAG_MANAGED)
+    ){
+        Queue_Mark_Node_Deep(CTX(f->feed->specifier));
+    }
+
+    // f->out can be nullptr at the moment, when a frame is created that can
+    // ask for a different output each evaluation.
+    //
+    if (f->out)
+        Queue_Mark_Opt_End_Cell_Deep(f->out);
+
+    // Frame temporary cell should always contain initialized bits; the
+    // DECLARE_FRAME sets it up, and no one is supposed to trash it.
+    //
+    Queue_Mark_Opt_End_Cell_Deep(&f->spare);
+
+    // There is a strict window of one unit of lookahead to make decisions.
+    // Usually the evaluator doesn't have to cache copies of those value cells
+    // and can point to them in the array or va_list where they are.  But
+    // exceptions need to be made, which makes these cells non-END.
+    //
+    Queue_Mark_Opt_End_Cell_Deep(&f->feed->fetched);
+    Queue_Mark_Opt_End_Cell_Deep(&f->feed->lookback);
+
+    assert(Is_Action_Frame(f) == (f->original != nullptr));
+    if (not f->original)  // e.g. signals not Is_Action_Frame()
+        return;  // ...so other pointers might be uninitialized
+
+    Queue_Mark_Node_Deep(f->original);  // never nullptr
+
+    if (f->opt_label)
+        Queue_Mark_Node_Deep(f->opt_label);  // nullptr if anonymous
+
+    // special can be used to GC protect an arbitrary value while a function
+    // is running, currently.  nullptr is permitted as well (e.g. path frames
+    // use nullptr to indicate no set value on a path)
+    //
+    if (f->special)
+        Queue_Mark_Opt_End_Cell_Deep(f->special);
+
+    if (f->varlist and GET_SERIES_FLAG(f->varlist, MANAGED)) {
+        //
+        // If the context is all set up with valid values and managed,
+        // then it can just be marked normally...no need to do custom
+        // partial parameter traversal.
+        //
+        assert(IS_END(f->param)); // done walking
+        Queue_Mark_Node_Deep(CTX(f->varlist));
+        return;
+    }
+
+    if (f->varlist and GET_SERIES_INFO(f->varlist, INACCESSIBLE)) {
+        //
+        // This happens in Encloser_Dispatcher(), where it can capture a
+        // varlist that may not be managed (e.g. if there were no ADAPTs
+        // or other phases running that triggered it).
+        //
+        return;
+    }
+
+    // Mark arguments as used, but only as far as parameter filling has gotten
+    // (may be garbage bits past that).  Could also be an END value of an
+    // in-progress arg fulfillment, but in that case it is protected by the
+    // *evaluating frame's f->out* (!)
+    //
+    // Refinements need special treatment, and also consideration of if this
+    // is the "doing pickups" or not.  If doing pickups then skip the cells
+    // for pending refinement arguments.
+    //
+    REBACT *phase = FRM_PHASE(f);
+    REBVAL *param = ACT_PARAMS_HEAD(phase);
+
+    REBVAL *arg;
+    for (arg = FRM_ARGS_HEAD(f); NOT_END(param); ++param, ++arg) {
+        //
+        // At time of writing, all frame storage is in stack cells...not
+        // varlists.
+        //
+        assert(arg->header.bits & CELL_FLAG_STACK_LIFETIME);
+
+        if (param == f->param) {
+            //
+            // When param and f->param match, that means that arg is the
+            // output slot for some other frame's f->out.  Let that frame
+            // do the marking (which tolerates END, an illegal state for
+            // prior arg slots we've visited...unless deferred!)
+
+            // If we're not doing "pickups" then the cell slots after
+            // this one have not been initialized, not even to trash.
+            //
+            if (NOT_EVAL_FLAG(f, DOING_PICKUPS))
+                break;
+
+            // But since we *are* doing pickups, we must have initialized
+            // all the cells to something...even to trash.  Continue and
+            // mark them.
+            //
+            continue;
+        }
+
+        Queue_Mark_Opt_Value_Deep(arg);
+    }
+}
+
+
+//
 //  Mark_Frame_Stack_Deep: C
 //
-// Mark values being kept live by all call frames.  If a function is running,
-// then this will keep the function itself live, as well as the arguments.
-// There is also an "out" slot--which may point to an arbitrary REBVAL cell
-// on the C stack.  The out slot is initialized to an END marker at the
-// start of every function call, so that it won't be uninitialized bits
-// which would crash the GC...but it must be turned into a value (or a void)
-// by the time the function is finished running.
+// Mark values being kept live by call frames up to and including FS_BOTTOM.
 //
-// Since function argument slots are not pre-initialized, how far the function
-// has gotten in its fulfillment must be taken into account.  Only those
-// argument slots through points of fulfillment may be GC protected.
-//
-// This should be called at the top level, and not from inside a
-// Propagate_All_GC_Marks().  All marks will be propagated.
+// Call this at top level, not from inside Propagate_All_GC_Marks().  All
+// marks will be propagated.
 //
 static void Mark_Frame_Stack_Deep(void)
 {
-    REBFRM *f = FS_TOP;
-
-    while (true) { // mark all frames (even FS_BOTTOM)
-        //
-        // Should have taken care of reifying all the VALIST on the stack
-        // earlier in the recycle process (don't want to create new arrays
-        // once the recycling has started...)
-        //
-        assert(not f->feed->vaptr or IS_POINTER_TRASH_DEBUG(f->feed->vaptr));
-
-        // Note: f->feed->pending should either live in f->feed->array, or
-        // it may be trash (e.g. if it's an apply).  GC can ignore it.
-        //
-        Queue_Mark_Node_Deep(f->feed->array);
-
-        // END is possible, because the frame could be sitting at the end of
-        // a block when a function runs, e.g. `do [zero-arity]`.  That frame
-        // will stay on the stack while the zero-arity function is running.
-        // The array still might be used in an error, so can't GC it.
-        //
-        Queue_Mark_Opt_End_Cell_Deep(f->feed->value);
-
-        // If ->gotten is set, it usually shouldn't need markeding because
-        // it's fetched via f->value and so would be kept alive by it.  Any
-        // code that a frame runs that might disrupt that relationship so it
-        // would fetch differently should have meant clearing ->gotten.
-        //
-        if (f->feed->gotten)
-            assert(
-                f->feed->gotten
-                == Try_Lookup_Word(f->feed->value, f->feed->specifier)
-            );
-
-        if (
-            f->feed->specifier != SPECIFIED
-            and (f->feed->specifier->header.bits & NODE_FLAG_MANAGED)
-        ){
-            Queue_Mark_Node_Deep(CTX(f->feed->specifier));
-        }
-
-        // f->out can be nullptr at the moment, when a frame is created that
-        // can ask for a different output each evaluation.
-        //
-        if (f->out)
-            Queue_Mark_Opt_End_Cell_Deep(f->out);
-
-        // Frame temporary cell should always contain initialized bits, as
-        // DECLARE_FRAME sets it up and no one is supposed to trash it.
-        //
-        Queue_Mark_Opt_End_Cell_Deep(&f->feed->fetched);
-        Queue_Mark_Opt_End_Cell_Deep(&f->feed->lookback);
-        Queue_Mark_Opt_End_Cell_Deep(&f->spare);
-
-        if (not Is_Action_Frame(f)) {
-            //
-            // Consider something like `eval copy '(recycle)`, because
-            // while evaluating the group it has no anchor anywhere in the
-            // root set and could be GC'd.  The Reb_Frame's array ref is it.
-            //
-            goto propagate_and_continue;
-        }
-
-        Queue_Mark_Node_Deep(f->original);  // never nullptr
-
-        if (f->opt_label)
-            Queue_Mark_Node_Deep(f->opt_label);  // nullptr if anonymous
-
-        // special can be used to GC protect an arbitrary value while a
-        // function is running, currently.  nullptr is permitted as well
-        // (e.g. path frames use nullptr to indicate no set value on a path)
-        //
-        if (f->special)
-            Queue_Mark_Opt_End_Cell_Deep(f->special);
-
-        if (f->varlist and GET_SERIES_FLAG(f->varlist, MANAGED)) {
-            //
-            // If the context is all set up with valid values and managed,
-            // then it can just be marked normally...no need to do custom
-            // partial parameter traversal.
-            //
-            assert(IS_END(f->param)); // done walking
-            Queue_Mark_Node_Deep(CTX(f->varlist));
-            goto propagate_and_continue;
-        }
-
-        if (f->varlist and GET_SERIES_INFO(f->varlist, INACCESSIBLE)) {
-            //
-            // This happens in Encloser_Dispatcher(), where it can capture a
-            // varlist that may not be managed (e.g. if there were no ADAPTs
-            // or other phases running that triggered it).
-            //
-            goto propagate_and_continue;
-        }
-
-        // Mark arguments as used, but only as far as parameter filling has
-        // gotten (may be garbage bits past that).  Could also be an END value
-        // of an in-progress arg fulfillment, but in that case it is protected
-        // by the *evaluating frame's f->out* (!)
-        //
-        // Refinements need special treatment, and also consideration of if
-        // this is the "doing pickups" or not.  If doing pickups then skip the
-        // cells for pending refinement arguments.
-        //
-        REBACT *phase; // goto would cross initialization
-        phase = FRM_PHASE(f);
-        REBVAL *param;
-        param = ACT_PARAMS_HEAD(phase);
-
-        REBVAL *arg;
-        for (arg = FRM_ARGS_HEAD(f); NOT_END(param); ++param, ++arg) {
-            //
-            // At time of writing, all frame storage is in stack cells...not
-            // varlists.
-            //
-            assert(arg->header.bits & CELL_FLAG_STACK_LIFETIME);
-
-            if (param == f->param) {
-                //
-                // When param and f->param match, that means that arg is the
-                // output slot for some other frame's f->out.  Let that frame
-                // do the marking (which tolerates END, an illegal state for
-                // prior arg slots we've visited...unless deferred!)
-
-                // If we're not doing "pickups" then the cell slots after
-                // this one have not been initialized, not even to trash.
-                //
-                if (NOT_EVAL_FLAG(f, DOING_PICKUPS))
-                    break;
-
-                // But since we *are* doing pickups, we must have initialized
-                // all the cells to something...even to trash.  Continue and
-                // mark them.
-                //
-                continue;
-            }
-
-            Queue_Mark_Opt_Value_Deep(arg);
-        }
-
-      propagate_and_continue:;
-
-        Propagate_All_GC_Marks();
-        if (f == FS_BOTTOM)
-            break;
-
-        f = f->prior;
-    }
+    Queue_Mark_Node_Deep(FS_TOP);  // recursively queues f->prior
+    Propagate_All_GC_Marks();
 }
 
 
@@ -1001,6 +1041,38 @@ static REBLEN Sweep_Series(void)
 }
 
 
+//
+//  Sweep_Frames: C
+//
+// When REBFRM* chains are pulled out of the running stack, they are kept
+// alive in the GC by virtue of references from FRAME! values.  When those
+// references expire (e.g. if a generator completes), the REBFRM* needs to
+// be freed.
+//
+static REBLEN Sweep_Frames(void)
+{
+    REBLEN count = 0;
+
+    REBSEG *seg = Mem_Pools[FRM_POOL].segs;
+    for (; seg != nullptr; seg = seg->next) {
+        REBLEN n = Mem_Pools[FRM_POOL].units;
+        REBFRM *f = cast(REBFRM*, seg + 1);
+        for (; n > 0; --n, f += 1) {
+            if (IS_FREE_NODE(f))
+                continue;
+            if (GET_EVAL_FLAG(f, MARKED)) {
+                CLEAR_EVAL_FLAG(f, MARKED);
+                continue;
+            }
+            Free_Frame_Internal(f);
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+
 #if !defined(NDEBUG)
 
 //
@@ -1126,6 +1198,15 @@ REBLEN Recycle_Core(bool shutdown, REBSER *sweeplist)
         GC_Kill_Series(SER(varlist)); // no track for Free_Unmanaged_Series()
     }
 
+    if (not shutdown) {
+        Mark_Natives();
+        Mark_Symbol_Series();
+        Mark_Data_Stack();
+        Mark_Guarded_Nodes();
+        Mark_Frame_Stack_Deep();
+        Mark_Devices_Deep();
+    }
+
     // MARKING PHASE: the "root set" from which we determine the liveness
     // (or deadness) of a series.  If we are shutting down, we do not mark
     // several categories of series...but we do need to run the root marking.
@@ -1133,21 +1214,6 @@ REBLEN Recycle_Core(bool shutdown, REBSER *sweeplist)
     // are bound to frames will be freed, if the frame is expired.)
     //
     Mark_Root_Series();
-
-    if (not shutdown) {
-        Mark_Natives();
-        Mark_Symbol_Series();
-
-        Mark_Data_Stack();
-
-        Mark_Guarded_Nodes();
-
-        Mark_Frame_Stack_Deep();
-
-        Propagate_All_GC_Marks();
-
-        Mark_Devices_Deep();
-    }
 
     // SWEEPING PHASE
 
@@ -1164,6 +1230,8 @@ REBLEN Recycle_Core(bool shutdown, REBSER *sweeplist)
     }
     else
         count += Sweep_Series();
+
+    Sweep_Frames();
 
 #if !defined(NDEBUG)
     // Compute new stats:

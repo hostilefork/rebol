@@ -125,7 +125,15 @@ inline static REBVAL *Alloc_Value(void)
     // either an API handle or not.  The flag is not copied by Move_Value().
     //
     REBVAL *v = KNOWN(ARR_SINGLE(a));
-    v->header.bits |= NODE_FLAG_ROOT; // it's trash (can't use SET_CELL_FLAGS)
+
+    // We are introducing this series to the GC and can't leave it trash.
+    // If a pattern like `Do_Evaluation_Into(Alloc_Value(), ...)` is used,
+    // then there might be a recycle during the evaluation that sees it.
+    // Low-level allocation already pulled off making it END with just three
+    // assignments, see Alloc_Series_Node() for that magic.
+    //
+    assert(IS_END(v));
+    v->header.bits |= NODE_FLAG_ROOT;  // it's END (can't use SET_CELL_FLAGS)
 
     REBFRM *f = FS_TOP;
     while (not Is_Action_Frame(f)) // e.g. a path fulfillment

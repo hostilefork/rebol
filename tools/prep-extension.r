@@ -277,7 +277,7 @@ e1/emit {
      */
     #undef REBNATIVE
     #define REBNATIVE(n) \
-        REBVAL *N_${MOD}_##n(REBFRM *frame_)
+        REB_R N_${MOD}_##n(REBFRM *frame_)
 
     /*
      * Forward-declare REBNATIVE() dispatcher prototypes

@@ -479,8 +479,9 @@ inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
         (flags & (
             EVAL_FLAG_0_IS_TRUE
             | EVAL_FLAG_1_IS_FALSE
+            | EVAL_FLAG_4_IS_TRUE
             | EVAL_FLAG_7_IS_TRUE
-        )) == (EVAL_FLAG_0_IS_TRUE | EVAL_FLAG_7_IS_TRUE)
+        )) == (EVAL_FLAG_0_IS_TRUE | EVAL_FLAG_4_IS_TRUE | EVAL_FLAG_7_IS_TRUE)
     );
     f->flags.bits = flags;
 

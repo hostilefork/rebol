@@ -762,7 +762,7 @@ static void Run_Va_May_Fail_Core(
 ){
     Init_Void(out);
 
-    REBFLGS flags = EVAL_MASK_DEFAULT | FLAG_QUOTING_BYTE(quotes);
+    REBFLGS feed_flags = FEED_MASK_DEFAULT | FLAG_QUOTING_BYTE(quotes);
 
     // !!! Some kind of policy is needed to decide how to disable halting in
     // the API.  It uses the longjmp() mechanism as a "no catch for throw",
@@ -778,7 +778,7 @@ static void Run_Va_May_Fail_Core(
     else
         Eval_Sigmask &= ~SIG_HALT;  // disable
 
-    DECLARE_VA_FEED (feed, p, vaptr, flags);
+    DECLARE_VA_FEED (feed, p, vaptr, feed_flags);
     bool threw = Do_Feed_To_End_Maybe_Stale_Throws(
         out,
         feed,

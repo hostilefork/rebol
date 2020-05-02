@@ -69,10 +69,11 @@ STATIC_ASSERT(EVAL_FLAG_1_IS_FALSE == NODE_FLAG_FREE);
 STATIC_ASSERT(EVAL_FLAG_MARKED == NODE_FLAG_MARKED);
 
 
-//=//// EVAL_FLAG_4 ///////////////////////////////////////////////////////=//
+//=//// EVAL_FLAG_4_IS_TRUE ///////////////////////////////////////////////////////=//
 //
-#define EVAL_FLAG_4 \
+#define EVAL_FLAG_4_IS_TRUE \
     FLAG_LEFT_BIT(4)
+STATIC_ASSERT(EVAL_FLAG_4_IS_TRUE == NODE_FLAG_FRAME);
 
 
 //=//// EVAL_FLAG_5 ///////////////////////////////////////////////////////=//
@@ -432,7 +433,7 @@ STATIC_ASSERT(31 < 32);  // otherwise EVAL_FLAG_XXX too high
 // Default for Eval_Core_May_Throw() is just a single EVALUATE step.
 //
 #define EVAL_MASK_DEFAULT \
-    (EVAL_FLAG_0_IS_TRUE | EVAL_FLAG_7_IS_TRUE)
+    (EVAL_FLAG_0_IS_TRUE | EVAL_FLAG_4_IS_TRUE | EVAL_FLAG_7_IS_TRUE)
 
 
 #define SET_EVAL_FLAG(f,name) \

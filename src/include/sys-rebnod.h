@@ -422,11 +422,17 @@ union Reb_Header {
 #define NODE_BYTEMASK_0x10_MARKED 0x10
 
 
-//=//// NODE_FLAG_4 (fifth-leftmost bit) //////////////////////////////////=//
+//=//// NODE_FLAG_FRAME (fifth-leftmost bit) //////////////////////////////=//
 //
-#define NODE_FLAG_4 \
+// !!! The idea of being able to tell the difference between a REBFRM* by
+// looking at the first byte is appealing (avoiding strict alias).  But there
+// are so few node bits it might not be a good idea.  At least temporarily,
+// EVAL_MASK_DEFAULT sets this bit and it assists to tell when feed flags
+// and eval flags are confused.
+//
+#define NODE_FLAG_FRAME \
     FLAG_LEFT_BIT(4)
-#define NODE_BYTEMASK_0x08_4 0x08
+#define NODE_BYTEMASK_0x08_FRAME 0x08
 
 
 //=//// NODE_FLAG_ROOT (sixth-leftmost bit) ///////////////////////////////=//

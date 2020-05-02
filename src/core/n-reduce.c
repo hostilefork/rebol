@@ -126,6 +126,131 @@ REBNATIVE(reduce)
 }
 
 
+//
+//  reduce2: native [
+//
+//  {Evaluates expressions, keeping each result (DO only gives last result)}
+//
+//      return: "New array or value"
+//          [<opt> any-value!]
+//      value "GROUP! and BLOCK! evaluate each item, single values evaluate"
+//          [any-value!]
+//  ]
+//
+REBNATIVE(reduce2)
+{
+    INCLUDE_PARAMS_OF_REDUCE2;
+
+    REBVAL *v = ARG(value);
+
+    if (IS_END(D_SPARE)) {  // first call
+        if (not IS_BLOCK(v) and not IS_GROUP(v)) {
+            //
+            // Single value REDUCE does an EVAL, but doesn't allow arguments.
+            // (R3-Alpha, would return the input, e.g. `reduce ':foo` => :foo)
+            // If arguments are required, Eval_Value_Throws() will error.
+            //
+            // !!! Should error be "reduce-specific" if args were required?
+            //
+            Move_Value(D_SPARE, v);
+            Quotify(D_SPARE, 1);  // !!! DELEGATE_WITH doesn't suppress eval
+            DELEGATE_WITH (NAT_VALUE(reeval), v);
+        }
+
+        DECLARE_FRAME_AT (
+            f,
+            v,  // REB_BLOCK or REB_GROUP
+            EVAL_MASK_DEFAULT
+                | EVAL_FLAG_ALLOCATED_FEED
+                | EVAL_FLAG_CONTINUATION
+        );
+        f->continuation_type = REB_HANDLE;
+        Push_Frame(D_OUT, f);
+        TG_Top_Frame = f->prior;
+        f->prior = nullptr;
+        Init_Handle_Cdata(D_SPARE, f, 1);  // needs to protect from GC!
+
+        // We ask for an evaluation, but we want the output newline status to
+        // mirror the newlines of the evaluated positions.  We are allowed
+        // to use NODE_FLAG_MARKED on the spare cell for custom purposes.
+        //
+        bool line = IS_END(F_VALUE(f))
+            ? false
+            : GET_CELL_FLAG(F_VALUE(f), NEWLINE_BEFORE);
+        if (line)
+            SET_CELL_FLAG(D_SPARE, SPARE_MARKED_LINE_BEFORE);
+
+        return Init_Continuation_With(
+            frame_,
+            0,
+            D_SPARE,  // for right now, try branch of HANDLE! for REBFRM*
+            END_NODE
+        );  // expect this to run Eval_Step_Throws(out, f)
+    }
+
+    if (Is_Throwing(frame_)) {
+        DS_DROP_TO(frame_->dsp_orig);
+        Abort_Frame(frame_);
+        return R_THROWN;
+    }
+
+    REBFRM *f = VAL_HANDLE_POINTER(REBFRM, D_SPARE);  // checks it's handle
+    assert(f->prior == nullptr);  // current concept: it is unlinked
+
+    if (IS_END(D_OUT)) {  // e.g. `reduce []` or `reduce [comment "hi"]`
+        assert(IS_END(F_VALUE(f)));
+
+        // !!! Could shortcut here, but assume it's uncommon, and it's more
+        // important to keep the block-has-newline-end logic/etc. consistent
+    }
+    else {
+        // We can't put nulls into array cells, so we put BLANK!.  This is
+        // compatible with historical behavior of `reduce [if 1 = 2 [<x>]]`
+        // which produced `[#[none]]`, and is generally more useful than
+        // putting VOID!, as more operations skip blanks vs. erroring.
+        //
+        if (IS_NULLED(D_OUT))
+            Init_Blank(DS_PUSH());
+        else
+            Move_Value(DS_PUSH(), D_OUT);
+
+        if (GET_CELL_FLAG(D_SPARE, SPARE_MARKED_LINE_BEFORE))
+            SET_CELL_FLAG(DS_TOP, NEWLINE_BEFORE);
+
+        if (NOT_END(F_VALUE(f))) {
+            if (GET_CELL_FLAG(F_VALUE(f), NEWLINE_BEFORE))
+                SET_CELL_FLAG(D_SPARE, SPARE_MARKED_LINE_BEFORE);
+            else
+                CLEAR_CELL_FLAG(D_SPARE, SPARE_MARKED_LINE_BEFORE);
+
+            return Init_Continuation_With(
+                frame_,
+                0,
+                D_SPARE,  // for right now, try branch of HANDLE! for REBFRM*
+                END_NODE
+            );  // expect this to run Eval_Step_Throws(out, f)
+        }
+    }
+
+    // !!! Trying to re-align all the bookkeeping: relink the frame in and
+    // go through standard drop machinery.  Temporary.
+    //
+    f->prior = frame_;
+    TG_Top_Frame = f;
+    Drop_Frame_Unbalanced(f);  // plain Drop_Frame() asserts on accumulation
+
+    REBFLGS pop_flags = NODE_FLAG_MANAGED | ARRAY_MASK_HAS_FILE_LINE;
+    if (GET_ARRAY_FLAG(VAL_ARRAY(v), NEWLINE_AT_TAIL))
+        pop_flags |= ARRAY_FLAG_NEWLINE_AT_TAIL;
+
+    return Init_Any_Array(
+        D_OUT,
+        VAL_TYPE(v),
+        Pop_Stack_Values_Core(frame_->dsp_orig, pop_flags)
+    );
+}
+
+
 bool Match_For_Compose(const RELVAL *group, const REBVAL *label) {
     if (IS_NULLED(label))
         return true;

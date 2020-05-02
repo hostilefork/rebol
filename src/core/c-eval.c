@@ -1658,7 +1658,9 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         // by Drop_Action() but must be cleared on each dispatcher re-entry.
         //
         f->flags.bits &= ~(
-            EVAL_FLAG_DELEGATE_CONTROL | EVAL_FLAG_DISPATCHER_CATCHES
+            EVAL_FLAG_DELEGATE_CONTROL
+            | EVAL_FLAG_DISPATCHER_CATCHES
+            | EVAL_FLAG_PUSH_TO_STACK
         );
 
         const REBVAL *r = (*PG_Dispatch)(f);  // default just calls FRM_PHASE
@@ -1706,6 +1708,17 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
                     f->u.cont.branch_specifier
                 ), 1);
                 break;
+
+              case REB_HANDLE: {  // temporarily means REBFRM*, chain to stack
+                REBFRM *subframe
+                    = VAL_HANDLE_POINTER(REBFRM, f->u.cont.branch);
+                assert(GET_EVAL_FLAG(subframe, CONTINUATION));
+                assert(subframe->prior == nullptr);
+                assert(subframe->continuation_type == REB_HANDLE);
+                subframe->dsp_orig = DSP;  // may be accruing state
+                subframe->prior = f;
+                TG_Top_Frame = subframe;
+                goto continue_topmost_frame; }
 
               case REB_BLOCK: {
                 //
@@ -3163,6 +3176,18 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
     assert(f->flags.bits == f->initial_flags);  // changes should be restored
   #endif
 
+    if (
+        GET_EVAL_FLAG(f->prior, PUSH_TO_STACK)
+        and NOT_CELL_FLAG(f->out, OUT_MARKED_STALE)
+    ){
+        assert(f->dsp_orig == DSP);
+        if (IS_NULLED(f->out))
+            Init_Blank(DS_PUSH());  // !!! REDUCE semantics, is void better?
+        else
+            Move_Value(DS_PUSH(), f->out);
+        f->dsp_orig = DSP;
+    }
+
     if (GET_EVAL_FLAG(f, CONTINUATION)) {
         switch (f->continuation_type) {
           case REB_BLANK:
@@ -3175,6 +3200,13 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             //
             CLEAR_CELL_FLAG(f->arg, OUT_MARKED_STALE);
             goto finalize_arg;
+
+          case REB_HANDLE: {  // just one step
+            CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);
+            TG_Top_Frame = f->prior;
+            f->prior = nullptr;  // we don't "drop" it, but...
+            f = FS_TOP;  // we unwire it
+            break; }
 
           case REB_BLOCK:  // was a "Do to End" form, must loop
             if (NOT_END(f->feed->value))

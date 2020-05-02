@@ -53,9 +53,9 @@ STATIC_ASSERT(EVAL_FLAG_0_IS_TRUE == NODE_FLAG_NODE);
 STATIC_ASSERT(EVAL_FLAG_1_IS_FALSE == NODE_FLAG_FREE);
 
 
-//=//// EVAL_FLAG_DISPATCHER_CATCHES //////////////////////////////////////=//
+//=//// EVAL_FLAG_PUSH_TO_STACK ///////////////////////////////////////////=//
 //
-#define EVAL_FLAG_2 \
+#define EVAL_FLAG_PUSH_TO_STACK \
     FLAG_LEFT_BIT(2)
 
 

@@ -138,6 +138,9 @@ inline static int FRM_LINE(REBFRM *f) {
 #define FRM_DSP_ORIG(f) \
     ((f)->dsp_orig + 0) // prevent assignment via this macro
 
+#define F_VALUE(f) \
+    ((f)->feed->value)
+
 
 // ARGS is the parameters and refinements
 // 1-based indexing into the arglist (0 slot is for FRAME! value)

@@ -63,7 +63,6 @@ void Assert_Cell_Marked_Correctly(const RELVAL *v)
         if (
             not (binding->header.bits & NODE_FLAG_MANAGED)
             and NOT_CELL_FLAG(v, STACK_LIFETIME)
-            and NOT_CELL_FLAG(v, TRANSIENT)
         ){
             // If a stack cell holds an unmanaged stack-based pointer, we
             // assume the lifetime is taken care of and the GC does not need

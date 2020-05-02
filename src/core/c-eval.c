@@ -1640,7 +1640,6 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         //
         assert(f->out->header.bits & (
             CELL_FLAG_STACK_LIFETIME
-            | NODE_FLAG_TRANSIENT
             | NODE_FLAG_ROOT
         ));
 

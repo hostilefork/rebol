@@ -422,18 +422,11 @@ union Reb_Header {
 #define NODE_BYTEMASK_0x10_MARKED 0x10
 
 
-//=//// NODE_FLAG_TRANSIENT (fifth-leftmost bit) //////////////////////////=//
+//=//// NODE_FLAG_4 (fifth-leftmost bit) //////////////////////////////////=//
 //
-// The "TRANSIENT" flag is currently used only by node cells, and only in
-// the data stack.  The concept is that data stack cells are so volatile that
-// they cannot be passed as REBVAL* addresses to anything that might write
-// between frames.  This means that moving any value with an unmanaged binding
-// into it need not worry about managing...because the data stack cell has
-// no longer lifetime than any cell with which it can interact.
-//
-#define NODE_FLAG_TRANSIENT \
+#define NODE_FLAG_4 \
     FLAG_LEFT_BIT(4)
-#define NODE_BYTEMASK_0x08_TRANSIENT 0x08
+#define NODE_BYTEMASK_0x08_4 0x08
 
 
 //=//// NODE_FLAG_ROOT (sixth-leftmost bit) ///////////////////////////////=//

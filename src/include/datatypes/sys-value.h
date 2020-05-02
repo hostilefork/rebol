@@ -854,7 +854,7 @@ inline static void INIT_BINDING(RELVAL *v, void *p) {
         // lifetime of the stack entry is guaranteed to outlive the binding)
         //
         assert(CTX(p));
-        if (v->header.bits & NODE_FLAG_TRANSIENT) {
+        if (v->header.bits & CELL_FLAG_STACK_LIFETIME) {
             // let anything go... for now.
             // SERIES_FLAG_STACK_LIFETIME might not be set yet due to construction
             // constraints, see Make_Context_For_Action_Push_Partials()

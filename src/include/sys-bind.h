@@ -380,7 +380,6 @@ inline static void INIT_BINDING_MAY_MANAGE(RELVAL *out, REBNOD* binding) {
     if (
         not binding // unbound
         or GET_SERIES_FLAG(binding, MANAGED) // managed already
-        or GET_CELL_FLAG(out, TRANSIENT) // can't pass up/down stack
     ){
         return;
     }

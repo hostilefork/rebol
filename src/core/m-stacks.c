@@ -335,7 +335,7 @@ REBVAL *Expand_Data_Stack_May_Fail(REBLEN amount)
     REBLEN n;
     for (n = len_old; n < len_new; ++n) {
         Init_Unreadable_Blank(cell);
-        cell->header.bits |= (CELL_FLAG_STACK_LIFETIME | CELL_FLAG_TRANSIENT);
+        cell->header.bits |= CELL_FLAG_STACK_LIFETIME;
         ++cell;
     }
 

@@ -54,19 +54,18 @@ REBNATIVE(reeval)
     //
     UNUSED(ARG(expressions));
 
-    REBVAL *v = ARG(value);
-
-    bool enfix = IS_ACTION(v) and GET_ACTION_FLAG(VAL_ACTION(v), ENFIXED);
+    // !!! Review ramifications of Enfix.  See SHOVE for how the reevaluate
+    // situation was addressed in that case.
 
     REBFLGS flags = EVAL_MASK_DEFAULT;
     if (Reevaluate_In_Subframe_Maybe_Stale_Throws(
         Init_Void(D_OUT),  // `eval lit (comment "this gives void vs. error")`
         frame_,
         ARG(value),
-        flags,
-        enfix
-    ))
+        flags
+    )){
         return R_THROWN;
+    }
 
     CLEAR_CELL_FLAG(D_OUT, OUT_MARKED_STALE);
     return D_OUT;
@@ -108,14 +107,38 @@ REBNATIVE(shove)
 {
     INCLUDE_PARAMS_OF_SHOVE;
 
+    REBVAL *left = ARG(left);
+
+    if (NOT_END(D_SPARE)) {  // we've finished the evaluation
+        assert(NOT_CELL_FLAG(D_OUT, OUT_MARKED_STALE));  // !!! possible?
+
+        if (REF(set)) {
+            if (IS_SET_WORD(left)) {
+                assert(IS_BLANK(D_SPARE));
+                Move_Value(Sink_Word_May_Fail(left, SPECIFIED), D_OUT);
+            }
+            else if (IS_SET_PATH(left)) {
+                assert(IS_SET_PATH(D_SPARE));  // the composed set path.
+                frame_->feed->gotten = nullptr;  // arbitrary code, may disrupt
+                rebElideQ(
+                    "set/hard", D_SPARE, NULLIFY_NULLED(D_OUT),
+                rebEND);
+            }
+            else
+                assert(false); // SET-WORD!/SET-PATH! was checked above
+        }
+        else
+            assert(IS_BLANK(D_SPARE));
+
+        return D_OUT;
+    }
+
     REBFRM *f;
     if (not Is_Frame_Style_Varargs_May_Fail(&f, ARG(right)))
         fail ("SHOVE (<-) not implemented for MAKE VARARGS! [...] yet");
 
     SHORTHAND (v, f->feed->value, NEVERNULL(const RELVAL*));
     SHORTHAND (specifier, f->feed->specifier, REBSPC*);
-
-    REBVAL *left = ARG(left);
 
     if (IS_END(*v))  // ...shouldn't happen for WORD!/PATH! unless APPLY
         RETURN (ARG(left));  // ...because evaluator wants `help <-` to work
@@ -177,13 +200,6 @@ REBNATIVE(shove)
     else
         Fetch_Next_Forget_Lookback(f);  // so that `10 -> = 5 + 5` is true
 
-    // Trying to EVAL a SET-WORD! or SET-PATH! with no args would be an error.
-    // So interpret it specially...GET the value and SET it back.  Note this
-    // is tricky stuff to do when a SET-PATH! has groups in it to avoid a
-    // double evaluation--the API is used here for simplicity.
-    //
-    REBVAL *composed_set_path = nullptr;
-
     // Since we're simulating enfix dispatch, we need to move the first arg
     // where enfix gets it from...the frame output slot.
     //
@@ -195,15 +211,23 @@ REBNATIVE(shove)
   #endif
 
     if (REF(set)) {
+        //
+        // Trying to EVAL a SET-WORD! or SET-PATH! with no args would error.
+        // Interpret it specially...GET the value and SET it back.  Note this
+        // is tricky stuff to do when a SET-PATH! has groups in it to avoid a
+        // double evaluation--the API is used here for simplicity.
+        //
         if (IS_SET_WORD(left)) {
             Move_Value(D_OUT, Lookup_Word_May_Fail(left, SPECIFIED));
         }
         else if (IS_SET_PATH(left)) {
             f->feed->gotten = nullptr;  // calling arbitrary code, may disrupt
-            composed_set_path = rebValueQ("compose", left, rebEND);
+            REBVAL *composed_set_path = rebValueQ("compose", left, rebEND);
             REBVAL *temp = rebValueQ("get/hard", composed_set_path, rebEND);
             Move_Value(D_OUT, temp);
             rebRelease(temp);
+            Move_Value(D_SPARE, composed_set_path);
+            rebRelease(composed_set_path);
         }
         else
             fail ("Left hand side must be SET-WORD! or SET-PATH!");
@@ -224,38 +248,46 @@ REBNATIVE(shove)
             SET_CELL_FLAG(D_OUT, UNEVALUATED);
     }
 
-    REBFLGS flags = EVAL_MASK_DEFAULT;
-    SET_FEED_FLAG(frame_->feed, NEXT_ARG_FROM_OUT);
+    // !!! We're going to perform a continuation here, and use the state
+    // being non-end to tell us that we did so.
+    //
+    if (NOT_END(D_SPARE))
+        assert(IS_SET_PATH(D_SPARE));  // the composed path
+    else
+        Init_Blank(D_SPARE);  // temporary non-end state
 
-    if (Reevaluate_In_Subframe_Maybe_Stale_Throws(
-        D_OUT,
-        frame_,
-        shovee,
-        flags,
-        did REF(enfix)
-    )){
-        rebRelease(composed_set_path);  // ok if nullptr
-        return R_THROWN;
+    if (REF(enfix)) {  // don't heed enfix state in the action itself
+        DECLARE_FRAME (
+            subframe,
+            f->feed,
+            EVAL_MASK_DEFAULT | EVAL_FLAG_CONTINUATION
+        );
+        Push_Frame(D_OUT, subframe);
+
+        assert(NOT_EVAL_FLAG(subframe, RUNNING_ENFIX));
+        Push_Action(
+            subframe,
+            VAL_ACTION(shovee),
+            VAL_BINDING(shovee)
+        );
+        Begin_Enfix_Action(subframe, nullptr);  // invisible cache NO_LOOKAHEAD
+
+        Fetch_Next_Forget_Lookback(f);
+    }
+    else {
+        DECLARE_FRAME (
+            subframe,
+            f->feed,
+            EVAL_MASK_DEFAULT
+                | EVAL_FLAG_REEVALUATE_CELL
+                | EVAL_FLAG_CONTINUATION
+        );
+        Push_Frame(D_OUT, subframe);
+
+        subframe->u.reval.value = shovee;
     }
 
-    assert(NOT_CELL_FLAG(D_OUT, OUT_MARKED_STALE));  // !!! can this happen?
-
-    if (REF(set)) {
-        if (IS_SET_WORD(left)) {
-            Move_Value(Sink_Word_May_Fail(left, SPECIFIED), D_OUT);
-        }
-        else if (IS_SET_PATH(left)) {
-            f->feed->gotten = nullptr;  // calling arbitrary code, may disrupt
-            rebElideQ(
-                "set/hard", composed_set_path, NULLIFY_NULLED(D_OUT),
-            rebEND);
-            rebRelease(composed_set_path);
-        }
-        else
-            assert(false); // SET-WORD!/SET-PATH! was checked above
-    }
-
-    return D_OUT;
+    return R_CONTINUATION;
 }
 
 

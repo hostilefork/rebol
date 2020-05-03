@@ -286,12 +286,8 @@ inline static bool Reevaluate_In_Subframe_Maybe_Stale_Throws(
     REBVAL *out,
     REBFRM *f,
     const REBVAL *reval,
-    REBFLGS flags,
-    bool enfix
+    REBFLGS flags
 ){
-    if (enfix)
-        flags |= EVAL_FLAG_RUNNING_ENFIX;
-
     DECLARE_FRAME (subframe, f->feed, flags | EVAL_FLAG_REEVALUATE_CELL);
     subframe->u.reval.value = reval;
 

@@ -217,23 +217,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
     if (GET_EVAL_FLAG(f, REEVALUATE_CELL)) {
         CLEAR_EVAL_FLAG(f, REEVALUATE_CELL);
 
-        // The re-evaluate functionality may not want to heed the enfix state
-        // in the action itself.  See REBNATIVE(shove)'s /ENFIX for instance.
-        // So we go by the state of EVAL_FLAG_RUNNING_ENFIX on entry.
-        //
-        if (GET_EVAL_FLAG(f, RUNNING_ENFIX)) {
-            CLEAR_EVAL_FLAG(f, RUNNING_ENFIX);  // for assertion
-            Push_Action(
-                f,
-                VAL_ACTION(f->u.reval.value),
-                VAL_BINDING(f->u.reval.value)
-            );
-            Begin_Enfix_Action(f, nullptr);  // invisible cache NO_LOOKAHEAD
-
-            Fetch_Next_Forget_Lookback(f);
-
-            goto loop;
-        }
+        assert(NOT_EVAL_FLAG(f, RUNNING_ENFIX));
 
         r = Eval_Frame_Workhorse(f);
     }
@@ -249,13 +233,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         /* SET_CELL_FLAG(f->out, OUT_MARKED_STALE); */
 
         r = Eval_Action(f);
-        f = FS_TOP;
 
-        if (r == nullptr) {  // still need the post switch...
-            Drop_Action(f);
-            SET_EVAL_FLAG(f, POST_SWITCH);
-            goto loop;
-        }
         assert(r == R_THROWN or r == R_CONTINUATION);
     }
     else

@@ -786,14 +786,6 @@ struct Reb_Frame {
     struct {
         const RELVAL *value;
     } reval;
-
-    // Used to parameterize REB_R_CONTINUATION.
-    //
-    struct {
-        const RELVAL *branch;
-        REBSPC *branch_specifier;
-        const REBVAL *with;
-    } cont;
   } u;
 
    #if defined(DEBUG_COUNT_TICKS)

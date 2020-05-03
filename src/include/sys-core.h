@@ -433,10 +433,10 @@ inline static void SET_SIGNAL(REBFLGS f) { // used in %sys-series.h
 
 #include "sys-throw.h"
 #include "sys-feed.h"
+#include "datatypes/sys-handle.h"
 #include "datatypes/sys-frame.h"  // needs words for frame-label helpers
 
 #include "datatypes/sys-time.h"
-#include "datatypes/sys-handle.h"
 #include "datatypes/sys-map.h"
 #include "datatypes/sys-varargs.h"
 

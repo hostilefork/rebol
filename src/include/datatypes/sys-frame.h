@@ -939,9 +939,223 @@ inline static REB_R Init_Continuation_With_Core(
 ){
     f->flags.bits |= flags;
     assert(branch != f->out and with != f->out);
-    f->u.cont.branch = branch;
-    f->u.cont.branch_specifier = branch_specifier;
-    f->u.cont.with = with;
+
+    // !!! This code came from Do_Branch_XXX_Throws() which was not
+    // continuation-based, and hence holds some reusable logic for
+    // branch types that do not require evaluation...like REB_QUOTED.
+    // It's the easiest way to reuse the logic for the time being,
+    // though some performance gain could be achieved for instance
+    // if it were reused in a way that allowed something like IF to
+    // not bother running again (like if `CONTINUE()` would do a plain
+    // return in those cases).  But more complex scenarios may have
+    // broken control flow if such shortcuts were taken.  Review.
+
+  recontinue:
+
+    switch (VAL_TYPE(branch)) {
+      case REB_QUOTED:
+        if (not (flags & EVAL_FLAG_DELEGATE_CONTROL))
+            assert(!"Temporarily no non-delegated quoted branches");
+        Unquotify(Derelativize(f->out, branch, branch_specifier), 1);
+        return f->out;
+
+      case REB_HANDLE: {  // temporarily means REBFRM*, chain to stack
+        REBFRM *subframe = VAL_HANDLE_POINTER(REBFRM, branch);
+        assert(GET_EVAL_FLAG(subframe, CONTINUATION));
+        assert(GET_EVAL_FLAG(subframe, DETACH_DONT_DROP));
+        assert(subframe->prior == nullptr);
+        subframe->dsp_orig = DSP;  // may be accruing state
+        subframe->prior = f;
+        TG_Top_Frame = subframe;
+        return R_CONTINUATION; }
+
+      case REB_BLOCK: {
+        //
+        // What we want to do is Do_Any_Array_At_Throws.  This means
+        // we must initialize to void (in case all invisibles) and
+        // we must clear off the stale flag at the end.
+        //
+        DECLARE_FRAME_AT_CORE (
+            blockframe,
+            branch,
+            branch_specifier,
+            EVAL_MASK_DEFAULT
+                | EVAL_FLAG_CONTINUATION
+                | EVAL_FLAG_TO_END
+        );
+
+        Init_Void(f->out);  // in case all invisibles, as usual
+        Push_Frame(f->out, blockframe);
+        break; }
+
+      case REB_ACTION: {
+        REBACT *action = VAL_ACTION(branch);
+        REBNOD *binding = VAL_BINDING(branch);
+
+        // CONTINUE_WITH when used with a 0-arity function will omit
+        // the WITH parameter.  If an error is desired, that must be
+        // done at a higher level (e.g. see DO of ACTION!)
+        //
+        REBFED *subfeed = Alloc_Feed();
+        Prep_Array_Feed(subfeed,
+            First_Unspecialized_Param(action) == nullptr
+                ? nullptr  // 0-arity throws away `with`
+                : (IS_END(with) ? nullptr : with),
+            EMPTY_ARRAY,  // unused (just leveraging `with` preload)
+            0,
+            SPECIFIED,
+            FEED_MASK_DEFAULT
+        );
+
+        DECLARE_FRAME (
+            subframe,
+            subfeed,
+            EVAL_MASK_DEFAULT
+                | EVAL_FLAG_CONTINUATION
+                | EVAL_FLAG_ALLOCATED_FEED
+        );
+
+        Init_Void(f->out);
+        SET_CELL_FLAG(f->out, OUT_MARKED_STALE);
+        Push_Frame(f->out, subframe);
+        Push_Action(subframe, action, binding);
+        REBSTR *opt_label = nullptr;
+        Begin_Prefix_Action(subframe, opt_label);
+        break; }
+
+      case REB_BLANK:
+        assert(!"Temporarily no blank branches");
+        Init_Nulled(f->out);
+        break;
+
+      case REB_SYM_WORD:
+      case REB_SYM_PATH: {
+        assert(!"Temporarily no SYM_WORD or SYM_PATH branches");
+        //
+        // !!! SYM-WORD! and SYM-PATH! were considered as speculative
+        // abbreviations for things like:
+        //
+        //     x: 10
+        //     >> if true @x
+        //     == 10
+        //
+        // One benefit of this over `if true [:x]` would be efficiency
+        // in both representation (lower cost for not needing an
+        // array at source level) and execution (lower cost for not
+        // needing a frame to be nested and indexed across).  Another
+        // would be that perhaps it could error on VOID! instead of
+        // tolerating it, and treating functions by value.
+        //
+        REBSTR *name;
+        const bool push_refinements = false;
+        bool threw = Get_If_Word_Or_Path_Throws(
+            f->out,
+            &name,
+            branch,
+            branch_specifier,
+            push_refinements
+        );
+        if (threw)
+            return R_THROWN;
+
+        if (IS_VOID(f->out))  // need `[:x]` if it's void (unset)
+            fail (Error_Need_Non_Void_Core(branch, branch_specifier));
+        break; }
+
+      case REB_SYM_GROUP: {
+        //
+        // !!! Because of soft-quoting of branches, it's required to
+        // put anything that evaluates to a branch in a GROUP!.  The
+        // downside of this is that in order to seem consistent with
+        // expectations, code in that group runs regardless of whether
+        // the branch runs, e.g.
+        //
+        //    >> either 1 (print "both" [2 + 3]) (print "run" [4 + 5])
+        //    both
+        //    run
+        //    == 5
+        //
+        // An experimental idea was that a SYM-GROUP! could be used
+        // to generate a branch, but only if needed.  That falls in
+        // line with the expectation of what non-soft-quoting actions
+        // could do with their arguments, since SYM-GROUP! is not
+        // evaluative:
+        //
+        //    >> either 1 @(print "one" [2 + 3]) @(print "run" [4 + 5])
+        //    one
+        //    == 5
+        //
+        // It's not clear if this idea is important or not, but it
+        // was a pre-continuation experiment that was preserved.
+        //
+/*        bool threw = Do_Any_Array_At_Throws(f->out, branch, branch_specifier);
+        if (threw)
+            return R_THROWN; */
+
+        // !!! This feature will currently corrupt the caller's
+        // RETURN cell, because there's no other place to put the
+        // evaluative product.  Corrupting the spare could mess up
+        // the state of the continuations.  It's a hack that is fine
+        // for natives (that don't usually need their return anyway)
+        //
+        Move_Value(FRM_ARG(f, 1), f->out);
+        branch = FRM_ARG(f, 1);
+        goto recontinue; }  // Note: Could infinite loop if SYM-GROUP!
+
+      case REB_FRAME: {
+        REBCTX *c = VAL_CONTEXT(branch);  // check accessible
+        REBACT *phase = VAL_PHASE(branch);
+
+        assert(not CTX_FRAME_IF_ON_STACK(c));
+
+        // To DO a FRAME! will "steal" its data.  If a user wishes to
+        // use a frame multiple times, they must say DO COPY FRAME, so
+        // that the data is stolen from the copy.  This allows for
+        // efficient reuse of the context's memory in the cases where
+        // a copy isn't needed.
+
+        DECLARE_END_FRAME (
+            subframe,
+            EVAL_MASK_DEFAULT
+                | EVAL_FLAG_FULLY_SPECIALIZED
+                | EVAL_FLAG_CONTINUATION
+        );
+
+        assert(CTX_KEYS_HEAD(c) == ACT_PARAMS_HEAD(phase));
+        subframe->param = CTX_KEYS_HEAD(c);
+        REBCTX *stolen = Steal_Context_Vars(c, NOD(phase));
+
+        // v-- This changes CTX_KEYS_HEAD()
+        //
+        INIT_LINK_KEYSOURCE(stolen, NOD(subframe));
+
+        // Its data stolen, the context's node should now be GC'd when
+        // references in other FRAME! value cells have all gone away.
+        //
+        assert(GET_SERIES_FLAG(c, MANAGED));
+        assert(GET_SERIES_INFO(c, INACCESSIBLE));
+
+        Push_Frame_No_Varlist(f->out, subframe);
+        subframe->varlist = CTX_VARLIST(stolen);
+        subframe->rootvar = CTX_ARCHETYPE(stolen);
+        subframe->arg = subframe->rootvar + 1;
+        // subframe->param set above
+        subframe->special = subframe->arg;
+
+        // !!! Original code said "Should archetype match?"
+        //
+        assert(FRM_PHASE(subframe) == phase);
+        FRM_BINDING(subframe) = VAL_BINDING(branch);
+
+        REBSTR *opt_label = nullptr;
+        Begin_Prefix_Action(subframe, opt_label);
+        break; }
+
+      default:
+        assert(!"Bad branch type");
+        fail ("Bad branch type");  // !!! should be an assert or panic
+    }
+
     return R_CONTINUATION;
 }
 

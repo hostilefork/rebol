@@ -208,6 +208,10 @@ inline static void Free_Frame_Internal(REBFRM *f) {
         Free_Feed(f->feed);  // didn't inherit from parent, and not END_FRAME
 
     Free_Node(FRM_POOL, NOD(f));
+
+  #if !defined(NDEBUG)
+    f->initial_flags = 0;  // help tell it's free (no EVAL_MASK_DEFAULT)
+  #endif
 }
 
 
@@ -351,6 +355,16 @@ inline static void Push_Frame_No_Varlist(REBVAL *out, REBFRM *f)
   #if defined(DEBUG_BALANCE_STATE)
     SNAP_STATE(&f->state); // to make sure stack balances, etc.
     f->state.dsp = f->dsp_orig;
+  #endif
+
+  #if !defined(NDEBUG)
+    f->initial_flags = f->flags.bits & ~(
+        EVAL_FLAG_POST_SWITCH
+        | EVAL_FLAG_PROCESS_ACTION
+        | EVAL_FLAG_REEVALUATE_CELL
+        | EVAL_FLAG_FULFILL_ONLY  // can be requested or <blank> can trigger
+        | EVAL_FLAG_RUNNING_ENFIX  // can be requested with REEVALUATE_CELL
+    );  // should be unchanged on exit
   #endif
 
     // Eval_Core() expects a varlist to be in the frame, therefore it must

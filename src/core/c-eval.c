@@ -231,16 +231,6 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     REBTCK tick = f->tick = TG_Tick;  // snapshot tick for C watchlist viewing
   #endif
 
-  #if !defined(NDEBUG)
-    f->initial_flags = f->flags.bits & ~(
-        EVAL_FLAG_POST_SWITCH
-        | EVAL_FLAG_PROCESS_ACTION
-        | EVAL_FLAG_REEVALUATE_CELL
-        | EVAL_FLAG_FULFILL_ONLY  // can be requested or <blank> can trigger
-        | EVAL_FLAG_RUNNING_ENFIX  // can be requested with REEVALUATE_CELL
-    );  // should be unchanged on exit
-  #endif
-
     assert(DSP >= f->dsp_orig);  // REDUCE accrues, APPLY adds refinements
     assert(not IS_TRASH_DEBUG(f->out));  // all invisible will preserve output
     assert(f->out != f_spare);  // overwritten by temporary calculations

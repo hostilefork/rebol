@@ -360,7 +360,6 @@ inline static void Push_Frame_No_Varlist(REBVAL *out, REBFRM *f)
   #if !defined(NDEBUG)
     f->initial_flags = f->flags.bits & ~(
         EVAL_FLAG_POST_SWITCH
-        | EVAL_FLAG_PROCESS_ACTION
         | EVAL_FLAG_REEVALUATE_CELL
         | EVAL_FLAG_FULFILL_ONLY  // can be requested or <blank> can trigger
         | EVAL_FLAG_RUNNING_ENFIX  // can be requested with REEVALUATE_CELL

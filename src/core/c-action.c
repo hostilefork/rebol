@@ -260,19 +260,21 @@ bool Lookahead_To_Sync_Enfix_Defer_Flag(REBFED *feed) {
 // !!! Attempt to break out the evaluation of actions in a continuation
 // sort of fashion.
 //
-REB_R Eval_Action(REBFRM *f, REB_R mode)
+REB_R Eval_Action(REBFRM *f)
 {
     if (Is_Throwing(f)) {
         if (GET_EVAL_FLAG(f, DISPATCHER_CATCHES))
             goto redo_continuation;  // might want to see BREAK/CONTINUE
         goto action_threw;  // could be an UNWIND or similar
     }
-    if (mode == BLANK_VALUE)
+    if (GET_EVAL_FLAG(f, ARG_FINISHED)) {
+        CLEAR_EVAL_FLAG(f, ARG_FINISHED);
         goto finalize_arg;
-    if (mode == R_CONTINUATION)
+    }
+    if (GET_EVAL_FLAG(f, ACTION_FOLLOWUP)) {
+        CLEAR_EVAL_FLAG(f, ACTION_FOLLOWUP);
         goto redo_continuation;
-
-    assert(mode == nullptr);
+    }
 
     if (GET_EVAL_FLAG(f, DELEGATE_CONTROL)) {
         CLEAR_EVAL_FLAG(f, DELEGATE_CONTROL);
@@ -1266,7 +1268,6 @@ REB_R Eval_Action(REBFRM *f, REB_R mode)
                 subfeed,
                 EVAL_MASK_DEFAULT
                     | EVAL_FLAG_CONTINUATION
-                    | EVAL_FLAG_PROCESS_ACTION
                     | EVAL_FLAG_ALLOCATED_FEED
             );
 
@@ -1378,7 +1379,6 @@ REB_R Eval_Action(REBFRM *f, REB_R mode)
 
             REBFLGS flags = EVAL_MASK_DEFAULT
                 | EVAL_FLAG_FULLY_SPECIALIZED
-                | EVAL_FLAG_PROCESS_ACTION
                 | EVAL_FLAG_CONTINUATION;
 
             DECLARE_END_FRAME (subframe, flags);
@@ -1485,8 +1485,13 @@ REB_R Eval_Action(REBFRM *f, REB_R mode)
         // START_NEW_EXPRESSION()...the expression index doesn't update.
         //
         //     do [comment "a" 1] => 1
-
-        return R_IMMEDIATE; }  // !!! e.g. R_REEVALUATE
+        //
+        // !!! This was actually something more like a R_REEVALUATE.  It
+        // should be rethought in light of a debugger that can single step
+        // across invisibles (?)
+        //
+        Drop_Action(f);
+        return R_CONTINUATION; }  // !!! e.g. R_REEVALUATE
 
       default:
         assert(!"Invalid pseudotype returned from action dispatcher");

@@ -609,8 +609,7 @@ REBNATIVE(match)
         f->special = f->arg;
 
         f->flags.bits = EVAL_MASK_DEFAULT
-            | EVAL_FLAG_FULLY_SPECIALIZED
-            | EVAL_FLAG_PROCESS_ACTION;
+            | EVAL_FLAG_FULLY_SPECIALIZED;
 
         Begin_Prefix_Action(f, opt_label);
 

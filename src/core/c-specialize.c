@@ -898,8 +898,8 @@ bool Make_Invocation_Frame_Throws(
     // It is desired that any nulls encountered be processed as if they are
     // not specialized...and gather at the callsite if necessary.
     //
-    f->flags.bits |= EVAL_FLAG_PROCESS_ACTION
-        | EVAL_FLAG_ERROR_ON_DEFERRED_ENFIX;  // can't deal with ELSE/THEN/etc.
+    f->flags.bits |=
+        EVAL_FLAG_ERROR_ON_DEFERRED_ENFIX;  // can't deal with ELSE/THEN/etc.
 
     // === END FIRST PART OF CODE FROM DO_SUBFRAME ===
 

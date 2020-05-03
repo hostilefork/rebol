@@ -690,7 +690,7 @@ REBNATIVE(applique)
 
     REBVAL *applicand = ARG(applicand);
 
-    REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_PROCESS_ACTION;
+    REBFLGS flags = EVAL_MASK_DEFAULT;
     if (not REF(opt))
         flags |= EVAL_FLAG_FULLY_SPECIALIZED;
 

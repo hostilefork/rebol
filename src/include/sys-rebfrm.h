@@ -76,15 +76,21 @@ STATIC_ASSERT(EVAL_FLAG_MARKED == NODE_FLAG_MARKED);
 STATIC_ASSERT(EVAL_FLAG_4_IS_TRUE == NODE_FLAG_FRAME);
 
 
-//=//// EVAL_FLAG_5 ///////////////////////////////////////////////////////=//
+//=//// EVAL_FLAG_ARG_FINISHED ////////////////////////////////////////////=//
 //
-#define EVAL_FLAG_5 \
+// !!! Likely temporary flag used to cue Eval_Action() that an arg it asked
+// for is finished.
+//
+#define EVAL_FLAG_ARG_FINISHED \
     FLAG_LEFT_BIT(5)
 
 
-//=//// EVAL_FLAG_6 ///////////////////////////////////////////////////////=//
+//=//// EVAL_FLAG_ACTION_FOLLOWUP /////////////////////////////////////////=//
 //
-#define EVAL_FLAG_6 \
+// !!! Likely temporary flag used to cue Eval_Action() that a continuation it
+// asked for is now ready.
+//
+#define EVAL_FLAG_ACTION_FOLLOWUP \
     FLAG_LEFT_BIT(6)
 
 
@@ -205,12 +211,9 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
     FLAG_LEFT_BIT(17)
 
 
-//=//// EVAL_FLAG_PROCESS_ACTION //////////////////////////////////////////=//
+//=//// EVAL_FLAG_18 //////////////////////////////////////////////////////=//
 //
-// Used to indicate that the Eval_Core code is being jumped into directly to
-// process an ACTION!, in a varlist that has already been set up.
-//
-#define EVAL_FLAG_PROCESS_ACTION \
+#define EVAL_FLAG_18 \
     FLAG_LEFT_BIT(18)
 
 

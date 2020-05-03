@@ -193,21 +193,21 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
     REB_R r;
 
   loop:
-    if (GET_EVAL_FLAG(f, PROCESS_ACTION)) {
-        CLEAR_EVAL_FLAG(f, PROCESS_ACTION);
+    if (f->original) {  // sign for Is_Action_Frame()
+        //
+        // !!! This related to a check in Do_Process_Action_Checks_Debug(),
+        // see notes there.
+        //
+        /* SET_CELL_FLAG(f->out, OUT_MARKED_STALE); */
 
-        SET_CELL_FLAG(f->out, OUT_MARKED_STALE);  // !!! necessary?
-
-        r = Eval_Action(f, nullptr);
+        r = Eval_Action(f);
         f = FS_TOP;
 
         if (r == nullptr) {  // still need the post switch...
             Drop_Action(f);
             SET_EVAL_FLAG(f, POST_SWITCH);
-            assert(NOT_EVAL_FLAG(f, PROCESS_ACTION));
             goto loop;
         }
-        assert(r != R_IMMEDIATE);  // redo, not used this way
         assert(r == R_THROWN or r == R_CONTINUATION);
     }
     else
@@ -235,7 +235,6 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             Drop_Frame(f);
             f = FS_TOP;
             if (f->original) {  // function is in process of running, can catch
-                SET_EVAL_FLAG(f, PROCESS_ACTION);
                 goto loop;
             }
             goto return_thrown;  // no action to drop so this frame just ends
@@ -263,10 +262,6 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 //
 REB_R Eval_Frame_Workhorse(REBFRM *f)
 {
-    assert(NOT_EVAL_FLAG(f, PROCESS_ACTION));
-
-    REB_R mode = nullptr;  // !!! Interim to try and break this up (!)
-
   #ifdef DEBUG_ENSURE_FRAME_EVALUATES
     f->was_eval_called = true;  // see definition for why this flag exists
   #endif
@@ -583,25 +578,7 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
         // not all parameters will consume arguments for all calls.
 
       process_action: // Note: Also jumped to by the redo_checked code
-      blockscope {
-        REB_R r = Eval_Action(f, mode);
-        mode = nullptr;
-        if (r == R_CONTINUATION)
-            return R_CONTINUATION;
-        if (r == R_THROWN)
-            return R_THROWN;
-        if (r == R_IMMEDIATE) {  // reevaluate
-            gotten = f_next_gotten;
-            v = Lookback_While_Fetching_Next(f);
-            kind.byte = KIND_BYTE(v);
-
-            Drop_Action(f);
-            goto reevaluate;
-        }
-        assert(r == nullptr);
-      }
-        Drop_Action(f);
-        break;
+        return R_CONTINUATION;
 
 
 //==//// WORD! ///////////////////////////////////////////////////////////==//
@@ -1609,7 +1586,7 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
             // jumping back up here leaves it intact.  Clear it now.
             //
             CLEAR_CELL_FLAG(f->arg, OUT_MARKED_STALE);
-            mode = m_cast(REB_R, BLANK_VALUE);
+            SET_EVAL_FLAG(f, ARG_FINISHED);
             goto process_action;
 
           case REB_HANDLE: {  // just one step
@@ -1656,9 +1633,9 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
 
         assert(f->original);  // this should only happen if function was run
         if (NOT_EVAL_FLAG(f, DELEGATE_CONTROL))
-            mode = R_CONTINUATION;
+            SET_EVAL_FLAG(f, ACTION_FOLLOWUP);
         else
-            assert(mode == nullptr);
+            assert(NOT_EVAL_FLAG(f, ACTION_FOLLOWUP));
         goto process_action;
     }
 

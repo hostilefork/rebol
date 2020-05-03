@@ -1030,3 +1030,39 @@ inline static void FAIL_IF_BAD_RETURN_TYPE(REBFRM *f) {
     if (not Typecheck_Including_Quoteds(typeset, f->out))
         fail (Error_Bad_Return_Type(f, VAL_TYPE(f->out)));
 }
+
+
+inline static void Expire_Out_Cell_Unless_Invisible(REBFRM *f) {
+    REBACT *phase = FRM_PHASE(f);
+    if (GET_ACTION_FLAG(phase, IS_INVISIBLE)) {
+        if (NOT_ACTION_FLAG(f->original, IS_INVISIBLE))
+            fail ("All invisible action phases must be invisible");
+        return;
+    }
+
+    if (GET_ACTION_FLAG(f->original, IS_INVISIBLE))
+        return;
+
+  #ifdef DEBUG_UNREADABLE_BLANKS
+    //
+    // The f->out slot should be initialized well enough for GC safety.
+    // But in the debug build, if we're not running an invisible function
+    // set it to END here, to make sure the non-invisible function writes
+    // *something* to the output.
+    //
+    // END has an advantage because recycle/torture will catch cases of
+    // evaluating into movable memory.  But if END is always set, natives
+    // might *assume* it.  Fuzz it with unreadable blanks.
+    //
+    // !!! Should natives be able to count on f->out being END?  This was
+    // at one time the case, but this code was in one instance.
+    //
+    if (NOT_ACTION_FLAG(FRM_PHASE(f), IS_INVISIBLE)) {
+        if (SPORADICALLY(2))
+            Init_Unreadable_Blank(f->out);
+        else
+            SET_END(f->out);
+        SET_CELL_FLAG(f->out, OUT_MARKED_STALE);
+    }
+  #endif
+}

@@ -769,7 +769,7 @@ static void Queue_Mark_Frame_And_Priors(REBFRM *f) {
     if (f->feed->gotten)
         assert(
             f->feed->gotten
-            == Try_Get_Opt_Var(f->feed->value, f->feed->specifier)
+            == Try_Lookup_Word(f->feed->value, f->feed->specifier)
         );
 
     // At the outset, REBFRM* do not actually manage the array that holds the

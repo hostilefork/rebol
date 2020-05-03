@@ -25,6 +25,10 @@ core: [
     b-init.c
 
     ; (C)ore
+    [
+        c-action.c
+        #prefer-O2-optimization  ; see note on %c-eval.c
+    ]
     c-bind.c
     c-do.c
     c-context.c

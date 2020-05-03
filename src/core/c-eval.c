@@ -1598,18 +1598,6 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     assert(f->flags.bits == f->initial_flags);  // changes should be restored
   #endif
 
-    if (
-        GET_EVAL_FLAG(f->prior, PUSH_TO_STACK)
-        and NOT_CELL_FLAG(f->out, OUT_MARKED_STALE)
-    ){
-        assert(f->dsp_orig == DSP);
-        if (IS_NULLED(f->out))
-            Init_Blank(DS_PUSH());  // !!! REDUCE semantics, is void better?
-        else
-            Move_Value(DS_PUSH(), f->out);
-        f->dsp_orig = DSP;
-    }
-
     if (GET_EVAL_FLAG(f, CONTINUATION)) {
         switch (f->continuation_type) {
           case REB_BLANK:

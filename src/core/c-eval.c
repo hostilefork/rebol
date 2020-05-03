@@ -187,9 +187,40 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
 //
 bool Eval_Internal_Maybe_Stale_Throws(void)
 {
-  continue_topmost_frame: ;
+    REBFRM *original = FS_TOP;
+    REBFRM *f = FS_TOP;  // shorter to type, but must be updated
 
-    REBFRM *f = FS_TOP;
+    REB_R r;
+    do {
+        r = Eval_Frame_Workhorse(f);
+        
+        f = FS_TOP;  // refresh shorthand
+
+        if (r == R_THROWN) {
+            // should have dropped the frame
+        }
+        else if (r == R_CONTINUATION) {
+            //assert(FS_TOP != TG_Top_Frame);
+            continue;  // keep going
+        }
+        else
+            assert(r == f->out);
+    } while (f != original);
+
+    return r == R_THROWN;
+}
+
+
+//
+//  Eval_Frame_Workhorse: C
+//
+// Try and encapsulate the main frame work but without actually looping.
+// This means it needs more return results than just `bool` for threw.
+// It gives it the same signature as a dispatcher.
+//
+REB_R Eval_Frame_Workhorse(REBFRM *f)
+{
+
     REB_R mode = nullptr;  // !!! Interim to try and break this up (!)
 
   #ifdef DEBUG_ENSURE_FRAME_EVALUATES
@@ -531,7 +562,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         REB_R r = Eval_Action(f, mode);
         mode = nullptr;
         if (r == R_CONTINUATION)
-            goto continue_topmost_frame;
+            return R_CONTINUATION;
         if (r == R_THROWN)
             goto return_thrown;
         if (r == R_IMMEDIATE) {  // reevaluate
@@ -670,7 +701,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
         Push_Frame(f->out, subframe);
 
-        goto continue_topmost_frame;
+        return R_CONTINUATION;
       }
 
         // We want `3 = (1 + 2 ()) 4` to not treat the 1 + 2 as "stale", thus
@@ -1547,7 +1578,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         goto return_thrown;  // no action to drop so this frame just ends
     }
 
-    return true;  // true => thrown
+    return R_THROWN;
 
   finished:
 
@@ -1603,7 +1634,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
           case REB_BLOCK:  // was a "Do to End" form, must loop
             if (NOT_END(f->feed->value))
-                goto continue_topmost_frame;
+                return R_CONTINUATION;
             Drop_Frame(f);  // frees feed
             f = FS_TOP;
             CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);
@@ -1616,7 +1647,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
           case REB_GROUP:  // was a "Do to End" form, must loop
             if (NOT_END(f->feed->value))
-                goto continue_topmost_frame;
+                return R_CONTINUATION;
             Drop_Frame(f);  // frees feed
             f = FS_TOP;
 
@@ -1646,5 +1677,5 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         goto process_action;
     }
 
-    return false;  // false => not thrown
+    return f->out;  // not thrown
 }

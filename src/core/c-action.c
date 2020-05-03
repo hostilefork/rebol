@@ -262,15 +262,22 @@ bool Lookahead_To_Sync_Enfix_Defer_Flag(REBFED *feed) {
 //
 REB_R Eval_Action(REBFRM *f, REB_R mode)
 {
-    if (mode == R_THROWN)
-        goto action_threw;
+    if (Is_Throwing(f)) {
+        if (GET_EVAL_FLAG(f, DISPATCHER_CATCHES))
+            goto redo_continuation;  // might want to see BREAK/CONTINUE
+        goto action_threw;  // could be an UNWIND or similar
+    }
     if (mode == BLANK_VALUE)
         goto finalize_arg;
     if (mode == R_CONTINUATION)
         goto redo_continuation;
-    if (mode == R_IMMEDIATE)
-        goto dispatch_completed;
+
     assert(mode == nullptr);
+
+    if (GET_EVAL_FLAG(f, DELEGATE_CONTROL)) {
+        CLEAR_EVAL_FLAG(f, DELEGATE_CONTROL);
+        goto dispatch_completed;
+    }
 
   process_action:
 

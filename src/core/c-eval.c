@@ -187,27 +187,70 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
 //
 bool Eval_Internal_Maybe_Stale_Throws(void)
 {
-    REBFRM *original = FS_TOP;
+    REBFRM *start = FS_TOP;
     REBFRM *f = FS_TOP;  // shorter to type, but must be updated
 
     REB_R r;
-    do {
+
+  loop:
+    if (GET_EVAL_FLAG(f, PROCESS_ACTION)) {
+        CLEAR_EVAL_FLAG(f, PROCESS_ACTION);
+
+        SET_CELL_FLAG(f->out, OUT_MARKED_STALE);  // !!! necessary?
+
+        r = Eval_Action(f, nullptr);
+        f = FS_TOP;
+
+        if (r == nullptr) {  // still need the post switch...
+            Drop_Action(f);
+            SET_EVAL_FLAG(f, POST_SWITCH);
+            assert(NOT_EVAL_FLAG(f, PROCESS_ACTION));
+            goto loop;
+        }
+        assert(r != R_IMMEDIATE);  // redo, not used this way
+        assert(r == R_THROWN or r == R_CONTINUATION);
+    }
+    else
         r = Eval_Frame_Workhorse(f);
-        
-        f = FS_TOP;  // refresh shorthand
 
-        if (r == R_THROWN) {
-            // should have dropped the frame
-        }
-        else if (r == R_CONTINUATION) {
-            //assert(FS_TOP != TG_Top_Frame);
-            continue;  // keep going
-        }
-        else
-            assert(r == f->out);
-    } while (f != original);
+    f = FS_TOP;  // refresh shorthand
 
-    return r == R_THROWN;
+    if (r == R_CONTINUATION)
+        goto loop;  // keep going
+
+    if (r == R_THROWN) {
+    return_thrown:
+      #if !defined(NDEBUG)
+        Eval_Core_Exit_Checks_Debug(f);   // called unless a fail() longjmps
+        // don't care if f->flags has changes; thrown frame is not resumable
+      #endif
+
+        if (GET_EVAL_FLAG(f, CONTINUATION)) {
+            if (GET_EVAL_FLAG(f, FULFILLING_ARG)) {  // *before* function runs
+                assert(NOT_EVAL_FLAG(f->prior, DISPATCHER_CATCHES));  // no catch
+                assert(f->prior->original);  // must be running function
+                assert(f->prior->arg == f->out);  // must be fulfilling f->arg
+                Move_Value(f->prior->out, f->out);  // throw must be in out
+            }
+            Drop_Frame(f);
+            f = FS_TOP;
+            if (f->original) {  // function is in process of running, can catch
+                SET_EVAL_FLAG(f, PROCESS_ACTION);
+                goto loop;
+            }
+            goto return_thrown;  // no action to drop so this frame just ends
+        }
+    }
+    else
+        assert(r == f->out);
+
+    if (f != start)
+        goto loop;
+
+    if (r == f->out)
+        return false;  // not thrown
+    assert(r == R_THROWN);
+    return true;  // thrown
 }
 
 
@@ -220,6 +263,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 //
 REB_R Eval_Frame_Workhorse(REBFRM *f)
 {
+    assert(NOT_EVAL_FLAG(f, PROCESS_ACTION));
 
     REB_R mode = nullptr;  // !!! Interim to try and break this up (!)
 
@@ -264,20 +308,11 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     //
     if (f->flags.bits & (
         EVAL_FLAG_POST_SWITCH
-        | EVAL_FLAG_PROCESS_ACTION
         | EVAL_FLAG_REEVALUATE_CELL
     )){
         if (GET_EVAL_FLAG(f, POST_SWITCH)) {
             CLEAR_EVAL_FLAG(f, POST_SWITCH);  // !!! necessary?
             goto post_switch;
-        }
-
-        if (GET_EVAL_FLAG(f, PROCESS_ACTION)) {
-            CLEAR_EVAL_FLAG(f, PROCESS_ACTION);
-
-            SET_CELL_FLAG(f->out, OUT_MARKED_STALE);  // !!! necessary?
-            kind.byte = REB_ACTION;  // must init for UNEVALUATED check
-            goto process_action;
         }
 
         CLEAR_EVAL_FLAG(f, REEVALUATE_CELL);
@@ -554,7 +589,7 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
         if (r == R_CONTINUATION)
             return R_CONTINUATION;
         if (r == R_THROWN)
-            goto return_thrown;
+            return R_THROWN;
         if (r == R_IMMEDIATE) {  // reevaluate
             gotten = f_next_gotten;
             v = Lookback_While_Fetching_Next(f);
@@ -1542,32 +1577,6 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     // Stay THROWN and let stack levels above try and catch
 
   return_thrown:
-
-  #if !defined(NDEBUG)
-    Eval_Core_Exit_Checks_Debug(f);   // called unless a fail() longjmps
-    // don't care if f->flags has changes; thrown frame is not resumable
-  #endif
-
-    if (GET_EVAL_FLAG(f, CONTINUATION)) {
-        if (GET_EVAL_FLAG(f, FULFILLING_ARG)) {  // *before* function runs
-            assert(NOT_EVAL_FLAG(f->prior, DISPATCHER_CATCHES));  // no catch
-            assert(f->prior->original);  // must be running function
-            assert(f->prior->arg == f->out);  // must be fulfilling f->arg
-            Move_Value(f->prior->out, f->out);  // throw must be in out
-        }
-        Drop_Frame(f);
-        f = FS_TOP;
-        if (f->original) {  // function is in process of running, can catch
-            if (GET_EVAL_FLAG(f, DISPATCHER_CATCHES)) {
-                mode = R_CONTINUATION;
-                goto process_action;  // might want to see BREAK/CONTINUE
-            }
-            mode = R_THROWN;
-            goto process_action;  // could be an UNWIND or similar
-        }
-        goto return_thrown;  // no action to drop so this frame just ends
-    }
-
     return R_THROWN;
 
   finished:
@@ -1658,12 +1667,10 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
         }
 
         assert(f->original);  // this should only happen if function was run
-        if (GET_EVAL_FLAG(f, DELEGATE_CONTROL)) {
-            CLEAR_EVAL_FLAG(f, DELEGATE_CONTROL);
-            mode = R_IMMEDIATE;
-            goto process_action;
-        }
-        mode = R_CONTINUATION;
+        if (NOT_EVAL_FLAG(f, DELEGATE_CONTROL))
+            mode = R_CONTINUATION;
+        else
+            assert(mode == nullptr);
         goto process_action;
     }
 

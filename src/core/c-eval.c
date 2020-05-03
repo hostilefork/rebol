@@ -209,7 +209,39 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
     REB_R r;
 
   loop:
-    if (f->original) {  // sign for Is_Action_Frame()
+
+    UPDATE_TICK_DEBUG(nullptr);
+
+    // v-- This is the TG_Break_At_Tick or C-DEBUG-BREAK landing spot --v
+
+    if (GET_EVAL_FLAG(f, REEVALUATE_CELL)) {
+        CLEAR_EVAL_FLAG(f, REEVALUATE_CELL);
+
+        // The re-evaluate functionality may not want to heed the enfix state
+        // in the action itself.  See REBNATIVE(shove)'s /ENFIX for instance.
+        // So we go by the state of EVAL_FLAG_RUNNING_ENFIX on entry.
+        //
+        if (GET_EVAL_FLAG(f, RUNNING_ENFIX)) {
+            CLEAR_EVAL_FLAG(f, RUNNING_ENFIX);  // for assertion
+            Push_Action(
+                f,
+                VAL_ACTION(f->u.reval.value),
+                VAL_BINDING(f->u.reval.value)
+            );
+            Begin_Enfix_Action(f, nullptr);  // invisible cache NO_LOOKAHEAD
+
+            Fetch_Next_Forget_Lookback(f);
+
+            goto loop;
+        }
+
+        r = Eval_Frame_Workhorse(f);
+    }
+    else if (GET_EVAL_FLAG(f, POST_SWITCH)) {
+        CLEAR_EVAL_FLAG(f, POST_SWITCH);
+        r = Eval_Post_Switch(f);
+    }
+    else if (f->original) {  // sign for Is_Action_Frame()
         //
         // !!! This related to a check in Do_Process_Action_Checks_Debug(),
         // see notes there.
@@ -227,7 +259,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         assert(r == R_THROWN or r == R_CONTINUATION);
     }
     else
-        r = Eval_Frame_Workhorse(f);
+        r = Eval_New_Expression(f);
 
     f = FS_TOP;  // refresh shorthand
 
@@ -327,6 +359,23 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         }
     }
 
+    // Want to keep this flag between an operation and an ensuing enfix in
+    // the same frame, so can't clear in Drop_Action(), e.g. due to:
+    //
+    //     left-lit: enfix :lit
+    //     o: make object! [f: does [1]]
+    //     o/f left-lit  ; want error suggesting -> here, need flag for that
+    //
+    CLEAR_EVAL_FLAG(f, DIDNT_LEFT_QUOTE_PATH);
+    assert(NOT_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT));  // must be consumed
+
+  #if !defined(NDEBUG)
+    Eval_Core_Exit_Checks_Debug(f);  // called unless a fail() longjmps
+    assert(NOT_EVAL_FLAG(f, DOING_PICKUPS));
+
+    assert(f->flags.bits == f->initial_flags);  // changes should be restored
+  #endif
+
     if (f != start)
         goto loop;
 
@@ -338,14 +387,17 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
 
 //
-//  Eval_Frame_Workhorse: C
+//  Eval_New_Expression: C
 //
-// Try and encapsulate the main frame work but without actually looping.
-// This means it needs more return results than just `bool` for threw.
-// It gives it the same signature as a dispatcher.
+// This is the continuation dispatcher for what would be considered a new
+// single step in the evaluator.  That can be from the point of view of the
+// debugger, or just in terms of marking the point at which an error message
+// would begin.
 //
-REB_R Eval_Frame_Workhorse(REBFRM *f)
+REB_R Eval_New_Expression(REBFRM *f)
 {
+    assert(NOT_EVAL_FLAG(f, POST_SWITCH));
+
   #ifdef DEBUG_ENSURE_FRAME_EVALUATES
     f->was_eval_called = true;  // see definition for why this flag exists
   #endif
@@ -354,70 +406,6 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     assert(not IS_TRASH_DEBUG(f->out));  // all invisible will preserve output
     assert(f->out != f_spare);  // overwritten by temporary calculations
     assert(NOT_FEED_FLAG(f->feed, BARRIER_HIT));
-
-    // Caching KIND_BYTE(*at) in a local can make a slight performance
-    // difference, though how much depends on what the optimizer figures out.
-    // Either way, it's useful to have handy in the debugger.
-    //
-    // Note: int8_fast_t picks `char` on MSVC, shouldn't `int` be faster?
-    // https://stackoverflow.com/a/5069643/
-    //
-    union {
-        int byte;  // values bigger than REB_64 are used for in-situ literals
-        enum Reb_Kind pun;  // for debug viewing *if* byte < REB_MAX_PLUS_MAX
-    } kind;
-
-    const RELVAL *v;  // shorthand for the value we are switch()-ing on
-    TRASH_POINTER_IF_DEBUG(v);
-
-    const REBVAL *gotten;
-    TRASH_POINTER_IF_DEBUG(gotten);
-
-    // Given how the evaluator is written, it's inevitable that there will
-    // have to be a test for points to `goto` before running normal eval.
-    // This cost is paid on every entry to Eval_Core().
-    //
-    // Trying alternatives (such as a synthetic REB_XXX type to signal it,
-    // to fold along in a switch) seem to only make it slower.  Using flags
-    // and testing them together as a group seems the fastest option.
-    //
-    if (f->flags.bits & (
-        EVAL_FLAG_POST_SWITCH
-        | EVAL_FLAG_REEVALUATE_CELL
-    )){
-        if (GET_EVAL_FLAG(f, POST_SWITCH)) {
-            CLEAR_EVAL_FLAG(f, POST_SWITCH);  // !!! necessary?
-            goto post_switch;
-        }
-
-        CLEAR_EVAL_FLAG(f, REEVALUATE_CELL);
-
-        // The re-evaluate functionality may not want to heed the enfix state
-        // in the action itself.  See REBNATIVE(shove)'s /ENFIX for instance.
-        // So we go by the state of EVAL_FLAG_RUNNING_ENFIX on entry.
-        //
-        if (GET_EVAL_FLAG(f, RUNNING_ENFIX)) {
-            CLEAR_EVAL_FLAG(f, RUNNING_ENFIX);  // for assertion
-            Push_Action(
-                f,
-                VAL_ACTION(f->u.reval.value),
-                VAL_BINDING(f->u.reval.value)
-            );
-            Begin_Enfix_Action(f, nullptr);  // invisible cache NO_LOOKAHEAD
-
-            Fetch_Next_Forget_Lookback(f);
-
-            kind.byte = REB_ACTION;  // must init for UNEVALUATED check
-            goto process_action;
-        }
-
-        v = f->u.reval.value;
-        gotten = nullptr;
-        kind.byte = KIND_BYTE(v);
-        goto reevaluate;
-    }
-
-    kind.byte = KIND_BYTE(f_next);
 
   #if !defined(NDEBUG)
     Eval_Core_Expression_Checks_Debug(f);
@@ -445,6 +433,20 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
 
     UPDATE_EXPRESSION_START(f);  // !!! See FRM_INDEX() for caveats
 
+    // Caching KIND_BYTE(*at) in a local can make a slight performance
+    // difference, though how much depends on what the optimizer figures out.
+    // Either way, it's useful to have handy in the debugger.
+    //
+    // Note: int8_fast_t picks `char` on MSVC, shouldn't `int` be faster?
+    // https://stackoverflow.com/a/5069643/
+    //
+    union {
+        int byte;  // values bigger than REB_64 are used for in-situ literals
+        enum Reb_Kind pun;  // for debug viewing *if* byte < REB_MAX_PLUS_MAX
+    } kind;
+
+    kind.byte = KIND_BYTE(f_next);
+
     // If asked to evaluate `[]` then we have now done all the work the
     // evaluator needs to do--including marking the output stale.
     //
@@ -454,11 +456,46 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     if (kind.byte == REB_0_END)
         goto finished;
 
-    gotten = f_next_gotten;
-    v = Lookback_While_Fetching_Next(f);
+    // shorthand for the value we are switch()-ing on
+
+    const RELVAL *v = Lookback_While_Fetching_Next(f);
     // ^-- can't just `v = f_next`, fetch may overwrite--request lookback!
 
+    const REBVAL *gotten = f_next_gotten;
+    UNUSED(gotten);
+
     assert(kind.byte == KIND_BYTE_UNCHECKED(v));
+    SET_EVAL_FLAG(f, REEVALUATE_CELL);
+    f->u.reval.value = v;
+    return R_CONTINUATION;
+
+  return_thrown:
+    return R_THROWN;
+
+  finished:
+    return f->out;
+}
+
+
+//
+//  Eval_Frame_Workhorse: C
+//
+// Try and encapsulate the main frame work but without actually looping.
+// This means it needs more return results than just `bool` for threw.
+// It gives it the same signature as a dispatcher.
+//
+REB_R Eval_Frame_Workhorse(REBFRM *f)
+{
+    union {
+        int byte;  // values bigger than REB_64 are used for in-situ literals
+        enum Reb_Kind pun;  // for debug viewing *if* byte < REB_MAX_PLUS_MAX
+    } kind;
+
+    // `v` is the shorthand for the value we are switching on
+    //
+    const RELVAL *v = f->u.reval.value;
+    const REBVAL *gotten = nullptr;
+    kind.byte = KIND_BYTE(v);
 
   reevaluate: ;  // meaningful semicolon--subsequent macro may declare things
 
@@ -471,10 +508,6 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     // frame one unit that f->value is the f_next* value, and a local variable
     // called "current" holds the current head of the expression that the
     // main switch would process.
-
-    UPDATE_TICK_DEBUG(v);
-
-    // v-- This is the TG_Break_At_Tick or C-DEBUG-BREAK landing spot --v
 
     if (KIND_BYTE(f_next) != REB_WORD)  // right's kind - END would be REB_0
         goto give_up_backward_quote_priority;
@@ -1334,38 +1367,55 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     }
     */
 
-    // We're sitting at what "looks like the end" of an evaluation step.
-    // But we still have to consider enfix.  e.g.
-    //
-    //    evaluate @val [1 + 2 * 3]
-    //
-    // We want that to give a position of [] and `val = 9`.  The evaluator
-    // cannot just dispatch on REB_INTEGER in the switch() above, give you 1,
-    // and consider its job done.  It has to notice that the word `+` looks up
-    // to an ACTION! that was assigned with SET/ENFIX, and keep going.
-    //
-    // Next, there's a subtlety with FEED_FLAG_NO_LOOKAHEAD which explains why
-    // processing of the 2 argument doesn't greedily continue to advance, but
-    // waits for `1 + 2` to finish.  This is because the right hand argument
-    // of math operations tend to be declared #tight.
-    //
-    // Slightly more nuanced is why PARAMLIST_IS_INVISIBLE functions have to
-    // be considered in the lookahead also.  Consider this case:
-    //
-    //    evaluate @val [1 + 2 * comment ["hi"] 3 4 / 5]
-    //
-    // We want `val = 9`, with `pos = [4 / 5]`.  To do this, we
-    // can't consider an evaluation finished until all the "invisibles" have
-    // been processed.
-    //
-    // If that's not enough to consider :-) it can even be the case that
-    // subsequent enfix gets "deferred".  Then, possibly later the evaluated
-    // value gets re-fed back in, and we jump right to this post-switch point
-    // to give it a "second chance" to take the enfix.  (See 'deferred'.)
-    //
-    // So this post-switch step is where all of it happens, and it's tricky!
-
   post_switch:
+    SET_EVAL_FLAG(f, POST_SWITCH);
+    return R_CONTINUATION;
+
+    // Stay THROWN and let stack levels above try and catch
+
+  return_thrown:
+    return R_THROWN;
+
+  finished:
+    return f->out;
+}
+
+
+//
+//  Eval_Post_Switch: C
+//
+// When we are sitting at what "looks like the end" of an evaluation step, we
+// still have to consider enfix.  e.g.
+//
+//    evaluate @val [1 + 2 * 3]
+//
+// We want that to give a position of [] and `val = 9`.  The evaluator
+// cannot just dispatch on REB_INTEGER in the switch() above, give you 1,
+// and consider its job done.  It has to notice that the word `+` looks up
+// to an ACTION! that was assigned with SET/ENFIX, and keep going.
+//
+// Next, there's a subtlety with FEED_FLAG_NO_LOOKAHEAD which explains why
+// processing of the 2 argument doesn't greedily continue to advance, but
+// waits for `1 + 2` to finish.
+//
+// Slightly more nuanced is why PARAMLIST_IS_INVISIBLE functions have to be
+// considered in the lookahead also.  Consider this case:
+//
+//    evaluate @val [1 + 2 * comment ["hi"] 3 4 / 5]
+//
+// We want `val = 9`, with `pos = [4 / 5]`.  To do this, we can't consider an
+// evaluation finished until all the "invisibles" have been processed.
+//
+// If that's not enough to consider :-) it can even be the case that
+// subsequent enfix gets "deferred".  Then, possibly later the evaluated
+// value gets re-fed back in, and we jump right to this post-switch point
+// to give it a "second chance" to take the enfix.  (See 'deferred'.)
+//
+// So this post-switch step is where all of it happens, and it's tricky!
+//
+REB_R Eval_Post_Switch(REBFRM *f)
+{
+    assert(NOT_EVAL_FLAG(f, POST_SWITCH));
 
     // If something was run with the expectation it should take the next arg
     // from the output cell, and an evaluation cycle ran that wasn't an
@@ -1387,14 +1437,14 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     // enfix.  If it's necessary to dispatch an enfix function via path, then
     // a word is used to do it, like `->` in `x: -> lib/method [...] [...]`.
 
-    kind.byte = KIND_BYTE(f_next);
+    REBYTE kind_byte = KIND_BYTE(f_next);
 
-    if (kind.byte == REB_0_END) {
+    if (kind_byte == REB_0_END) {
         CLEAR_FEED_FLAG(f->feed, NO_LOOKAHEAD);
         goto finished;  // hitting end is common, avoid do_next's switch()
     }
 
-    if (kind.byte == REB_PATH) {
+    if (kind_byte == REB_PATH) {
         if (
             GET_FEED_FLAG(f->feed, NO_LOOKAHEAD)
             or VAL_LEN_AT(f_next) != 2
@@ -1422,7 +1472,7 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
         goto process_action;
     }
 
-    if (kind.byte != REB_WORD) {
+    if (kind_byte != REB_WORD) {
         CLEAR_FEED_FLAG(f->feed, NO_LOOKAHEAD);
         goto finished;
     }
@@ -1586,32 +1636,10 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     Begin_Enfix_Action(f, VAL_WORD_SPELLING(f_next));
 
     Fetch_Next_Forget_Lookback(f);  // advances next
-    goto process_action;
+  process_action:
+    return R_CONTINUATION;
 
-
-    // Stay THROWN and let stack levels above try and catch
-
-  return_thrown:
-    return R_THROWN;
 
   finished:
-
-    // Want to keep this flag between an operation and an ensuing enfix in
-    // the same frame, so can't clear in Drop_Action(), e.g. due to:
-    //
-    //     left-lit: enfix :lit
-    //     o: make object! [f: does [1]]
-    //     o/f left-lit  ; want error suggesting -> here, need flag for that
-    //
-    CLEAR_EVAL_FLAG(f, DIDNT_LEFT_QUOTE_PATH);
-    assert(NOT_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT));  // must be consumed
-
-  #if !defined(NDEBUG)
-    Eval_Core_Exit_Checks_Debug(f);  // called unless a fail() longjmps
-    assert(NOT_EVAL_FLAG(f, DOING_PICKUPS));
-
-    assert(f->flags.bits == f->initial_flags);  // changes should be restored
-  #endif
-
     return f->out;  // not thrown
 }

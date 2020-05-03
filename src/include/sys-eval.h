@@ -57,20 +57,20 @@
 
 #if defined(DEBUG_COUNT_TICKS)  // <-- THIS IS VERY USEFUL, READ THIS SECTION!
     //
-    // The evaluator `tick` should be visible in the C debugger watchlist as a
-    // local variable on each evaluator stack level.  So if a fail() happens
-    // at a deterministic moment in a run, capture the number from the level
-    // of interest and recompile for a breakpoint at that tick.
+    // The `REBFRM.tick` is updated in each frame on the last time it was
+    // evaluated.  So if a fail() happens at a deterministic moment in a run,
+    // capture the number from the level of interest and recompile for a
+    // breakpoint at that tick.
     //
     // If the tick is AFTER command line processing is done, you can request
     // a tick breakpoint that way with `--breakpoint NNN`
     //
     // The debug build carries ticks many other places.  Series contain the
-    // `REBSER.tick` where they were created, frames have a `REBFRM.tick`,
-    // and the DEBUG_TRACK_EXTEND_CELLS switch will double the size of cells
-    // so they can carry the tick, file, and line where they were initialized.
-    // (Even without TRACK_EXTEND, cells that don't have their EXTRA() field
-    // in use carry the tick--it's in end cells, nulls, blanks, and trash.)
+    // `REBSER.tick`, and the DEBUG_TRACK_EXTEND_CELLS switch will double the
+    // size of cells so they can carry the tick, file, and line where they
+    // were initialized.  (Even without TRACK_EXTEND, cells that don't have
+    // their EXTRA() field in use carry the tick--it's in end cells, nulls,
+    // blanks, and trash.)
     //
     // For custom updating of stored ticks to help debugging some scenarios,
     // see TOUCH_SERIES() and TOUCH_CELL().  Note also that BREAK_NOW() can be
@@ -79,13 +79,13 @@
     #define UPDATE_TICK_DEBUG(v) \
         do { \
             if (TG_Tick < INTPTR_MAX)  /* avoid rollover (may be 32-bit!) */ \
-                tick = f->tick = ++TG_Tick; \
+                f->tick = ++TG_Tick; \
             else \
-                tick = f->tick = INTPTR_MAX;  /* see tick for why signed! */ \
+                f->tick = INTPTR_MAX;  /* see tick for why signed! */ \
             if ( \
-                (TG_Break_At_Tick != 0 and tick >= TG_Break_At_Tick) \
+                (TG_Break_At_Tick != 0 and f->tick >= TG_Break_At_Tick) \
             ){ \
-                printf("BREAKING AT TICK %u\n", cast(unsigned int, tick)); \
+                printf("BREAKING AT TICK %u\n", cast(unsigned int, f->tick)); \
                 Dump_Frame_Location((v), f); \
                 debug_break();  /* see %debug_break.h */ \
                 TG_Break_At_Tick = 0; \

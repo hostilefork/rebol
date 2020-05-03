@@ -1437,10 +1437,6 @@ REBNATIVE(subparse)
     (void)pos_debug; // UNUSED() forces corruption in C++11 debug builds
   #endif
 
-  #if defined(DEBUG_COUNT_TICKS)
-    REBTCK tick = TG_Tick; // helpful to cache for visibility also
-  #endif
-
     DECLARE_LOCAL (save);
 
     REBLEN start = P_POS; // recovery restart point

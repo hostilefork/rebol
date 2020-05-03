@@ -350,10 +350,6 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     f->was_eval_called = true;  // see definition for why this flag exists
   #endif
 
-  #if defined(DEBUG_COUNT_TICKS)
-    REBTCK tick = f->tick = TG_Tick;  // snapshot tick for C watchlist viewing
-  #endif
-
     assert(DSP >= f->dsp_orig);  // REDUCE accrues, APPLY adds refinements
     assert(not IS_TRASH_DEBUG(f->out));  // all invisible will preserve output
     assert(f->out != f_spare);  // overwritten by temporary calculations

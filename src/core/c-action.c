@@ -292,6 +292,17 @@ REB_R Eval_Action(REBFRM *f)
 
     assert(NOT_EVAL_FLAG(f, DOING_PICKUPS));
 
+    //=//// ACTION! ARGUMENT FULFILLMENT AND/OR TYPE CHECKING PROCESS /////=//
+
+    // This one processing loop is able to handle ordinary action invocation,
+    // specialization, and type checking of an already filled action frame.
+    // It walks through both the formal parameters (in the spec) and the
+    // actual arguments (in the call frame) using pointer incrementation.
+    //
+    // Based on the parameter type, it might need to "consume" an expression
+    // from values that come after the invocation point.  But not all
+    // parameters will consume arguments for all calls.
+
     for (; NOT_END(f->param); ++f->param, ++f->arg, ++f->special) {
 
     //=//// CONTINUES (AT TOP SO GOTOS DO NOT CROSS INITIALIZATIONS ///////=//
@@ -890,7 +901,6 @@ REB_R Eval_Action(REBFRM *f)
 
             flags |= EVAL_FLAG_CONTINUATION;
             DECLARE_FRAME (subframe, f->feed, flags);
-            subframe->continuation_type = REB_BLANK;
 
             Push_Frame(f->arg, subframe);
             //
@@ -1218,8 +1228,8 @@ REB_R Eval_Action(REBFRM *f)
             REBFRM *subframe
                 = VAL_HANDLE_POINTER(REBFRM, f->u.cont.branch);
             assert(GET_EVAL_FLAG(subframe, CONTINUATION));
+            assert(GET_EVAL_FLAG(subframe, DETACH_DONT_DROP));
             assert(subframe->prior == nullptr);
-            assert(subframe->continuation_type == REB_HANDLE);
             subframe->dsp_orig = DSP;  // may be accruing state
             subframe->prior = f;
             TG_Top_Frame = subframe;
@@ -1231,7 +1241,9 @@ REB_R Eval_Action(REBFRM *f)
             // we must initialize to void (in case all invisibles) and
             // we must clear off the stale flag at the end.
             //
-            REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_CONTINUATION;
+            REBFLGS flags = EVAL_MASK_DEFAULT
+                | EVAL_FLAG_CONTINUATION
+                | EVAL_FLAG_TO_END;
             DECLARE_FRAME_AT_CORE (
                 blockframe,
                 f->u.cont.branch,
@@ -1240,7 +1252,6 @@ REB_R Eval_Action(REBFRM *f)
             );
 
             Init_Void(f->out);  // in case all invisibles, as usual
-            blockframe->continuation_type = REB_BLOCK;
             Push_Frame(f->out, blockframe);
             return R_CONTINUATION; }
 
@@ -1277,8 +1288,6 @@ REB_R Eval_Action(REBFRM *f)
             Push_Action(subframe, action, binding);
             REBSTR *opt_label = nullptr;
             Begin_Prefix_Action(subframe, opt_label);
-
-            subframe->continuation_type = REB_ACTION;
             return R_CONTINUATION; }
 
           case REB_BLANK:
@@ -1411,8 +1420,6 @@ REB_R Eval_Action(REBFRM *f)
 
             REBSTR *opt_label = nullptr;
             Begin_Prefix_Action(subframe, opt_label);
-
-            subframe->continuation_type = REB_FRAME;
             return R_CONTINUATION; }
 
           default:

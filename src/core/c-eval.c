@@ -57,6 +57,10 @@
 //   It is separated into sections, and the invariants in each section are
 //   made clear with comments and asserts.
 //
+// * See %d-eval.c for more detailed assertions of the preconditions,
+//   postconditions, and state...which are broken out to help keep this file
+//   a more manageable length.
+//
 // * The evaluator only moves forward, and operates on a strict window of
 //   visibility of two elements at a time (current position and "lookback").
 //   See `Reb_Feed` for the code that provides this abstraction over Revolt
@@ -181,9 +185,21 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
 // See notes at top of file for general remarks on this central function's
 // name, and that wrappers should nearly always be used to call it.
 //
-// More detailed assertions of the preconditions, postconditions, and state
-// at each evaluation step are contained in %d-eval.c, to keep this file
-// more manageable in length.
+// !!! The end goal is that this function is never found recursively on a
+// standard evaluation stack.  The only way it should be found on the stack
+// more than once would be to call out to non-Rebol code, which then turned
+// around and made an API call back in...it would not be able to gracefully
+// unwind across such C stack frames.  In the interim, not all natives have
+// been rewritten as state machines.
+//
+// !!! There was an old concept that the way to write a stepwise debugger
+// would be to replace this function in such a way that it would do some work
+// related to examining the "pre" state of a frame... delegate to the "real"
+// eval function... and then look at the end result after that call.  This
+// meant hooking every recursion.  The new idea would be to make this
+// "driver" easier to rewrite in its entirety, and examine the frame state
+// as continuations are run.  This is radically different, and is requiring
+// rethinking during the stackless transition.
 //
 bool Eval_Internal_Maybe_Stale_Throws(void)
 {
@@ -240,8 +256,76 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             goto return_thrown;  // no action to drop so this frame just ends
         }
     }
-    else
+    else {
         assert(r == f->out);
+
+        // If the evaluations are running to the end of a block or a group,
+        // we don't want to drop the frame.  But we do want an opportunity
+        // to hook the evaluation step here in the top level driver.
+        //
+        if (GET_EVAL_FLAG(f, TO_END) and NOT_END(f->feed->value))
+            goto loop;
+
+        if (GET_EVAL_FLAG(f, CONTINUATION)) {
+
+            // !!! As the code evolves, trying to get the post-processing out
+            // of the evaluator as much as possible...to homogenize whatever
+            // "continuation frames" are.  This case is weird.
+            //
+            if (not f->prior->original) {  // REB_GROUP asks for continuation
+                Drop_Frame(f);  // frees feed
+                f = FS_TOP;
+
+                // We want `3 = (1 + 2 ()) 4` to not treat 1 + 2 as "stale",
+                // thus skipping it and trying to compare `3 = 4`.  But
+                // `3 = () 1 + 2` should consider the empty group stale.
+                //
+                /* if (IS_END(f->out)) {
+                    if (IS_END(f_next))
+                        goto finished;  // nothing after to try evaluating
+
+                    gotten = f_next_gotten;
+                    v = Lookback_While_Fetching_Next(f);
+                    kind.byte = KIND_BYTE(v);
+                    goto reevaluate;
+                } */
+
+                CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // `(1)` is evaluative
+                SET_EVAL_FLAG(f, POST_SWITCH);
+                goto loop;
+            }
+
+            // !!! Note: GROUP! doesn't want this done, it actually wants to
+            // differentiate between VOID! and END.  Review.
+            //
+            CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);
+
+            if (GET_EVAL_FLAG(f, FULFILLING_ARG)) {
+                Drop_Frame(f);
+                f = FS_TOP;
+                SET_EVAL_FLAG(f, ARG_FINISHED);
+                goto loop;
+            }
+
+            if (GET_EVAL_FLAG(f, DETACH_DONT_DROP)) {
+                TG_Top_Frame = f->prior;
+                f->prior = nullptr;  // we don't "drop" it, but...
+                f = FS_TOP;  // we unwire it
+                // !!! leave flag or reset it?
+            }
+            else {
+                Drop_Frame(f);  // frees feed
+                f = FS_TOP;
+            }
+
+            assert(f->original);  // this should only happen if function was run
+            if (NOT_EVAL_FLAG(f, DELEGATE_CONTROL))
+                SET_EVAL_FLAG(f, ACTION_FOLLOWUP);
+            else
+                assert(NOT_EVAL_FLAG(f, ACTION_FOLLOWUP));
+            goto loop;
+        }
+    }
 
     if (f != start)
         goto loop;
@@ -565,18 +649,6 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
 
         goto process_action; }
 
-    //=//// ACTION! ARGUMENT FULFILLMENT AND/OR TYPE CHECKING PROCESS /////=//
-
-        // This one processing loop is able to handle ordinary action
-        // invocation, specialization, and type checking of an already filled
-        // action frame.  It walks through both the formal parameters (in
-        // the spec) and the actual arguments (in the call frame) using
-        // pointer incrementation.
-        //
-        // Based on the parameter type, it may be necessary to "consume" an
-        // expression from values that come after the invocation point.  But
-        // not all parameters will consume arguments for all calls.
-
       process_action: // Note: Also jumped to by the redo_checked code
         return R_CONTINUATION;
 
@@ -685,44 +757,14 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
       case REB_GROUP: {
         f_next_gotten = nullptr;  // arbitrary code changes fetched variables
 
-      blockscope {
-        //
-        // Previous to the stackless model, this code would say:
-        //
-        //     if (Do_Feed_To_End_Maybe_Stale_Throws(f->out, subfeed))
-        //         goto return_thrown;
-        //
-        // "Maybe_Stale" variant leaves f->out as-is if no result generated
-        // However, it sets OUT_MARKED_STALE in that case (note we may be
-        // leaving an END in f->out by doing this.)  Now we use a continuation
-        // so we have to create a frame dynamically and use a goto.
-
-        REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_CONTINUATION;
+        REBFLGS flags = EVAL_MASK_DEFAULT
+            | EVAL_FLAG_CONTINUATION
+            | EVAL_FLAG_TO_END;
         DECLARE_FRAME_AT_CORE (subframe, v, f_specifier, flags);
-        subframe->continuation_type = REB_GROUP;
 
         Push_Frame(f->out, subframe);
 
-        return R_CONTINUATION;
-      }
-
-        // We want `3 = (1 + 2 ()) 4` to not treat the 1 + 2 as "stale", thus
-        // skipping it and trying to compare `3 = 4`.  But `3 = () 1 + 2`
-        // should consider the empty group stale.
-        //
-      continue_group:
-        if (IS_END(f->out)) {
-            if (IS_END(f_next))
-                goto finished;  // nothing after to try evaluating
-
-            gotten = f_next_gotten;
-            v = Lookback_While_Fetching_Next(f);
-            kind.byte = KIND_BYTE(v);
-            goto reevaluate;
-        }
-
-        CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // `(1)` considered evaluative
-        break; }
+        return R_CONTINUATION; }
 
 
 //==//// PATH! ///////////////////////////////////////////////////////////==//
@@ -1574,70 +1616,6 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
 
     assert(f->flags.bits == f->initial_flags);  // changes should be restored
   #endif
-
-    if (GET_EVAL_FLAG(f, CONTINUATION)) {
-        switch (f->continuation_type) {
-          case REB_BLANK:
-            Drop_Frame(f);
-            f = FS_TOP;
-            //
-            // !!! Previously we had called Eval_Throws() which would
-            // clear the stale flag; but just recursing the evaluator and
-            // jumping back up here leaves it intact.  Clear it now.
-            //
-            CLEAR_CELL_FLAG(f->arg, OUT_MARKED_STALE);
-            SET_EVAL_FLAG(f, ARG_FINISHED);
-            goto process_action;
-
-          case REB_HANDLE: {  // just one step
-            CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);
-            TG_Top_Frame = f->prior;
-            f->prior = nullptr;  // we don't "drop" it, but...
-            f = FS_TOP;  // we unwire it
-            break; }
-
-          case REB_BLOCK:  // was a "Do to End" form, must loop
-            if (NOT_END(f->feed->value))
-                return R_CONTINUATION;
-            Drop_Frame(f);  // frees feed
-            f = FS_TOP;
-            CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);
-            break;
-
-          case REB_ACTION:
-            Drop_Frame(f);  // frees feed
-            f = FS_TOP;
-            break;
-
-          case REB_GROUP:  // was a "Do to End" form, must loop
-            if (NOT_END(f->feed->value))
-                return R_CONTINUATION;
-            Drop_Frame(f);  // frees feed
-            f = FS_TOP;
-
-          #if !defined(NDEBUG)  // the feed changed, caches invalidated
-            TRASH_POINTER_IF_DEBUG(v);
-            kind.byte = REB_T_TRASH;
-          #endif
-            goto continue_group;
-
-          case REB_FRAME:
-            assert(IS_END(f->feed->value));  // started at END
-            Drop_Frame(f);
-            f = FS_TOP;
-            break;
-
-          default:
-            assert(!"Bad continuation_type in frame");
-        }
-
-        assert(f->original);  // this should only happen if function was run
-        if (NOT_EVAL_FLAG(f, DELEGATE_CONTROL))
-            SET_EVAL_FLAG(f, ACTION_FOLLOWUP);
-        else
-            assert(NOT_EVAL_FLAG(f, ACTION_FOLLOWUP));
-        goto process_action;
-    }
 
     return f->out;  // not thrown
 }

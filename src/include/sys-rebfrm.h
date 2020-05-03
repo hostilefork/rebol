@@ -145,15 +145,29 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
     FLAG_LEFT_BIT(11)
 
 
-//=//// EVAL_FLAG_12 //////////////////////////////////////////////////////=//
+//=//// EVAL_FLAG_TO_END //////////////////////////////////////////////////=//
 //
-#define EVAL_FLAG_12 \
+// !!! This is a revival of an old idea that a frame flag would hold the state
+// of whether to do to the end or not.  The reason that idea was scrapped was
+// because if the Eval() routine was hooked (e.g. by a stepwise debugger)
+// then the hook would be unable to see successive calls to Eval() if it
+// didn't return and make another call.
+//
+#define EVAL_FLAG_TO_END \
     FLAG_LEFT_BIT(12)
 
 
-//=//// EVAL_FLAG_13 //////////////////////////////////////////////////////=//
+//=//// EVAL_FLAG_DETACH_DONT_DROP ////////////////////////////////////////=//
 //
-#define EVAL_FLAG_13 \
+// !!! In trying to notice patterns of continuation handling to simplify it,
+// it's necessary to not have the same frame running when a parent frame
+// resumes.  But "Dropping" a frame costs more because it frees it, and if
+// something like a REDUCE wants to run several evaluations then it would
+// have to spin up a new frame each time.  It is probable that a better
+// way of saying this exists, but those patterns are emerging as the code
+// gets restyled...so this is just to try and eliminate "continuation type".
+//
+#define EVAL_FLAG_DETACH_DONT_DROP \
     FLAG_LEFT_BIT(13)
 
 
@@ -643,15 +657,6 @@ struct Reb_Frame {
     // space for things other than evaluation.)
     //
     RELVAL spare;
-
-
-    // !!! There was quite a bit of tweaking done to avoid caching a Reb_Kind
-    // in the frame state.  However, with a non-recursive evaluator that just
-    // loops and jumps, it has to know which kind of continuation it just
-    // finished.  This will ultimately need to be more complex, but for the
-    // moment use an enumeration just to get things going.
-    //
-    uintptr_t continuation_type;
 
     // The data stack pointer captured on entry to the evaluation.  It is used
     // by debug checks to make sure the data stack stays balanced after each

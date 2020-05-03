@@ -163,8 +163,8 @@ REBNATIVE(reduce2)
             EVAL_MASK_DEFAULT
                 | EVAL_FLAG_ALLOCATED_FEED
                 | EVAL_FLAG_CONTINUATION
+                | EVAL_FLAG_DETACH_DONT_DROP  // reused for each step
         );
-        f->continuation_type = REB_HANDLE;
         Push_Frame(D_OUT, f);
         TG_Top_Frame = f->prior;
         f->prior = nullptr;

@@ -949,14 +949,10 @@ inline static REB_R Init_Continuation_With_Core(
     // return in those cases).  But more complex scenarios may have
     // broken control flow if such shortcuts were taken.  Review.
 
-  recontinue:
-
     switch (VAL_TYPE(branch)) {
       case REB_QUOTED:
-        if (not (flags & EVAL_FLAG_DELEGATE_CONTROL))
-            assert(!"Temporarily no non-delegated quoted branches");
         Unquotify(Derelativize(f->out, branch, branch_specifier), 1);
-        return f->out;
+        goto just_use_out;
 
       case REB_HANDLE: {  // temporarily means REBFRM*, chain to stack
         REBFRM *subframe = VAL_HANDLE_POINTER(REBFRM, branch);
@@ -985,7 +981,7 @@ inline static REB_R Init_Continuation_With_Core(
 
         Init_Void(f->out);  // in case all invisibles, as usual
         Push_Frame(f->out, blockframe);
-        break; }
+        return R_CONTINUATION; }
 
       case REB_ACTION: {
         REBACT *action = VAL_ACTION(branch);
@@ -1020,16 +1016,14 @@ inline static REB_R Init_Continuation_With_Core(
         Push_Action(subframe, action, binding);
         REBSTR *opt_label = nullptr;
         Begin_Prefix_Action(subframe, opt_label);
-        break; }
+        return R_CONTINUATION; }
 
       case REB_BLANK:
-        assert(!"Temporarily no blank branches");
         Init_Nulled(f->out);
-        break;
+        goto just_use_out;
 
       case REB_SYM_WORD:
       case REB_SYM_PATH: {
-        assert(!"Temporarily no SYM_WORD or SYM_PATH branches");
         //
         // !!! SYM-WORD! and SYM-PATH! were considered as speculative
         // abbreviations for things like:
@@ -1059,7 +1053,8 @@ inline static REB_R Init_Continuation_With_Core(
 
         if (IS_VOID(f->out))  // need `[:x]` if it's void (unset)
             fail (Error_Need_Non_Void_Core(branch, branch_specifier));
-        break; }
+
+        goto just_use_out; }
 
       case REB_SYM_GROUP: {
         //
@@ -1084,22 +1079,17 @@ inline static REB_R Init_Continuation_With_Core(
         //    one
         //    == 5
         //
-        // It's not clear if this idea is important or not, but it
-        // was a pre-continuation experiment that was preserved.
+        // !!! This may not be an important idea, and it can lead to an
+        // infinite loop if the branch keeps producing SYM-GROUP!s.
         //
-/*        bool threw = Do_Any_Array_At_Throws(f->out, branch, branch_specifier);
-        if (threw)
-            return R_THROWN; */
-
-        // !!! This feature will currently corrupt the caller's
-        // RETURN cell, because there's no other place to put the
-        // evaluative product.  Corrupting the spare could mess up
-        // the state of the continuations.  It's a hack that is fine
-        // for natives (that don't usually need their return anyway)
-        //
-        Move_Value(FRM_ARG(f, 1), f->out);
-        branch = FRM_ARG(f, 1);
-        goto recontinue; }  // Note: Could infinite loop if SYM-GROUP!
+        DECLARE_END_FRAME (
+            subframe,
+            EVAL_MASK_DEFAULT | EVAL_FLAG_CONTINUATION
+        );
+        subframe->executor = &Eval_Brancher;
+        Push_Frame(f->out, subframe);
+        Derelativize(FRM_SPARE(subframe), branch, branch_specifier);
+        return R_CONTINUATION; }
 
       case REB_FRAME: {
         REBCTX *c = VAL_CONTEXT(branch);  // check accessible
@@ -1148,13 +1138,20 @@ inline static REB_R Init_Continuation_With_Core(
 
         REBSTR *opt_label = nullptr;
         Begin_Prefix_Action(subframe, opt_label);
-        break; }
+        return R_CONTINUATION; }
 
       default:
         assert(!"Bad branch type");
         fail ("Bad branch type");  // !!! should be an assert or panic
     }
 
+  just_use_out: ;
+    DECLARE_END_FRAME (
+        subframe,
+        EVAL_MASK_DEFAULT | EVAL_FLAG_CONTINUATION
+    );
+    subframe->executor = &Eval_Just_Use_Out;
+    Push_Frame(f->out, subframe);
     return R_CONTINUATION;
 }
 

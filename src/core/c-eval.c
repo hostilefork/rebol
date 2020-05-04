@@ -214,12 +214,18 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
     REB_R r /* = (f->executor)(f) */ ;  // !!!soon...
 
-    if (f->executor == &Eval_Frame_Workhorse) {  // was REEVALUATE_CELL
-        f->executor = &Eval_New_Expression;
+    if (f->executor == &Eval_Just_Use_Out) {
+        r = Eval_Just_Use_Out(f);
+    }
+    else if (f->executor == &Eval_Brancher) {
+        r = Eval_Brancher(f);
+    }
+    else if (f->executor == &Eval_Frame_Workhorse) {  // was REEVALUATE_CELL
+        f->executor = &Eval_New_Expression;  // !!! until further study
         r = Eval_Frame_Workhorse(f);
     }
     else if (f->executor == &Eval_Post_Switch) {  // was POST_SWITCH
-        f->executor = &Eval_New_Expression;
+        f->executor = &Eval_New_Expression;  // !!! until further study
         r = Eval_Post_Switch(f);
     }
     else if (f->original) {  // sign for Is_Action_Frame()
@@ -358,6 +364,63 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         return false;  // not thrown
     assert(r == R_THROWN);
     return true;  // thrown
+}
+
+
+//
+//  Eval_Just_Use_Out: C
+//
+// This is a simple no-op continuation which can be used when you've already
+// calculated a result, but you're in a position where you need to give a
+// continuation because the caller was expecting a call back...and if you
+// return a pointer to `f->out` directly the system assumes that's the final
+// result.
+//
+// !!! This is somewhat inefficient and probably calls for some special
+// loophole, but it's not easy to think of what a good place for that loophole
+// would be right now... so this goes ahead and fits into the homogenous
+// continuation model by giving a pass through option.
+//
+REB_R Eval_Just_Use_Out(REBFRM *f)
+{
+    return f->out;
+}
+
+
+//
+//  Eval_Brancher: C
+//
+// !!! Does a double-execution on its branch.  Uses a new idea of a preloaded
+// frame `->spare` cell to hold an argument without needing a varlist.  Used
+// to implement code-generating branches which don't run unless they match,
+// as opposed to using plain GROUP! which would generate unused code:
+//
+//    >> either 1 @(print "one" [2 + 3]) @(print "run" [4 + 5])
+//    one
+//    == 5
+//
+REB_R Eval_Brancher(REBFRM *frame_)
+{
+    if (IS_SYM_GROUP(D_SPARE)) {
+        mutable_KIND_BYTE(D_SPARE) = mutable_MIRROR_BYTE(D_SPARE) = REB_BLOCK;
+        CONTINUE (D_SPARE);
+    }
+
+    assert(IS_BLOCK(D_SPARE));
+
+    if (not (  // ... any of the legal branch types
+        IS_BLOCK(D_OUT)
+        or IS_QUOTED(D_OUT)
+        or IS_SYM_WORD(D_OUT)
+        or IS_SYM_PATH(D_OUT)
+        or IS_SYM_GROUP(D_OUT)
+        or IS_BLANK(D_OUT)
+    )){
+        fail ("Invalid branch type produced by SYM-GROUP! redone branch");
+    }
+
+    Move_Value(D_SPARE, D_OUT);
+    DELEGATE (D_SPARE);
 }
 
 

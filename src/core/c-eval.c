@@ -228,6 +228,9 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         f->executor = &Eval_New_Expression;  // !!! until further study
         r = Eval_Post_Switch(f);
     }
+    else if (f->executor == &Group_Executor) {
+        r = Group_Executor(f);
+    }
     else if (f->original) {  // sign for Is_Action_Frame()
         //
         // !!! This related to a check in Do_Process_Action_Checks_Debug(),
@@ -279,39 +282,8 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         if (GET_EVAL_FLAG(f, TO_END) and NOT_END(f->feed->value))
             goto loop;
 
-        if (GET_EVAL_FLAG(f, CONTINUATION)) {
-
-            // !!! As the code evolves, trying to get the post-processing out
-            // of the evaluator as much as possible...to homogenize whatever
-            // "continuation frames" are.  This case is weird.
-            //
-            if (not f->prior->original) {  // REB_GROUP asks for continuation
-                Drop_Frame(f);  // frees feed
-                f = FS_TOP;
-
-                // We want `3 = (1 + 2 ()) 4` to not treat 1 + 2 as "stale",
-                // thus skipping it and trying to compare `3 = 4`.  But
-                // `3 = () 1 + 2` should consider the empty group stale.
-                //
-                /* if (IS_END(f->out)) {
-                    if (IS_END(f_next))
-                        goto finished;  // nothing after to try evaluating
-
-                    gotten = f_next_gotten;
-                    v = Lookback_While_Fetching_Next(f);
-                    kind.byte = KIND_BYTE(v);
-                    goto reevaluate;
-                } */
-
-                CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // `(1)` is evaluative
-                f->executor = &Eval_Post_Switch;
-                goto loop;
-            }
-
-            // !!! Note: GROUP! doesn't want this done, it actually wants to
-            // differentiate between VOID! and END.  Review.
-            //
-            CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);
+        while (GET_EVAL_FLAG(f, CONTINUATION)) {
+            CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);  // !!! review
 
             if (GET_EVAL_FLAG(f, FULFILLING_ARG)) {
                 Drop_Frame(f);
@@ -331,12 +303,23 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
                 f = FS_TOP;
             }
 
-            assert(f->original);  // this should only happen if function was run
-            if (NOT_EVAL_FLAG(f, DELEGATE_CONTROL))
-                SET_EVAL_FLAG(f, ACTION_FOLLOWUP);
-            else
-                assert(NOT_EVAL_FLAG(f, ACTION_FOLLOWUP));
-            goto loop;
+            if (f->original) {
+                //
+                // !!! As written we call back the Eval_Action() code, with
+                // or without an "ACTION_FOLLOWUP" flag.
+                //
+                if (NOT_EVAL_FLAG(f, DELEGATE_CONTROL))
+                    SET_EVAL_FLAG(f, ACTION_FOLLOWUP);
+                else
+                    assert(NOT_EVAL_FLAG(f, ACTION_FOLLOWUP));
+                goto loop;
+            }
+            else {
+                if (NOT_EVAL_FLAG(f, DELEGATE_CONTROL))
+                    goto loop;
+            }
+            Drop_Frame(f);
+            f = FS_TOP;
         }
     }
 
@@ -384,6 +367,67 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 REB_R Eval_Just_Use_Out(REBFRM *f)
 {
     return f->out;
+}
+
+
+//
+//  Group_Executor: C
+//
+// A GROUP! whose contents wind up vaporizing wants to be invisible:
+//
+//     >> 1 + 2 ()
+//     == 3
+//
+//     >> 1 + 2 (comment "hi")
+//     == 3
+//
+// But there's a limit with group invisibility and enfix.  A single step
+// of the evaluator only has one lookahead, because it doesn't know if it
+// wants to evaluate the next thing or not:
+//
+//     >> evaluate [1 (2) + 3]
+//     == [(2) + 3]  ; takes one step...so next step will add 2 and 3
+//
+//     >> evaluate [1 (comment "hi") + 3]
+//     == [(comment "hi") + 3]  ; next step errors: `+` has no left argument
+//
+// It is supposed to be possible for DO to be implemented as a series of
+// successive single EVALUATE steps, giving no input beyond the block.  So
+// that means even though the `f->out` may technically still hold bits of
+// the last evaluation such that `do [1 (comment "hi") + 3]` could draw
+// from them to give a left hand argument, it should not do so...and it's
+// why those bits are marked "stale".
+//
+// The other side of the operator is a different story.  Turning up no result,
+// the group can just invoke a reevaluate without breaking any rules:
+//
+//     >> evaluate [1 + (2) 3]
+//     == [3]
+//
+//     >> evaluate [1 + (comment "hi") 3]
+//     == []
+//
+// This subtlety means the continuation for running a GROUP! has the subtlety
+// of noticing when no result was produced (an output of END) and then
+// re-triggering a step in the parent frame, e.g. to pick up the 3 above.
+//
+REB_R Group_Executor(REBFRM *f)
+{
+    if (IS_END(f->out)) {
+        if (IS_END(F_VALUE(f)))
+            return f->out;  // nothing after to try, indicate value absence
+
+        f->executor = &Eval_Frame_Workhorse;
+        f->u.reval.value = Lookback_While_Fetching_Next(f);
+        return R_CONTINUATION;
+    }
+
+    if (not VAL_LOGIC(FRM_SPARE(f)))
+        CLEAR_EVAL_FLAG(f, CONTINUATION);  // why unset?
+
+    CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // `(1)` is evaluative
+    f->executor = &Eval_Post_Switch;
+    return R_CONTINUATION;
 }
 
 
@@ -822,13 +866,32 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
       case REB_GROUP: {
         f_next_gotten = nullptr;  // arbitrary code changes fetched variables
 
+        // !!! here we alter *this* frame's executor to be the group
+        // executor.  This effectively hijacks it from re-entry.  We make a
+        // memory in the frame spare of whether or not it was already a
+        // continuation so it can put it back.
+        //
+        if (GET_EVAL_FLAG(f, CONTINUATION))
+            Init_True(f_spare);
+        else {
+            Init_False(f_spare);
+            SET_EVAL_FLAG(f, CONTINUATION);
+        }
+        assert(f->executor == &Eval_New_Expression);
+        f->executor = &Group_Executor;
+
         REBFLGS flags = EVAL_MASK_DEFAULT
             | EVAL_FLAG_CONTINUATION
             | EVAL_FLAG_TO_END;
         DECLARE_FRAME_AT_CORE (subframe, v, f_specifier, flags);
 
-        Push_Frame(f->out, subframe);
+        // See notes on Group_Executor().  We don't want to lose the value in
+        // f->out if nothing comes up, but we do need a flag to tell if no
+        // new value was produced (e.g. all comments or nothing)
+        //
+        assert(IS_END(f->out) or GET_CELL_FLAG(f->out, OUT_MARKED_STALE));
 
+        Push_Frame(f->out, subframe);
         return R_CONTINUATION; }
 
 

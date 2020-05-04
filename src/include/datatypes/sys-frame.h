@@ -209,6 +209,8 @@ inline static void Free_Frame_Internal(REBFRM *f) {
 
     Free_Node(FRM_POOL, NOD(f));
 
+    TRASH_POINTER_IF_DEBUG(f->executor);
+
   #if !defined(NDEBUG)
     f->initial_flags = 0;  // help tell it's free (no EVAL_MASK_DEFAULT)
   #endif
@@ -359,9 +361,7 @@ inline static void Push_Frame_No_Varlist(REBVAL *out, REBFRM *f)
 
   #if !defined(NDEBUG)
     f->initial_flags = f->flags.bits & ~(
-        EVAL_FLAG_POST_SWITCH
-        | EVAL_FLAG_REEVALUATE_CELL
-        | EVAL_FLAG_FULFILL_ONLY  // can be requested or <blank> can trigger
+        EVAL_FLAG_FULFILL_ONLY  // can be requested or <blank> can trigger
         | EVAL_FLAG_RUNNING_ENFIX  // can be requested with REEVALUATE_CELL
     );  // should be unchanged on exit
   #endif
@@ -506,6 +506,8 @@ inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
     Init_Unreadable_Blank(&f->spare);
     f->dsp_orig = DS_Index;
     TRASH_POINTER_IF_DEBUG(f->out);
+
+    f->executor = &Eval_New_Expression;  // !!! should we not default it?
 
   #ifdef DEBUG_ENSURE_FRAME_EVALUATES
     f->was_eval_called = false;

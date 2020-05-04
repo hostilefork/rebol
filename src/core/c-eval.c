@@ -206,23 +206,20 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
     REBFRM *start = FS_TOP;
     REBFRM *f = FS_TOP;  // shorter to type, but must be updated
 
-    REB_R r;
-
   loop:
 
     UPDATE_TICK_DEBUG(nullptr);
 
     // v-- This is the TG_Break_At_Tick or C-DEBUG-BREAK landing spot --v
 
-    if (GET_EVAL_FLAG(f, REEVALUATE_CELL)) {
-        CLEAR_EVAL_FLAG(f, REEVALUATE_CELL);
+    REB_R r /* = (f->executor)(f) */ ;  // !!!soon...
 
-        assert(NOT_EVAL_FLAG(f, RUNNING_ENFIX));
-
+    if (f->executor == &Eval_Frame_Workhorse) {  // was REEVALUATE_CELL
+        f->executor = &Eval_New_Expression;
         r = Eval_Frame_Workhorse(f);
     }
-    else if (GET_EVAL_FLAG(f, POST_SWITCH)) {
-        CLEAR_EVAL_FLAG(f, POST_SWITCH);
+    else if (f->executor == &Eval_Post_Switch) {  // was POST_SWITCH
+        f->executor = &Eval_New_Expression;
         r = Eval_Post_Switch(f);
     }
     else if (f->original) {  // sign for Is_Action_Frame()
@@ -231,13 +228,13 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         // see notes there.
         //
         /* SET_CELL_FLAG(f->out, OUT_MARKED_STALE); */
-
+        assert(f->executor == &Eval_New_Expression);
         r = Eval_Action(f);
-
-        assert(r == R_THROWN or r == R_CONTINUATION);
     }
-    else
+    else {
+        assert(f->executor == &Eval_New_Expression);
         r = Eval_New_Expression(f);
+    }
 
     f = FS_TOP;  // refresh shorthand
 
@@ -301,7 +298,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
                 } */
 
                 CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // `(1)` is evaluative
-                SET_EVAL_FLAG(f, POST_SWITCH);
+                f->executor = &Eval_Post_Switch;
                 goto loop;
             }
 
@@ -374,8 +371,6 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 //
 REB_R Eval_New_Expression(REBFRM *f)
 {
-    assert(NOT_EVAL_FLAG(f, POST_SWITCH));
-
   #ifdef DEBUG_ENSURE_FRAME_EVALUATES
     f->was_eval_called = true;  // see definition for why this flag exists
   #endif
@@ -443,7 +438,7 @@ REB_R Eval_New_Expression(REBFRM *f)
     UNUSED(gotten);
 
     assert(kind.byte == KIND_BYTE_UNCHECKED(v));
-    SET_EVAL_FLAG(f, REEVALUATE_CELL);
+    f->executor = &Eval_Frame_Workhorse;
     f->u.reval.value = v;
     return R_CONTINUATION;
 
@@ -1346,7 +1341,7 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     */
 
   post_switch:
-    SET_EVAL_FLAG(f, POST_SWITCH);
+    f->executor = &Eval_Post_Switch;
     return R_CONTINUATION;
 
     // Stay THROWN and let stack levels above try and catch
@@ -1393,8 +1388,6 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
 //
 REB_R Eval_Post_Switch(REBFRM *f)
 {
-    assert(NOT_EVAL_FLAG(f, POST_SWITCH));
-
     // If something was run with the expectation it should take the next arg
     // from the output cell, and an evaluation cycle ran that wasn't an
     // ACTION! (or that was an arity-0 action), that's not what was meant.
@@ -1595,10 +1588,10 @@ REB_R Eval_Post_Switch(REBFRM *f)
         SET_FEED_FLAG(f->feed, DEFERRING_ENFIX);
 
         // Leave the enfix operator pending in the frame, and it's up to the
-        // parent frame to decide whether to use EVAL_FLAG_POST_SWITCH to jump
-        // back in and finish fulfilling this arg or not.  If it does resume
-        // and we get to this check again, f->prior->deferred can't be null,
-        // otherwise it would be an infinite loop.
+        // parent frame to decide whether to change the executor and use
+        // Eval_Post_Switch to jump back in and finish fulfilling this arg or
+        // not.  If it does resumeand we get to this check again,
+        // f->prior->deferred can't be null, else it'd be an infinite loop.
         //
         goto finished;
     }

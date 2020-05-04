@@ -144,18 +144,19 @@ inline static bool Eval_Throws(REBFRM *f) {  assert(f == FS_TOP);
 // Even though ANY_INERT() is a quick test, you can't skip the cost of frame
 // processing--due to enfix.  But a feed only looks ahead one unit at a time,
 // so advancing the frame past an inert item to find an enfix function means
-// you have to enter the frame specially with EVAL_FLAG_POST_SWITCH.
+// you have to enter the frame specially with executor Eval_Post_Switch().
 //
 inline static bool Did_Init_Inert_Optimize_Complete(
     REBVAL *out,
     REBFED *feed,
-    REBFLGS *flags
+    REBFLGS *flags,
+    REBNAT *executor_out
 ){
-    assert(not (*flags & EVAL_FLAG_POST_SWITCH));  // we might set it
     assert(not IS_END(feed->value));  // would be wasting time to call
 
     if (not ANY_INERT(feed->value) or not OPTIMIZATIONS_OK) {
         SET_END(out);  // Have to Init() `out` one way or another...
+        *executor_out = &Eval_New_Expression;
         return false;  // general case evaluation requires a frame
     }
 
@@ -178,7 +179,8 @@ inline static bool Did_Init_Inert_Optimize_Complete(
             // Quoting defeats NO_LOOKAHEAD but only on soft quotes.
             //
             if (NOT_FEED_FLAG(feed, NO_LOOKAHEAD)) {
-                *flags |= EVAL_FLAG_POST_SWITCH | EVAL_FLAG_INERT_OPTIMIZATION;
+                *flags |= EVAL_FLAG_INERT_OPTIMIZATION;
+                *executor_out = &Eval_Post_Switch;
                 return false;
             }
 
@@ -188,7 +190,8 @@ inline static bool Did_Init_Inert_Optimize_Complete(
             if (VAL_PARAM_CLASS(first) == REB_P_SOFT_QUOTE)
                 return true;  // don't look back, yield the lookahead
 
-            *flags |= EVAL_FLAG_POST_SWITCH | EVAL_FLAG_INERT_OPTIMIZATION;
+            *flags |= EVAL_FLAG_INERT_OPTIMIZATION;
+            *executor_out = &Eval_Post_Switch;
             return false;
         }
 
@@ -207,7 +210,8 @@ inline static bool Did_Init_Inert_Optimize_Complete(
                 return true;  // didn't actually want this parameter type
         }
 
-        *flags |= EVAL_FLAG_POST_SWITCH | EVAL_FLAG_INERT_OPTIMIZATION;
+        *flags |= EVAL_FLAG_INERT_OPTIMIZATION;
+        *executor_out = &Eval_Post_Switch;
         return false;  // do normal enfix handling
     }
 
@@ -223,7 +227,8 @@ inline static bool Did_Init_Inert_Optimize_Complete(
         KIND_BYTE(ARR_AT(VAL_ARRAY(feed->value), 0)) == REB_BLANK
         and KIND_BYTE(ARR_AT(VAL_ARRAY(feed->value), 1)) == REB_BLANK
     ){
-        *flags |= EVAL_FLAG_POST_SWITCH | EVAL_FLAG_INERT_OPTIMIZATION;
+        *flags |= EVAL_FLAG_INERT_OPTIMIZATION;
+        *executor_out = &Eval_Post_Switch;
         return false;  // Let evaluator handle `/`
     }
 
@@ -265,7 +270,8 @@ inline static bool Eval_Step_In_Subframe_Throws(
     REBFRM *f,
     REBFLGS flags
 ){
-    if (Did_Init_Inert_Optimize_Complete(out, f->feed, &flags))
+    REBNAT executor;
+    if (Did_Init_Inert_Optimize_Complete(out, f->feed, &flags, &executor))
         return false;  // If eval not hooked, ANY-INERT! may not need a frame
 
     // Can't SET_END() here, because sometimes it would be overwriting what
@@ -273,6 +279,7 @@ inline static bool Eval_Step_In_Subframe_Throws(
     // was necessary.
 
     DECLARE_FRAME (subframe, f->feed, flags);
+    subframe->executor = executor;
 
     Push_Frame(out, subframe);
     bool threw = Eval_Throws(subframe);
@@ -288,7 +295,8 @@ inline static bool Reevaluate_In_Subframe_Maybe_Stale_Throws(
     const REBVAL *reval,
     REBFLGS flags
 ){
-    DECLARE_FRAME (subframe, f->feed, flags | EVAL_FLAG_REEVALUATE_CELL);
+    DECLARE_FRAME (subframe, f->feed, flags);
+    subframe->executor = &Eval_Frame_Workhorse;
     subframe->u.reval.value = reval;
 
     Push_Frame(out, subframe);

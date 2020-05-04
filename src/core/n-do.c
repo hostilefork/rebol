@@ -50,7 +50,7 @@ REBNATIVE(reeval)
 {
     INCLUDE_PARAMS_OF_REEVAL;
 
-    // REEVAL only *acts* variadic, but uses EVAL_FLAG_REEVALUATE_CELL
+    // REEVAL only *acts* variadic, but uses continuations to do its work
     //
     UNUSED(ARG(expressions));
 
@@ -279,12 +279,12 @@ REBNATIVE(shove)
             subframe,
             f->feed,
             EVAL_MASK_DEFAULT
-                | EVAL_FLAG_REEVALUATE_CELL
                 | EVAL_FLAG_CONTINUATION
         );
-        Push_Frame(D_OUT, subframe);
-
+        subframe->executor = &Eval_Frame_Workhorse;
         subframe->u.reval.value = shovee;
+
+        Push_Frame(D_OUT, subframe);
     }
 
     return R_CONTINUATION;

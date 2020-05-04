@@ -110,27 +110,15 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
     FLAG_LEFT_BIT(8)
 
 
-//=//// EVAL_FLAG_REEVALUATE_CELL /////////////////////////////////////////=//
+//=//// EVAL_FLAG_9 ///////////////////////////////////////////////////////=//
 //
-// Function dispatchers have a special return value used by EVAL, which tells
-// it to use the frame's cell as the head of the next evaluation (before
-// what f->value would have ordinarily run.)
-//
-// This allows EVAL/ONLY to be implemented by entering a new subframe with
-// new flags, and may have other purposes as well.
-//
-#define EVAL_FLAG_REEVALUATE_CELL \
+#define EVAL_FLAG_9 \
     FLAG_LEFT_BIT(9)
 
 
-//=//// EVAL_FLAG_POST_SWITCH /////////////////////////////////////////////=//
+//=//// EVAL_FLAG_10 //////////////////////////////////////////////////////=//
 //
-// This jump allows a deferred lookback to compensate for the lack of the
-// evaluator's ability to (easily) be psychic about when it is gathering the
-// last argument of a function.  It allows re-entery to argument gathering at
-// the point after the switch() statement, with a preloaded f->out.
-//
-#define EVAL_FLAG_POST_SWITCH \
+#define EVAL_FLAG_10 \
     FLAG_LEFT_BIT(10)
 
 
@@ -657,6 +645,13 @@ struct Reb_Frame {
     // space for things other than evaluation.)
     //
     RELVAL spare;
+
+    // !!! The "executor" is an experimental new concept in the frame world,
+    // for who runs the continuation.  This was controlled with flags before,
+    // but the concept is that it be controlled with functions matching the
+    // signature of natives and dispatchers.
+    //
+    REBNAT executor;
 
     // The data stack pointer captured on entry to the evaluation.  It is used
     // by debug checks to make sure the data stack stays balanced after each

@@ -798,7 +798,8 @@ REB_R Eval_Arg(REBFRM *f)
 
         // If eval not hooked, ANY-INERT! may not need a frame
         //
-        if (Did_Init_Inert_Optimize_Complete(f->arg, f->feed, &flags))
+        REBNAT executor;
+        if (Did_Init_Inert_Optimize_Complete(f->arg, f->feed, &flags, &executor))
             break;
 
         // Can't SET_END() here, because sometimes it would be
@@ -807,6 +808,7 @@ REB_R Eval_Arg(REBFRM *f)
 
         flags |= EVAL_FLAG_CONTINUATION;
         DECLARE_FRAME (subframe, f->feed, flags);
+        subframe->executor = executor;
 
         Push_Frame(f->arg, subframe);
         goto evaluate_arg; }  // R_CONTINUATION
@@ -891,13 +893,13 @@ REB_R Eval_Arg(REBFRM *f)
 
             REBFLGS flags = EVAL_MASK_DEFAULT
                 | EVAL_FLAG_FULFILLING_ARG
-                | EVAL_FLAG_POST_SWITCH
                 | EVAL_FLAG_INERT_OPTIMIZATION;
 
             if (IS_VOID(f_next))  // Eval_Step() has callers test this
                 fail (Error_Void_Evaluation_Raw());  // must be quoted
 
             DECLARE_FRAME (subframe, f->feed, flags);
+            subframe->executor = &Eval_Post_Switch;
 
             Push_Frame(f->arg, subframe);
             bool threw = Eval_Throws(subframe);
@@ -1390,7 +1392,7 @@ REB_R Eval_Action(REBFRM *f)
     }
 
     Drop_Action(f);
-    SET_EVAL_FLAG(f, POST_SWITCH);
+    f->executor = &Eval_Post_Switch;
     return R_CONTINUATION;
 
 

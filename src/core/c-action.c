@@ -1167,6 +1167,8 @@ REB_R Eval_Action(REBFRM *f)
     );
 
     if (GET_EVAL_FLAG(f, FULFILL_ONLY)) {
+        CLEAR_EVAL_FLAG(f, FULFILL_ONLY);
+        CLEAR_EVAL_FLAG(f, ERROR_ON_DEFERRED_ENFIX);  // *maybe* set
         Init_Nulled(f->out);
         goto skip_output_check;
     }

@@ -820,6 +820,11 @@ struct Reb_Frame {
     // get put back how they were.  It's also a good check that whatever was
     // manipulating that state knew what it was doing enough to clear it.
     //
+    // !!! Because eval flags are used differently by PARSE and reuse may be
+    // interesting for some frames and not others, this concept is up in
+    // the air during the stackless era.  The check is liberal and only
+    // applied to actual evaluator frames for now.
+    //
     REBFLGS initial_flags;
   #endif
 

@@ -610,6 +610,9 @@ REBNATIVE(match)
 
         f->flags.bits = EVAL_MASK_DEFAULT
             | EVAL_FLAG_FULLY_SPECIALIZED;
+      #if !defined(NDEBUG)  // completely overwriting original frame's flags
+        f->initial_flags = f->flags.bits;  // ...would trigger an assert
+      #endif
 
         Begin_Prefix_Action(f, opt_label);
 

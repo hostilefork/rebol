@@ -930,6 +930,7 @@ inline static REBVAL *D_ARG_Core(REBFRM *f, REBLEN n) {  // 1 for first arg
 // produced.
 //
 inline static REB_R Init_Continuation_With_Core(
+    REBVAL *out,
     REBFRM *f,
     REBFLGS flags,  // EVAL_FLAG_(DELEGATE_CONTROL/DISPATCHER_CATCHES)
     const RELVAL *branch,
@@ -937,7 +938,7 @@ inline static REB_R Init_Continuation_With_Core(
     const REBVAL *with
 ){
     f->flags.bits |= flags;
-    assert(branch != f->out and with != f->out);
+    assert(branch != out and with != out);
 
     // !!! This code came from Do_Branch_XXX_Throws() which was not
     // continuation-based, and hence holds some reusable logic for
@@ -951,7 +952,7 @@ inline static REB_R Init_Continuation_With_Core(
 
     switch (VAL_TYPE(branch)) {
       case REB_QUOTED:
-        Unquotify(Derelativize(f->out, branch, branch_specifier), 1);
+        Unquotify(Derelativize(out, branch, branch_specifier), 1);
         goto just_use_out;
 
       case REB_HANDLE: {  // temporarily means REBFRM*, chain to stack
@@ -979,8 +980,8 @@ inline static REB_R Init_Continuation_With_Core(
                 | EVAL_FLAG_TO_END
         );
 
-        Init_Void(f->out);  // in case all invisibles, as usual
-        Push_Frame(f->out, blockframe);
+        Init_Void(out);  // in case all invisibles, as usual
+        Push_Frame(out, blockframe);
         return R_CONTINUATION; }
 
       case REB_ACTION: {
@@ -1010,16 +1011,16 @@ inline static REB_R Init_Continuation_With_Core(
                 | EVAL_FLAG_ALLOCATED_FEED
         );
 
-        Init_Void(f->out);
-        SET_CELL_FLAG(f->out, OUT_MARKED_STALE);
-        Push_Frame(f->out, subframe);
+        Init_Void(out);
+        SET_CELL_FLAG(out, OUT_MARKED_STALE);
+        Push_Frame(out, subframe);
         Push_Action(subframe, action, binding);
         REBSTR *opt_label = nullptr;
         Begin_Prefix_Action(subframe, opt_label);
         return R_CONTINUATION; }
 
       case REB_BLANK:
-        Init_Nulled(f->out);
+        Init_Nulled(out);
         goto just_use_out;
 
       case REB_SYM_WORD:
@@ -1051,7 +1052,7 @@ inline static REB_R Init_Continuation_With_Core(
         if (threw)
             return R_THROWN;
 
-        if (IS_VOID(f->out))  // need `[:x]` if it's void (unset)
+        if (IS_VOID(out))  // need `[:x]` if it's void (unset)
             fail (Error_Need_Non_Void_Core(branch, branch_specifier));
 
         goto just_use_out; }
@@ -1087,7 +1088,7 @@ inline static REB_R Init_Continuation_With_Core(
             EVAL_MASK_DEFAULT | EVAL_FLAG_CONTINUATION
         );
         subframe->executor = &Eval_Brancher;
-        Push_Frame(f->out, subframe);
+        Push_Frame(out, subframe);
         Derelativize(FRM_SPARE(subframe), branch, branch_specifier);
         return R_CONTINUATION; }
 
@@ -1124,7 +1125,7 @@ inline static REB_R Init_Continuation_With_Core(
         assert(GET_SERIES_FLAG(c, MANAGED));
         assert(GET_SERIES_INFO(c, INACCESSIBLE));
 
-        Push_Frame_No_Varlist(f->out, subframe);
+        Push_Frame_No_Varlist(out, subframe);
         subframe->varlist = CTX_VARLIST(stolen);
         subframe->rootvar = CTX_ARCHETYPE(stolen);
         subframe->arg = subframe->rootvar + 1;
@@ -1155,36 +1156,54 @@ inline static REB_R Init_Continuation_With_Core(
     return R_CONTINUATION;
 }
 
-#define Init_Continuation_With(f,flags,branch,with) \
-    Init_Continuation_With_Core((f), (flags), (branch), SPECIFIED, (with))
+#define Init_Continuation_With(out,f,flags,branch,with) \
+    Init_Continuation_With_Core( \
+        (out), /* Note: repeat macro arg `f` as (f)->out would be bad! */ \
+        (f), \
+        (flags), \
+        (branch), \
+        SPECIFIED, \
+        (with))
 
 #define DELEGATE(branch) \
     return Init_Continuation_With( \
-        frame_, EVAL_FLAG_DELEGATE_CONTROL, (branch), END_NODE) 
+        frame_->out, frame_, EVAL_FLAG_DELEGATE_CONTROL, (branch), END_NODE) 
 
 #define DELEGATE_WITH(branch,with) \
     return Init_Continuation_With( \
-        frame_, EVAL_FLAG_DELEGATE_CONTROL, (branch), (with))
+        frame_->out, frame_, EVAL_FLAG_DELEGATE_CONTROL, (branch), (with))
 
 #define CONTINUE(branch) \
-    return Init_Continuation_With(frame_, 0, (branch), END_NODE)
+    return Init_Continuation_With(frame_->out, frame_, 0, (branch), END_NODE)
 
 #define CONTINUE_WITH(branch,with) \
-    return Init_Continuation_With(frame_, 0, (branch), (with))
+    return Init_Continuation_With(frame_->out, frame_, 0, (branch), (with))
 
 #define CONTINUE_CATCHABLE(branch) \
     return Init_Continuation_With( \
-        frame_, EVAL_FLAG_DISPATCHER_CATCHES, (branch), END_NODE)
+        frame_->out, frame_, EVAL_FLAG_DISPATCHER_CATCHES, (branch), END_NODE)
 
 
 // Common behavior shared by dispatchers which execute on BLOCK!s of code.
 // Assumes the code to be run is in the first details slot, and is relative
 // to the varlist of the frame.
 //
-inline static REB_R Interpreted_Continuation_Core(
+inline static REB_R Init_Continuation_Details_0_Core(
+    REBVAL *out,  // !!! See assert below
     REBFRM *f,
     REBFLGS flags
 ){
+    // !!! At the moment, continuations are assumed to write to the same
+    // out cell as the frame.  This inhibits certain desirable features--like
+    // Elider_Dispatcher() being able to write to its spare cell directly.
+    // It should be remembered that evaluations can't be done into movable
+    // memory cells, nor into user-visible cells (e.g. action arguments)
+    // because output cells go through invalid states like END.  Also the
+    // `Is_Throwing()` primitive currently is relative to a frame and
+    // assumes you're asking about the f->out specifically.  Review.
+    //
+    assert(out == f->out);
+
     REBACT *phase = FRM_PHASE(f);
     REBARR *details = ACT_DETAILS(phase);
     RELVAL *body = ARR_HEAD(details);  // usually CONST (doesn't have to be)
@@ -1203,6 +1222,7 @@ inline static REB_R Interpreted_Continuation_Core(
     // with.  We use the frame (identified by varlist) as the "specifier".
     //
     return Init_Continuation_With_Core(
+        out,
         f,
         flags,
         body,
@@ -1211,11 +1231,11 @@ inline static REB_R Interpreted_Continuation_Core(
     );
 }
 
-#define Interpreted_Continuation(f) \
-    Interpreted_Continuation_Core((f), 0)
+#define Init_Continuation_Details_0(out,f) \
+    Init_Continuation_Details_0_Core((out), (f), 0)
 
-#define Interpreted_Delegation(f) \
-    Interpreted_Continuation_Core((f), EVAL_FLAG_DELEGATE_CONTROL)
+#define Init_Delegation_Details_0(out,f) \
+    Init_Continuation_Details_0_Core((out), (f), EVAL_FLAG_DELEGATE_CONTROL)
 
 
 // The native entry prelude makes sure that once native code starts running,

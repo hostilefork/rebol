@@ -1588,7 +1588,7 @@ REB_R Typeset_Checker_Dispatcher(REBFRM *f)
 //
 REB_R Unchecked_Dispatcher(REBFRM *f)
 {
-    return Interpreted_Delegation(f);
+    return Init_Delegation_Details_0(f->out, f);  // no re-entry after eval
 }
 
 
@@ -1601,7 +1601,7 @@ REB_R Voider_Dispatcher(REBFRM *f)
 {
     if (IS_END(FRM_SPARE(f))) {  // first run
         Init_Blank(FRM_SPARE(f));  // mark we are no longer on first entry
-        return Interpreted_Continuation(f);  // ask for re-entry after eval
+        return Init_Continuation_Details_0(f->out, f);  // re-enter after eval
     }
     assert(IS_BLANK(FRM_SPARE(f)));  // should not have changed
 
@@ -1621,7 +1621,7 @@ REB_R Returner_Dispatcher(REBFRM *f)
 {
     if (IS_END(FRM_SPARE(f))) {  // first run
         Init_Blank(FRM_SPARE(f));  // mark we are no longer on first entry
-        return Interpreted_Continuation(f);  // ask for re-entry after eval
+        return Init_Continuation_Details_0(f->out, f);  // re-enter after eval
     }
     assert(IS_BLANK(FRM_SPARE(f)));  // should not have changed
 
@@ -1636,18 +1636,23 @@ REB_R Returner_Dispatcher(REBFRM *f)
 // Used by "invisible" functions (who in their spec say `RETURN: []`).  Runs
 // block but with no net change to f->out.
 //
-// We'd like to allow RETURN from within eliders, which would corrupt f->out.
-// And more generally, it would be costly to add conditionality in the
-// evaluator to not write to f->out when an invisible has products.  So this
-// addresses the issue by caching the output into the spare and then restoring
-// it--giving the impression that no change happened.  While it does mean
-// paying for the move and proxying the unevaluated flag (not copied by move)
-// it is probably the cheaper option overall to get the effect.
-//
 // !!! Review enforcement of arity-0 return in invisibles only!
 //
 REB_R Elider_Dispatcher(REBFRM *f)
 {
+    // It might seem that since we don't want the result, we could instruct a
+    // delegation to write it into the spare where it won't affect f->out.
+    // That way the body could very efficiently be:
+    //
+    //   `return Init_Delegation_Details_0(FRM_SPARE(f), f);`
+    //
+    // But the current RETURN implementation climbs the stack and trashes
+    // f->out as it goes.  Not only that, there's a rule that all invisibles
+    // return R_INVISIBLE...so a pure delegation would have to deal with
+    // that.  The current workaround is to save `f->out` into the frame's
+    // spare cell, request a callback after the continuation is done, and put
+    // it back.  Hopefully a better answer will come along.
+
     if (IS_END(FRM_SPARE(f))) {  // first run
         if (IS_END(f->out)) {  // could happen :-/ e.g. `do [comment "" ...]`
             Init_Void(FRM_SPARE(f));
@@ -1658,7 +1663,7 @@ REB_R Elider_Dispatcher(REBFRM *f)
             if (GET_CELL_FLAG(f->out, UNEVALUATED))
                 SET_CELL_FLAG(FRM_SPARE(f), UNEVALUATED);  // proxy eval flag
         }
-        return Interpreted_Continuation(f);  // ask for re-entry after eval
+        return Init_Continuation_Details_0(f->out, f);  // re-entry after eval
     }
 
     if (GET_CELL_FLAG(FRM_SPARE(f), SPARE_MARKED_END)) {
@@ -1744,7 +1749,7 @@ REB_R Adapter_Dispatcher(REBFRM *f)
         //
         assert(IS_BLOCK(ARR_HEAD(details)));  // the prelude
         Init_Blank(FRM_SPARE(f));  // Indicate we're on "phase two"
-        return Interpreted_Continuation(f);  // runs block in head slot
+        return Init_Continuation_Details_0(f->out, f);  // re-enter after eval
     }
 
     assert(IS_BLANK(FRM_SPARE(f)));  // how we indicated second run
@@ -1821,6 +1826,7 @@ REB_R Encloser_Dispatcher(REBFRM *f)
     // come back and reinvoke.
     //
     return Init_Continuation_With_Core(
+        f->out,
         f,
         EVAL_FLAG_DELEGATE_CONTROL,
         outer,

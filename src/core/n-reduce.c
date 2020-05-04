@@ -181,6 +181,7 @@ REBNATIVE(reduce2)
             SET_CELL_FLAG(D_SPARE, SPARE_MARKED_LINE_BEFORE);
 
         return Init_Continuation_With(
+            frame_->out,
             frame_,
             0,
             D_SPARE,  // for right now, try branch of HANDLE! for REBFRM*
@@ -224,6 +225,7 @@ REBNATIVE(reduce2)
                 CLEAR_CELL_FLAG(D_SPARE, SPARE_MARKED_LINE_BEFORE);
 
             return Init_Continuation_With(
+                frame_->out,
                 frame_,
                 0,
                 D_SPARE,  // for right now, try branch of HANDLE! for REBFRM*

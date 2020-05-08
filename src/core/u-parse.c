@@ -1551,7 +1551,7 @@ REBNATIVE(subparse)
             }
         }
 
-        UPDATE_TICK_DEBUG(nullptr);  // wait after GC to identify *last* tick
+        UPDATE_TICK_DEBUG(f, nullptr);  // after GC, identify *last* tick
 
         if (IS_END(rule))
             break;  // done all the things we need to do for end position

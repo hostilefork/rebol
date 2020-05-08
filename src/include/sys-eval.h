@@ -76,17 +76,17 @@
     // see TOUCH_SERIES() and TOUCH_CELL().  Note also that BREAK_NOW() can be
     // called to pause and dump state at any moment.
 
-    #define UPDATE_TICK_DEBUG(v) \
+    #define UPDATE_TICK_DEBUG(f,v) \
         do { \
             if (TG_Tick < INTPTR_MAX)  /* avoid rollover (may be 32-bit!) */ \
-                f->tick = ++TG_Tick; \
+                (f)->tick = ++TG_Tick; \
             else \
-                f->tick = INTPTR_MAX;  /* see tick for why signed! */ \
+                (f)->tick = INTPTR_MAX;  /* see tick for why signed! */ \
             if ( \
                 (TG_Break_At_Tick != 0 and f->tick >= TG_Break_At_Tick) \
             ){ \
-                printf("BREAKING AT TICK %u\n", cast(unsigned int, f->tick)); \
-                Dump_Frame_Location((v), f); \
+                printf("BREAK AT TICK %u\n", cast(unsigned int, (f)->tick)); \
+                Dump_Frame_Location((v), (f)); \
                 debug_break();  /* see %debug_break.h */ \
                 TG_Break_At_Tick = 0; \
             } \

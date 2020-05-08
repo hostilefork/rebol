@@ -180,6 +180,11 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
     return false;
 }
 
+// To make things simpler in the main evaluator loop, we abbreviate the top
+// frame just as "F"
+//
+#define F FS_TOP
+
 
 //
 //  Eval_Internal_Maybe_Stale_Throws: C
@@ -205,49 +210,46 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
 //
 bool Eval_Internal_Maybe_Stale_Throws(void)
 {
-    REBFRM *start = FS_TOP;
-    REBFRM *f = FS_TOP;  // shorter to type, but must be updated
+    REBFRM *start = F;
 
   loop:
 
-    UPDATE_TICK_DEBUG(nullptr);
+    UPDATE_TICK_DEBUG(F, nullptr);
 
     // v-- This is the TG_Break_At_Tick or C-DEBUG-BREAK landing spot --v
 
     REB_R r /* = (f->executor)(f) */ ;  // !!!soon...
 
-    if (f->executor == &Eval_Just_Use_Out) {
-        r = Eval_Just_Use_Out(f);
+    if (F->executor == &Eval_Just_Use_Out) {
+        r = Eval_Just_Use_Out(F);
     }
-    else if (f->executor == &Eval_Brancher) {
-        r = Eval_Brancher(f);
+    else if (F->executor == &Eval_Brancher) {
+        r = Eval_Brancher(F);
     }
-    else if (f->executor == &Eval_Frame_Workhorse) {  // was REEVALUATE_CELL
-        f->executor = &Eval_New_Expression;  // !!! until further study
-        r = Eval_Frame_Workhorse(f);
+    else if (F->executor == &Eval_Frame_Workhorse) {  // was REEVALUATE_CELL
+        F->executor = &Eval_New_Expression;  // !!! until further study
+        r = Eval_Frame_Workhorse(F);
     }
-    else if (f->executor == &Eval_Post_Switch) {  // was POST_SWITCH
-        f->executor = &Eval_New_Expression;  // !!! until further study
-        r = Eval_Post_Switch(f);
+    else if (F->executor == &Eval_Post_Switch) {  // was POST_SWITCH
+        F->executor = &Eval_New_Expression;  // !!! until further study
+        r = Eval_Post_Switch(F);
     }
-    else if (f->executor == &Group_Executor) {
-        r = Group_Executor(f);
+    else if (F->executor == &Group_Executor) {
+        r = Group_Executor(F);
     }
-    else if (f->original) {  // sign for Is_Action_Frame()
+    else if (F->original) {  // sign for Is_Action_Frame()
         //
         // !!! This related to a check in Do_Process_Action_Checks_Debug(),
         // see notes there.
         //
         /* SET_CELL_FLAG(f->out, OUT_MARKED_STALE); */
-        assert(f->executor == &Eval_New_Expression);
-        r = Eval_Action(f);
+        assert(F->executor == &Eval_New_Expression);
+        r = Eval_Action(F);
     }
     else {
-        assert(f->executor == &Eval_New_Expression);
-        r = Eval_New_Expression(f);
+        assert(F->executor == &Eval_New_Expression);
+        r = Eval_New_Expression(F);
     }
-
-    f = FS_TOP;  // refresh shorthand
 
     if (r == R_CONTINUATION)
         goto loop;  // keep going
@@ -255,32 +257,30 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
     if (r == R_THROWN) {
     return_thrown:
       #if !defined(NDEBUG)
-        Eval_Core_Exit_Checks_Debug(f);   // called unless a fail() longjmps
+        Eval_Core_Exit_Checks_Debug(F);   // called unless a fail() longjmps
         // don't care if f->flags has changes; thrown frame is not resumable
       #endif
 
-        if (GET_EVAL_FLAG(f, CONTINUATION)) {
-            if (GET_EVAL_FLAG(f, FULFILLING_ARG)) {  // *before* function runs
-                assert(NOT_EVAL_FLAG(f->prior, DISPATCHER_CATCHES));  // no catch
-                assert(f->prior->original);  // must be running function
-                assert(f->prior->arg == f->out);  // must be fulfilling f->arg
-                Move_Value(f->prior->out, f->out);  // throw must be in out
+        if (GET_EVAL_FLAG(F, CONTINUATION)) {
+            if (GET_EVAL_FLAG(F, FULFILLING_ARG)) {  // *before* function runs
+                assert(NOT_EVAL_FLAG(F->prior, DISPATCHER_CATCHES));  // no catch
+                assert(F->prior->original);  // must be running function
+                assert(F->prior->arg == F->out);  // must be fulfilling f->arg
+                Move_Value(F->prior->out, F->out);  // throw must be in out
             }
-            Drop_Frame(f);
-            f = FS_TOP;
-            if (f->original) {  // function is in process of running, can catch
+            Drop_Frame(F);
+            if (F->original) {  // function is in process of running, can catch
                 goto loop;
             }
             goto return_thrown;  // no action to drop so this frame just ends
         }
 
-        while (f != start and not f->original) {
-            Drop_Frame(f);
-            f = FS_TOP;
+        while (F != start and not F->original) {
+            Drop_Frame(F);
         }
     }
     else {
-        assert(r == f->out);
+        assert(r == F->out);
 
         // Want to keep this flag between an operation and an ensuing enfix in
         // the same frame, so can't clear in Drop_Action(), e.g. due to:
@@ -289,78 +289,76 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         //     o: make object! [f: does [1]]
         //     o/f left-lit  ; want error suggesting -> here, need flag for that
         //
-        CLEAR_EVAL_FLAG(f, DIDNT_LEFT_QUOTE_PATH);
-        assert(NOT_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT));  // must be consumed
+        CLEAR_EVAL_FLAG(F, DIDNT_LEFT_QUOTE_PATH);
+        assert(NOT_FEED_FLAG(F->feed, NEXT_ARG_FROM_OUT));  // must be consumed
 
       #if !defined(NDEBUG)
-        Eval_Core_Exit_Checks_Debug(f);  // called unless a fail() longjmps
-        assert(NOT_EVAL_FLAG(f, DOING_PICKUPS));
+        Eval_Core_Exit_Checks_Debug(F);  // called unless a fail() longjmps
+        assert(NOT_EVAL_FLAG(F, DOING_PICKUPS));
 
-        assert(f->flags.bits == f->initial_flags);  // changes should be restored
+        assert(F->flags.bits == F->initial_flags);  // changes should be restored
       #endif
 
         // If the evaluations are running to the end of a block or a group,
         // we don't want to drop the frame.  But we do want an opportunity
         // to hook the evaluation step here in the top level driver.
         //
-        if (GET_EVAL_FLAG(f, TO_END)) {
-            if (NOT_END(f->feed->value))
+        if (GET_EVAL_FLAG(F, TO_END)) {
+            if (NOT_END(F->feed->value))
                 goto loop;
         }
 
-        while (GET_EVAL_FLAG(f, CONTINUATION)) {
-            CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);  // !!! review
+        while (GET_EVAL_FLAG(F, CONTINUATION)) {
+            CLEAR_CELL_FLAG(F->out, OUT_MARKED_STALE);  // !!! review
 
-            if (GET_EVAL_FLAG(f, FULFILLING_ARG)) {
+            if (GET_EVAL_FLAG(F, FULFILLING_ARG)) {
                 do {
-                    Drop_Frame(f);
-                    f = FS_TOP;
-                } while (not f->original);
-/*                assert(f->original); */
-                SET_EVAL_FLAG(f, ARG_FINISHED);
+                    Drop_Frame(F);
+                } while (not F->original);
+                SET_EVAL_FLAG(F, ARG_FINISHED);
                 goto loop;
             }
 
-            if (GET_EVAL_FLAG(f, DETACH_DONT_DROP)) {
-                TG_Top_Frame = f->prior;
-                f->prior = nullptr;  // we don't "drop" it, but...
-                f = FS_TOP;  // we unwire it
+            if (GET_EVAL_FLAG(F, DETACH_DONT_DROP)) {
+                REBFRM* temp = F;
+                TG_Top_Frame = temp->prior;
+                temp->prior = nullptr;  // we don't "drop" it, but...
                 // !!! leave flag or reset it?
             }
             else {
-                Drop_Frame(f);  // frees feed
-                f = FS_TOP;
+                Drop_Frame(F);  // frees feed
             }
 
-            if (f->original) {
+            if (F->original) {
                 //
                 // !!! As written we call back the Eval_Action() code, with
                 // or without an "ACTION_FOLLOWUP" flag.
                 //
-                if (NOT_EVAL_FLAG(f, DELEGATE_CONTROL))
-                    SET_EVAL_FLAG(f, ACTION_FOLLOWUP);
+                if (NOT_EVAL_FLAG(F, DELEGATE_CONTROL))
+                    SET_EVAL_FLAG(F, ACTION_FOLLOWUP);
                 else
-                    assert(NOT_EVAL_FLAG(f, ACTION_FOLLOWUP));
+                    assert(NOT_EVAL_FLAG(F, ACTION_FOLLOWUP));
                 goto loop;
             }
             else {
-                if (NOT_EVAL_FLAG(f, DELEGATE_CONTROL))
+                if (NOT_EVAL_FLAG(F, DELEGATE_CONTROL))
                     goto loop;
             }
-            Drop_Frame(f);
-            f = FS_TOP;
+            Drop_Frame(F);
         }
 
-        while (f != start and (NOT_EVAL_FLAG(f, CONTINUATION) or GET_EVAL_FLAG(f, TO_END))) {
-            Drop_Frame(f);
-            f = FS_TOP;
+        while (
+            F != start
+            and (NOT_EVAL_FLAG(F, CONTINUATION) or GET_EVAL_FLAG(F, TO_END))
+        ){
+            Drop_Frame(F);
         }
     }
 
-    if (f != start)
+    if (F != start)
         goto loop;
 
-    if (r == f->out)
+    if (r == F->out)
         return false;  // not thrown
     assert(r == R_THROWN);
     return true;  // thrown

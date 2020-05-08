@@ -1361,6 +1361,13 @@ REB_R Eval_Action(REBFRM *f)
         //
         REBSTR *opt_label = f->opt_label;
         Drop_Action(f);
+
+        if (f->varlist) {
+            if (NOT_SERIES_FLAG(f->varlist, MANAGED))
+                Conserve_Varlist(f->varlist);
+            f->varlist = nullptr;
+        }
+
         Push_Action(f, VAL_ACTION(DS_TOP), VAL_BINDING(DS_TOP));
         DS_DROP();
 

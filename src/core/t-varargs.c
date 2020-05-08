@@ -133,7 +133,7 @@ bool Do_Vararg_Op_Maybe_End_Throws_Core(
     const RELVAL *vararg,
     enum Reb_Kind pclass // use REB_P_DETECT to use what's in the vararg
 ){
-    TRASH_CELL_IF_DEBUG(out);
+    /* TRASH_CELL_IF_DEBUG(out); */  // Eval doesn't like trash, review
 
     const RELVAL *param = Param_For_Varargs_Maybe_Null(vararg);
     if (pclass == REB_P_DETECT)

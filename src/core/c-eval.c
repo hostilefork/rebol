@@ -160,7 +160,9 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
     // because the evaluator might be in a continuation.  The optimization is
     // questionable in a stackless world, and should be reviewed.
     //
+    bool x = true;
     if (
+        x or
         CURRENT_CHANGES_IF_FETCH_NEXT or GET_EVAL_FLAG(f, CONTINUATION)
     ){
         if (Eval_Step_In_Subframe_Throws(f->out, f, flags))
@@ -271,23 +273,50 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             }
             goto return_thrown;  // no action to drop so this frame just ends
         }
+
+        while (f != start and not f->original) {
+            Drop_Frame(f);
+            f = FS_TOP;
+        }
     }
     else {
         assert(r == f->out);
+
+        // Want to keep this flag between an operation and an ensuing enfix in
+        // the same frame, so can't clear in Drop_Action(), e.g. due to:
+        //
+        //     left-lit: enfix :lit
+        //     o: make object! [f: does [1]]
+        //     o/f left-lit  ; want error suggesting -> here, need flag for that
+        //
+        CLEAR_EVAL_FLAG(f, DIDNT_LEFT_QUOTE_PATH);
+        assert(NOT_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT));  // must be consumed
+
+      #if !defined(NDEBUG)
+        Eval_Core_Exit_Checks_Debug(f);  // called unless a fail() longjmps
+        assert(NOT_EVAL_FLAG(f, DOING_PICKUPS));
+
+        assert(f->flags.bits == f->initial_flags);  // changes should be restored
+      #endif
 
         // If the evaluations are running to the end of a block or a group,
         // we don't want to drop the frame.  But we do want an opportunity
         // to hook the evaluation step here in the top level driver.
         //
-        if (GET_EVAL_FLAG(f, TO_END) and NOT_END(f->feed->value))
-            goto loop;
+        if (GET_EVAL_FLAG(f, TO_END)) {
+            if (NOT_END(f->feed->value))
+                goto loop;
+        }
 
         while (GET_EVAL_FLAG(f, CONTINUATION)) {
             CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);  // !!! review
 
             if (GET_EVAL_FLAG(f, FULFILLING_ARG)) {
-                Drop_Frame(f);
-                f = FS_TOP;
+                do {
+                    Drop_Frame(f);
+                    f = FS_TOP;
+                } while (not f->original);
+/*                assert(f->original); */
                 SET_EVAL_FLAG(f, ARG_FINISHED);
                 goto loop;
             }
@@ -321,24 +350,12 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
             Drop_Frame(f);
             f = FS_TOP;
         }
+
+        while (f != start and (NOT_EVAL_FLAG(f, CONTINUATION) or GET_EVAL_FLAG(f, TO_END))) {
+            Drop_Frame(f);
+            f = FS_TOP;
+        }
     }
-
-    // Want to keep this flag between an operation and an ensuing enfix in
-    // the same frame, so can't clear in Drop_Action(), e.g. due to:
-    //
-    //     left-lit: enfix :lit
-    //     o: make object! [f: does [1]]
-    //     o/f left-lit  ; want error suggesting -> here, need flag for that
-    //
-    CLEAR_EVAL_FLAG(f, DIDNT_LEFT_QUOTE_PATH);
-    assert(NOT_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT));  // must be consumed
-
-  #if !defined(NDEBUG)
-    Eval_Core_Exit_Checks_Debug(f);  // called unless a fail() longjmps
-    assert(NOT_EVAL_FLAG(f, DOING_PICKUPS));
-
-    assert(f->flags.bits == f->initial_flags);  // changes should be restored
-  #endif
 
     if (f != start)
         goto loop;
@@ -680,11 +697,14 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
 
     // Wasn't the at-end exception, so run normal enfix with right winning.
 
-    Push_Action(f, VAL_ACTION(gotten), VAL_BINDING(gotten));
-    Begin_Enfix_Action(f, VAL_WORD_SPELLING(v));
+ blockscope {
+    DECLARE_FRAME (subframe, f->feed, f->flags.bits & ~(EVAL_FLAG_ALLOCATED_FEED));
+    Push_Frame(f->out, subframe);
+    Push_Action(subframe, VAL_ACTION(gotten), VAL_BINDING(gotten));
+    Begin_Enfix_Action(subframe, VAL_WORD_SPELLING(v));
 
     kind.byte = REB_ACTION;  // for consistency in the UNEVALUATED check
-    goto process_action;
+    goto process_action; }
 
   give_up_backward_quote_priority:
 
@@ -746,22 +766,25 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
       case REB_ACTION: {
         REBSTR *opt_label = nullptr;  // not run from WORD!/PATH!, "nameless"
 
-        Push_Action(f, VAL_ACTION(v), VAL_BINDING(v));
-        Begin_Prefix_Action(f, opt_label);
+        DECLARE_FRAME (subframe, f->feed, f->flags.bits & ~(EVAL_FLAG_ALLOCATED_FEED));
+        Push_Frame(f->out, subframe);
+        Push_Action(subframe, VAL_ACTION(v), VAL_BINDING(v));
+        Begin_Prefix_Action(subframe, opt_label);
 
         // We'd like `10 -> = 5 + 5` to work, and to do so it reevaluates in
         // a new frame, but has to run the `=` as "getting its next arg from
         // the output slot, but not being run in an enfix mode".
         //
         if (NOT_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT))
-            Expire_Out_Cell_Unless_Invisible(f);
+            Expire_Out_Cell_Unless_Invisible(subframe);
 
         goto process_action; }
 
       process_action: {  // Note: Also jumped to by the redo_checked code
         //
         // !!! Originally, there was no such thing as identity for a FRAME!
-        // that wasn't running a function.  
+        // that wasn't running a function.
+        //
         return R_CONTINUATION;
       }
 
@@ -799,9 +822,11 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
                 }
             }
 
-            Push_Action(f, act, VAL_BINDING(gotten));
+            DECLARE_FRAME (subframe, f->feed, f->flags.bits & ~(EVAL_FLAG_ALLOCATED_FEED));
+            Push_Frame(f->out, subframe);
+            Push_Action(subframe, act, VAL_BINDING(gotten));
             Begin_Action_Core(
-                f,
+                subframe,
                 VAL_WORD_SPELLING(v),  // use word as label
                 GET_ACTION_FLAG(act, ENFIXED)
             );
@@ -956,11 +981,20 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
             if (GET_ACTION_FLAG(act, IS_INVISIBLE))
                 fail ("Use `<-` with invisibles fetched from PATH!");
 
-            Push_Action(f, VAL_ACTION(where), VAL_BINDING(where));
-            Begin_Prefix_Action(f, opt_label);
+            DECLARE_FRAME (subframe, f->feed, f->flags.bits & ~(EVAL_FLAG_ALLOCATED_FEED));
+            Push_Frame(f->out, subframe);
 
-            if (where == f->out)
-                Expire_Out_Cell_Unless_Invisible(f);
+            // !!! The refinements were pushed in the `f` frame but we want
+            // subframe to see the same stack marker.  Extremely inelegant,
+            // rethink things if this ever works.
+            //
+            subframe->dsp_orig = f->dsp_orig;
+
+            Push_Action(subframe, VAL_ACTION(where), VAL_BINDING(where));
+            Begin_Prefix_Action(subframe, opt_label);
+
+            if (where == subframe->out)
+                Expire_Out_Cell_Unless_Invisible(subframe);
 
             goto process_action;
         }
@@ -1125,8 +1159,10 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
             // should also be restricted to a single value...though it's
             // being experimented with letting it take more.)
             //
-            Push_Action(f, VAL_ACTION(f_spare), VAL_BINDING(f_spare));
-            Begin_Prefix_Action(f, nullptr);  // no label
+            DECLARE_FRAME (subframe, f->feed, f->flags.bits & ~(EVAL_FLAG_ALLOCATED_FEED));
+            Push_Frame(f->out, subframe);
+            Push_Action(subframe, VAL_ACTION(f_spare), VAL_BINDING(f_spare));
+            Begin_Prefix_Action(subframe, nullptr);  // no label
 
             kind.byte = REB_ACTION;
             assert(NOT_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT));
@@ -1563,13 +1599,16 @@ REB_R Eval_Post_Switch(REBFRM *f)
         // a separate dispatch like PS_Xxx()...but it just performs division
         // compatibly with history.
 
+        DECLARE_FRAME(subframe, f->feed, f->flags.bits & ~(EVAL_FLAG_ALLOCATED_FEED));
+        Push_Frame(f->out, subframe);
+
         REBNOD *binding = nullptr;
-        Push_Action(f, NAT_ACTION(path_0), binding);
+        Push_Action(subframe, NAT_ACTION(path_0), binding);
 
         REBSTR *opt_label = nullptr;
-        Begin_Enfix_Action(f, opt_label);
+        Begin_Enfix_Action(subframe, opt_label);
 
-        Fetch_Next_Forget_Lookback(f);  // advances f->value
+        Fetch_Next_Forget_Lookback(subframe);  // advances f->value
         goto process_action;
     }
 
@@ -1720,7 +1759,7 @@ REB_R Eval_Post_Switch(REBFRM *f)
         // Leave the enfix operator pending in the frame, and it's up to the
         // parent frame to decide whether to change the executor and use
         // Eval_Post_Switch to jump back in and finish fulfilling this arg or
-        // not.  If it does resumeand we get to this check again,
+        // not.  If it does resume and we get to this check again,
         // f->prior->deferred can't be null, else it'd be an infinite loop.
         //
         goto finished;
@@ -1733,10 +1772,12 @@ REB_R Eval_Post_Switch(REBFRM *f)
     // of parameter fulfillment.  We want to reuse the f->out value and get it
     // into the new function's frame.
 
-    Push_Action(f, VAL_ACTION(f_next_gotten), VAL_BINDING(f_next_gotten));
-    Begin_Enfix_Action(f, VAL_WORD_SPELLING(f_next));
+    DECLARE_FRAME (subframe, f->feed, f->flags.bits & ~(EVAL_FLAG_ALLOCATED_FEED));
+    Push_Frame(f->out, subframe);
+    Push_Action(subframe, VAL_ACTION(f_next_gotten), VAL_BINDING(f_next_gotten));
+    Begin_Enfix_Action(subframe, VAL_WORD_SPELLING(f_next));
 
-    Fetch_Next_Forget_Lookback(f);  // advances next
+    Fetch_Next_Forget_Lookback(subframe);  // advances next
   process_action:
     return R_CONTINUATION;
 

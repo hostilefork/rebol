@@ -909,8 +909,8 @@ bool Make_Invocation_Frame_Throws(
     // not specialized...and gather at the callsite if necessary.
     //
   #if !defined(NDEBUG)
-    f->initial_flags |= EVAL_FLAG_FULFILL_ONLY
-        | EVAL_FLAG_ERROR_ON_DEFERRED_ENFIX;
+    f->initial_flags |=
+        EVAL_FLAG_ERROR_ON_DEFERRED_ENFIX;
   #endif
     SET_EVAL_FLAG(f, FULFILL_ONLY);
     SET_EVAL_FLAG(f, ERROR_ON_DEFERRED_ENFIX);  // can't allow ELSE/THEN/etc.

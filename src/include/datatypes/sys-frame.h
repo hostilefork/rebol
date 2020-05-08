@@ -801,7 +801,7 @@ inline static void Drop_Action(REBFRM *f) {
       #endif
 
         INIT_LINK_KEYSOURCE(f->varlist, NOD(f->original));
-        f->varlist = nullptr;
+        f->varlist = nullptr;  // !!! How should this work?
     }
     else {
         // We can reuse the varlist and its data allocation, which may be
@@ -820,11 +820,7 @@ inline static void Drop_Action(REBFRM *f) {
             | FLAG_WIDE_BYTE_OR_0(0) // don't mask out wide (0 for arrays))
             | FLAG_LEN_BYTE_OR_255(255) // mask out non-dynamic-len (dynamic)
         )));
-
-        f->varlist = nullptr;
     }
-
-    assert(f->varlist == nullptr);
 
     f->original = nullptr; // signal an action is no longer running
 

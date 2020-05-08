@@ -758,8 +758,12 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
 
         goto process_action; }
 
-      process_action: // Note: Also jumped to by the redo_checked code
+      process_action: {  // Note: Also jumped to by the redo_checked code
+        //
+        // !!! Originally, there was no such thing as identity for a FRAME!
+        // that wasn't running a function.  
         return R_CONTINUATION;
+      }
 
 
 //==//// WORD! ///////////////////////////////////////////////////////////==//

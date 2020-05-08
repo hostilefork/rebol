@@ -1377,8 +1377,10 @@ REBVAL *RL_rebRescue(
     if (error_ctx) {
         assert(f->varlist);  // action must be running
         REBARR *stub = f->varlist;  // will be stubbed, with info bits reset
+        bool stub_was_managed = GET_SERIES_FLAG(stub, MANAGED);
         Drop_Action(f);
-        SET_SERIES_FLAG(stub, VARLIST_FRAME_FAILED);  // signal API leaks ok
+        if (stub_was_managed)
+            SET_SERIES_FLAG(stub, VARLIST_FRAME_FAILED);  // so API leaks ok
         Abort_Frame(f);
         return Init_Error(Alloc_Value(), error_ctx);
     }

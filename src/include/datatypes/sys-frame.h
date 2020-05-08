@@ -178,6 +178,55 @@ inline static const char* Frame_Label_Or_Anonymous_UTF8(REBFRM *f) {
 }
 
 
+//=//// VARLIST CONSERVATION //////////////////////////////////////////////=//
+//
+// If a varlist does not become managed over the course of its usage, it is
+// put into a list of reusable ones.  You can reuse the series node identity
+// (avoiding the call to Alloc_Series_Node()) and also possibly the data
+// (avoiding the call to Did_Series_Data_Alloc() and other initialization).
+//
+
+inline static bool Did_Reuse_Varlist_Of_Unknown_Size(
+    REBFRM *f,
+    REBLEN size_hint  // !!! Currently ignored, smaller sizes can come back
+){
+    // !!! At the moment, the reuse is not very intelligent and just picks the
+    // last one...which could commonly be wastefully big or too small.  But it
+    // is a proof of concept to show an axis for performance work.
+    //
+    UNUSED(size_hint);
+
+    assert(f->varlist == nullptr);
+
+    if (not TG_Reuse)
+        return false;
+
+    f->varlist = TG_Reuse;
+    TG_Reuse = LINK(TG_Reuse).reuse;
+    f->rootvar = cast(REBVAL*, SER(f->varlist)->content.dynamic.data);
+    LINK_KEYSOURCE(f->varlist) = NOD(f);
+    assert(NOT_SERIES_FLAG(f->varlist, MANAGED));
+    return true;
+}
+
+inline static void Conserve_Varlist(REBARR *varlist)
+{
+  #if !defined(NDEBUG)
+    assert(NOT_SERIES_INFO(varlist, INACCESSIBLE));
+    assert(NOT_SERIES_FLAG(varlist, MANAGED));
+    assert(NOT_SERIES_FLAG(varlist, VARLIST_FRAME_FAILED));
+
+    RELVAL *rootvar = ARR_HEAD(varlist);
+    assert(CTX_VARLIST(VAL_CONTEXT(rootvar)) == varlist);
+    TRASH_POINTER_IF_DEBUG(PAYLOAD(Any, rootvar).second.node);  // phase
+    TRASH_POINTER_IF_DEBUG(EXTRA(Binding, rootvar).node);
+  #endif
+
+    LINK(varlist).reuse = TG_Reuse;
+    TG_Reuse = varlist;
+}
+
+
 //=////////////////////////////////////////////////////////////////////////=//
 //
 //  DO's LOWEST-LEVEL EVALUATOR HOOKING
@@ -207,6 +256,10 @@ inline static void Free_Frame_Internal(REBFRM *f) {
     if (GET_EVAL_FLAG(f, ALLOCATED_FEED))
         Free_Feed(f->feed);  // didn't inherit from parent, and not END_FRAME
 
+    if (f->varlist and NOT_SERIES_FLAG(f->varlist, MANAGED))
+        Conserve_Varlist(f->varlist);
+    TRASH_POINTER_IF_DEBUG(f->varlist);
+
     Free_Node(FRM_POOL, NOD(f));
 
     TRASH_POINTER_IF_DEBUG(f->executor);
@@ -217,19 +270,8 @@ inline static void Free_Frame_Internal(REBFRM *f) {
 }
 
 
-inline static void Reuse_Varlist_If_Available(REBFRM *f) {
-    assert(IS_POINTER_TRASH_DEBUG(f->varlist));
-    if (not TG_Reuse)
-        f->varlist = nullptr;
-    else {
-        f->varlist = TG_Reuse;
-        TG_Reuse = LINK(TG_Reuse).reuse;
-        f->rootvar = cast(REBVAL*, SER(f->varlist)->content.dynamic.data);
-        LINK_KEYSOURCE(f->varlist) = NOD(f);
-    }
-}
 
-inline static void Push_Frame_No_Varlist(REBVAL *out, REBFRM *f)
+inline static void Push_Frame(REBVAL *out, REBFRM *f)
 {
     assert(f->feed->value != nullptr);
 
@@ -363,18 +405,9 @@ inline static void Push_Frame_No_Varlist(REBVAL *out, REBFRM *f)
     f->initial_flags = f->flags.bits;
   #endif
 
-    // Eval_Core() expects a varlist to be in the frame, therefore it must
-    // be filled in by Reuse_Varlist(), or if this is something like a DO
-    // of a FRAME! it needs to be filled in from that frame before eval'ing.
-    //
-    TRASH_POINTER_IF_DEBUG(f->varlist);
+    assert(f->varlist == nullptr);  // !!! Is this always true?
 }
 
-inline static void Push_Frame(REBVAL *out, REBFRM *f)
-{
-    Push_Frame_No_Varlist(out, f);
-    Reuse_Varlist_If_Available(f);
-}
 
 inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
     f->expr_index = f->feed->index; // this is garbage if EVAL_FLAG_VA_LIST
@@ -386,10 +419,7 @@ inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
 
 
 inline static void Abort_Frame(REBFRM *f) {
-    if (f->varlist and NOT_SERIES_FLAG(f->varlist, MANAGED))
-        GC_Kill_Series(SER(f->varlist));  // not alloc'd with manuals tracking
-    TRASH_POINTER_IF_DEBUG(f->varlist);
-
+    //
     // Abort_Frame() handles any work that wouldn't be done done naturally by
     // feeding a frame to its natural end.
     // 
@@ -449,13 +479,6 @@ inline static void Drop_Frame_Core(REBFRM *f) {
     free(f->stress);
   #endif
 
-    if (f->varlist) {
-        assert(NOT_SERIES_FLAG(f->varlist, MANAGED));
-        LINK(f->varlist).reuse = TG_Reuse;
-        TG_Reuse = f->varlist;
-    }
-    TRASH_POINTER_IF_DEBUG(f->varlist);
-
     assert(TG_Top_Frame == f);
     TG_Top_Frame = f->prior;
     Free_Frame_Internal(f);
@@ -505,6 +528,7 @@ inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
     TRASH_POINTER_IF_DEBUG(f->out);
 
     f->executor = &Eval_New_Expression;  // !!! should we not default it?
+    f->varlist = nullptr;
 
   #ifdef DEBUG_ENSURE_FRAME_EVALUATES
     f->was_eval_called = false;
@@ -608,11 +632,22 @@ inline static void Push_Action(
     f->param = ACT_PARAMS_HEAD(act); // Specializations hide some params...
     REBLEN num_args = ACT_NUM_PARAMS(act); // ...so see REB_TS_HIDDEN
 
-    // !!! Note: Should pick "smart" size when allocating varlist storage due
-    // to potential reuse--but use exact size for *this* action, for now.
-    //
     REBSER *s;
-    if (not f->varlist) { // usually means first action call in the REBFRM
+    if (Did_Reuse_Varlist_Of_Unknown_Size(f, num_args)) {  // want `num_args`
+        s = SER(f->varlist);
+        if (s->content.dynamic.rest >= num_args + 1 + 1) // +roovar, +end
+            goto sufficient_allocation;
+            
+        // It wasn't big enough for `num_args`, so we free the data.
+        // But at least we can reuse the series node.
+
+        //assert(SER_BIAS(s) == 0);
+        Free_Unbiased_Series_Data(
+            s->content.dynamic.data,
+            SER_TOTAL(s)
+        );
+    }
+    else {
         s = Alloc_Series_Node(
             SERIES_MASK_VARLIST
                 | SERIES_FLAG_STACK_LIFETIME
@@ -625,17 +660,6 @@ inline static void Push_Action(
         INIT_LINK_KEYSOURCE(s, NOD(f)); // maps varlist back to f
         MISC_META_NODE(s) = nullptr; // GC will sees this
         f->varlist = ARR(s);
-    }
-    else {
-        s = SER(f->varlist);
-        if (s->content.dynamic.rest >= num_args + 1 + 1) // +roovar, +end
-            goto sufficient_allocation;
-
-        //assert(SER_BIAS(s) == 0);
-        Free_Unbiased_Series_Data(
-            s->content.dynamic.data,
-            SER_TOTAL(s)
-        );
     }
 
     if (not Did_Series_Data_Alloc(s, num_args + 1 + 1)) // +rootvar, +end
@@ -713,7 +737,6 @@ inline static void Drop_Action(REBFRM *f) {
         CLEAR_FEED_FLAG(f->feed, BARRIER_HIT);
 
     CLEAR_EVAL_FLAG(f, RUNNING_ENFIX);
-    CLEAR_EVAL_FLAG(f, FULFILL_ONLY);
     CLEAR_EVAL_FLAG(f, REQUOTE_NULL);
 
     CLEAR_EVAL_FLAG(f, DISPATCHER_CATCHES);
@@ -797,19 +820,11 @@ inline static void Drop_Action(REBFRM *f) {
             | FLAG_WIDE_BYTE_OR_0(0) // don't mask out wide (0 for arrays))
             | FLAG_LEN_BYTE_OR_255(255) // mask out non-dynamic-len (dynamic)
         )));
+
+        f->varlist = nullptr;
     }
 
-  #if !defined(NDEBUG)
-    if (f->varlist) {
-        assert(NOT_SERIES_INFO(f->varlist, INACCESSIBLE));
-        assert(NOT_SERIES_FLAG(f->varlist, MANAGED));
-
-        RELVAL *rootvar = ARR_HEAD(f->varlist);
-        assert(CTX_VARLIST(VAL_CONTEXT(rootvar)) == f->varlist);
-        TRASH_POINTER_IF_DEBUG(PAYLOAD(Any, rootvar).second.node);  // phase
-        TRASH_POINTER_IF_DEBUG(EXTRA(Binding, rootvar).node);
-    }
-  #endif
+    assert(f->varlist == nullptr);
 
     f->original = nullptr; // signal an action is no longer running
 
@@ -1125,7 +1140,7 @@ inline static REB_R Init_Continuation_With_Core(
         assert(GET_SERIES_FLAG(c, MANAGED));
         assert(GET_SERIES_INFO(c, INACCESSIBLE));
 
-        Push_Frame_No_Varlist(out, subframe);
+        Push_Frame(out, subframe);
         subframe->varlist = CTX_VARLIST(stolen);
         subframe->rootvar = CTX_ARCHETYPE(stolen);
         subframe->arg = subframe->rootvar + 1;

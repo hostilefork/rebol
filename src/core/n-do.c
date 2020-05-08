@@ -727,7 +727,7 @@ REBNATIVE(applique)
         flags |= EVAL_FLAG_FULLY_SPECIALIZED;
 
     DECLARE_END_FRAME (f, flags);  // up front (captures f->dsp)
-    Push_Frame_No_Varlist(D_OUT, f);  // to avoid GC during `def` evaluation
+    Push_Frame(D_OUT, f);  // to avoid GC during `def` evaluation
 
     // Argument can be a literal action (APPLY :APPEND) or a WORD!/PATH!.
     // If it is a path, we push the refinements to the stack so they can

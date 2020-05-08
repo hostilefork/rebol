@@ -895,12 +895,6 @@ bool Make_Invocation_Frame_Throws(
     assert(IS_ACTION(action));
     assert(f == FS_TOP);
 
-    // It is desired that any nulls encountered be processed as if they are
-    // not specialized...and gather at the callsite if necessary.
-    //
-    f->flags.bits |=
-        EVAL_FLAG_ERROR_ON_DEFERRED_ENFIX;  // can't deal with ELSE/THEN/etc.
-
     // === END FIRST PART OF CODE FROM DO_SUBFRAME ===
 
     REBSTR *opt_label = nullptr; // !!! for now
@@ -911,13 +905,24 @@ bool Make_Invocation_Frame_Throws(
     // gather the args.  Push_Action() checks that it's not set, so we don't
     // set it until after that.
     //
+    // It is desired that any nulls encountered be processed as if they are
+    // not specialized...and gather at the callsite if necessary.
+    //
+  #if !defined(NDEBUG)
+    f->initial_flags |= EVAL_FLAG_FULFILL_ONLY
+        | EVAL_FLAG_ERROR_ON_DEFERRED_ENFIX;
+  #endif
     SET_EVAL_FLAG(f, FULFILL_ONLY);
+    SET_EVAL_FLAG(f, ERROR_ON_DEFERRED_ENFIX);  // can't allow ELSE/THEN/etc.
 
     assert(FRM_BINDING(f) == VAL_BINDING(action));  // no invoke to change it
 
     bool threw = Eval_Throws(f);
 
-    assert(NOT_EVAL_FLAG(f, FULFILL_ONLY));  // cleared by the evaluator
+    CLEAR_EVAL_FLAG(f, FULFILL_ONLY);  // cleared by the evaluator
+  #if !defined(NDEBUG)
+    f->initial_flags &= ~EVAL_FLAG_FULFILL_ONLY;
+  #endif
 
     // Drop_Action() clears out the phase and binding.  Put them back.
     // !!! Should it check EVAL_FLAG_FULFILL_ONLY?

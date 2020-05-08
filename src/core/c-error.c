@@ -338,8 +338,10 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
         if (Is_Action_Frame(f)) {
             assert(f->varlist); // action must be running
             REBARR *stub = f->varlist; // will be stubbed, info bits reset
+            bool stub_was_managed = GET_SERIES_FLAG(stub, MANAGED);
             Drop_Action(f);
-            SET_SERIES_FLAG(stub, VARLIST_FRAME_FAILED); // API leaks o.k.
+            if (stub_was_managed)
+                SET_SERIES_FLAG(stub, VARLIST_FRAME_FAILED); // API leaks o.k.
         }
 
         REBFRM *prior = f->prior;

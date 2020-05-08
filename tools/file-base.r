@@ -24,28 +24,22 @@ core: [
     ; (B)oot
     b-init.c
 
-    ; (C)ore
-    [
-        c-action.c
-        #prefer-O2-optimization  ; see note on %c-eval.c
-    ]
+    ; There are several good reasons to optimize the evaluator itself even
+    ; if one is doing a "size-biased" build.  It's not just about wanting
+    ; the critical code to be faster--but also, since it recurses, if
+    ; stack frames aren't flattened out then they add up...and may blow
+    ; internal limits (like in a web browser for JS/WASM calls)
+    ;
+    [evaluator/c-action.c #prefer-O2-optimization]
+    [evaluator/c-eval.c #prefer-O2-optimization]
+    [evaluator/c-path.c #prefer-O2-optimization]
+    [evaluator/c-trampoline.c #prefer-O2-optimization]
+
     c-bind.c
     c-do.c
     c-context.c
     c-error.c
-    [
-        c-eval.c
-
-        ; There are several good reasons to optimize the evaluator itself even
-        ; if one is doing a "size-biased" build.  It's not just about wanting
-        ; the critical code to be faster--but also, since it recurses, if
-        ; stack frames aren't flattened out then they add up...and may blow
-        ; internal limits (like in a web browser for JS/WASM calls)
-        ;
-        #prefer-O2-optimization
-    ]
     c-function.c
-    c-path.c
     c-port.c
     c-signal.c
     c-specialize.c

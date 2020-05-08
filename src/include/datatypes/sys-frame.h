@@ -141,6 +141,14 @@ inline static int FRM_LINE(REBFRM *f) {
 #define F_VALUE(f) \
     ((f)->feed->value)
 
+inline static void INIT_F_EXECUTOR(REBFRM *f, REBNAT executor)
+{
+    if (f->original)
+        assert(executor == &Action_Executor);
+    else
+        assert(executor != &Action_Executor);
+    f->executor = executor;
+}
 
 // ARGS is the parameters and refinements
 // 1-based indexing into the arglist (0 slot is for FRAME! value)
@@ -527,7 +535,8 @@ inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
     f->dsp_orig = DS_Index;
     TRASH_POINTER_IF_DEBUG(f->out);
 
-    f->executor = &Eval_New_Expression;  // !!! should we not default it?
+    f->original = nullptr;  // !!! redundant!
+    INIT_F_EXECUTOR(f, &New_Expression_Executor);  // !!! should we not default it?
     f->varlist = nullptr;
 
   #ifdef DEBUG_ENSURE_FRAME_EVALUATES
@@ -558,6 +567,8 @@ inline static void Begin_Action_Core(REBFRM *f, REBSTR *opt_label, bool enfix)
 
     assert(not f->original);
     f->original = FRM_PHASE(f);
+
+    INIT_F_EXECUTOR(f, &Action_Executor);  // !!! Review where to do this
 
     assert(IS_POINTER_TRASH_DEBUG(f->opt_label)); // only valid w/REB_ACTION
     assert(not opt_label or GET_SERIES_FLAG(opt_label, IS_STRING));
@@ -705,7 +716,7 @@ inline static void Push_Action(
     }
   #endif
 
-    f->arg = f->rootvar + 1;
+    f->arg = nullptr;  // start state (cues enumeration)
 
     // Each layer of specialization of a function can only add specializations
     // of arguments which have not been specialized already.  For efficiency,
@@ -844,7 +855,7 @@ inline static void Push_Dummy_Frame(REBFRM *f) {
 
     Push_Action(f, PG_Dummy_Action, UNBOUND);
     Begin_Prefix_Action(f, opt_label);
-    assert(IS_END(f->arg));
+    assert(f->arg == nullptr);
     f->param = END_NODE;  // signal all arguments gathered
     f->arg = m_cast(REBVAL*, END_NODE);
     f->special = END_NODE;
@@ -968,7 +979,6 @@ inline static REB_R Init_Continuation_With_Core(
 
       case REB_HANDLE: {  // temporarily means REBFRM*, chain to stack
         REBFRM *subframe = VAL_HANDLE_POINTER(REBFRM, branch);
-        assert(GET_EVAL_FLAG(subframe, CONTINUATION));
         assert(GET_EVAL_FLAG(subframe, DETACH_DONT_DROP));
         assert(subframe->prior == nullptr);
         subframe->dsp_orig = DSP;  // may be accruing state
@@ -986,9 +996,7 @@ inline static REB_R Init_Continuation_With_Core(
             blockframe,
             branch,
             branch_specifier,
-            EVAL_MASK_DEFAULT
-                | EVAL_FLAG_CONTINUATION
-                | EVAL_FLAG_TO_END
+            EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END
         );
 
         Init_Void(out);  // in case all invisibles, as usual
@@ -1018,7 +1026,6 @@ inline static REB_R Init_Continuation_With_Core(
             subframe,
             subfeed,
             EVAL_MASK_DEFAULT
-                | EVAL_FLAG_CONTINUATION
                 | EVAL_FLAG_ALLOCATED_FEED
         );
 
@@ -1033,6 +1040,24 @@ inline static REB_R Init_Continuation_With_Core(
       case REB_BLANK:
         Init_Nulled(out);
         goto just_use_out;
+
+      group_continuation:
+      case REB_GROUP: {
+        // Control constructs like IF or EITHER that take parameters will
+        // soft quote them, so they'll never see a GROUP! unless it is
+        // evaluative (this might be best an error, or it could recurse
+        // indefinitely).  But CASE walks its own enumeration and sees
+        // things like GROUP! literally, and wants to evaluate it.
+        //
+        // !!! Besides recursive groups, what should be done about vaporizing
+        // groups?  How should soft quotes handle them?  VOID!, error, or
+        // keep evaluating?
+        //
+        DECLARE_END_FRAME (subframe, EVAL_MASK_DEFAULT);
+        subframe->executor = &Brancher_Executor;
+        Push_Frame(out, subframe);
+        Derelativize(FRM_SPARE(subframe), branch, branch_specifier);
+        return R_CONTINUATION; }
 
       case REB_SYM_WORD:
       case REB_SYM_PATH: {
@@ -1094,14 +1119,7 @@ inline static REB_R Init_Continuation_With_Core(
         // !!! This may not be an important idea, and it can lead to an
         // infinite loop if the branch keeps producing SYM-GROUP!s.
         //
-        DECLARE_END_FRAME (
-            subframe,
-            EVAL_MASK_DEFAULT | EVAL_FLAG_CONTINUATION
-        );
-        subframe->executor = &Eval_Brancher;
-        Push_Frame(out, subframe);
-        Derelativize(FRM_SPARE(subframe), branch, branch_specifier);
-        return R_CONTINUATION; }
+        goto group_continuation; }
 
       case REB_FRAME: {
         REBCTX *c = VAL_CONTEXT(branch);  // check accessible
@@ -1119,7 +1137,6 @@ inline static REB_R Init_Continuation_With_Core(
             subframe,
             EVAL_MASK_DEFAULT
                 | EVAL_FLAG_FULLY_SPECIALIZED
-                | EVAL_FLAG_CONTINUATION
         );
 
         assert(CTX_KEYS_HEAD(c) == ACT_PARAMS_HEAD(phase));
@@ -1139,9 +1156,9 @@ inline static REB_R Init_Continuation_With_Core(
         Push_Frame(out, subframe);
         subframe->varlist = CTX_VARLIST(stolen);
         subframe->rootvar = CTX_ARCHETYPE(stolen);
-        subframe->arg = subframe->rootvar + 1;
+        subframe->arg = nullptr;  // signals start of enumeration
         // subframe->param set above
-        subframe->special = subframe->arg;
+        subframe->special = FRM_ARGS_HEAD(subframe);
 
         // !!! Original code said "Should archetype match?"
         //
@@ -1158,11 +1175,8 @@ inline static REB_R Init_Continuation_With_Core(
     }
 
   just_use_out: ;
-    DECLARE_END_FRAME (
-        subframe,
-        EVAL_MASK_DEFAULT | EVAL_FLAG_CONTINUATION
-    );
-    subframe->executor = &Eval_Just_Use_Out;
+    DECLARE_END_FRAME (subframe, EVAL_MASK_DEFAULT);
+    subframe->executor = &Just_Use_Out_Executor;
     Push_Frame(f->out, subframe);
     return R_CONTINUATION;
 }

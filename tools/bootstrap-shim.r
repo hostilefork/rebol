@@ -58,6 +58,12 @@ trap [
 ;
 set: specialize 'lib/set [opt: true]
 
+; C-DEBUG-BREAK is only available in debug builds.  If you try to use it in
+; %sys-obj.r then you would get a crash during the bootstrap build.  Make it a
+; no-op so it can be used to debug the system object (the first thing booted).
+;
+c-debug-break: func [] []
+
 ; PRINT was changed to tolerate NEWLINE to mean print a newline only
 ;
 print: func [value] [

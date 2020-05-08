@@ -257,11 +257,7 @@ REBNATIVE(shove)
         Init_Blank(D_SPARE);  // temporary non-end state
 
     if (REF(enfix)) {  // don't heed enfix state in the action itself
-        DECLARE_FRAME (
-            subframe,
-            f->feed,
-            EVAL_MASK_DEFAULT | EVAL_FLAG_CONTINUATION
-        );
+        DECLARE_FRAME (subframe, f->feed, EVAL_MASK_DEFAULT);
         Push_Frame(D_OUT, subframe);
 
         assert(NOT_EVAL_FLAG(subframe, RUNNING_ENFIX));
@@ -275,13 +271,8 @@ REBNATIVE(shove)
         Fetch_Next_Forget_Lookback(f);
     }
     else {
-        DECLARE_FRAME (
-            subframe,
-            f->feed,
-            EVAL_MASK_DEFAULT
-                | EVAL_FLAG_CONTINUATION
-        );
-        subframe->executor = &Eval_Frame_Workhorse;
+        DECLARE_FRAME (subframe, f->feed, EVAL_MASK_DEFAULT);
+        subframe->executor = &Reevaluation_Executor;
         subframe->u.reval.value = shovee;
 
         Push_Frame(D_OUT, subframe);
@@ -827,9 +818,9 @@ REBNATIVE(applique)
     f->varlist = CTX_VARLIST(stolen);
     SET_SERIES_FLAG(f->varlist, STACK_LIFETIME);
     f->rootvar = CTX_ARCHETYPE(stolen);
-    f->arg = f->rootvar + 1;
+    f->arg = nullptr;  // start state (cues enumeration)
     // f->param assigned above
-    f->special = f->arg; // signal only type-check the existing data
+    f->special = FRM_ARGS_HEAD(f); // signal only type-check the existing data
     INIT_FRM_PHASE(f, VAL_ACTION(applicand));
     FRM_BINDING(f) = VAL_BINDING(applicand);
 

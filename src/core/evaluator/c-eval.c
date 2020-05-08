@@ -148,7 +148,7 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
     bool x = true;
     if (
         x or
-        CURRENT_CHANGES_IF_FETCH_NEXT or GET_EVAL_FLAG(f, CONTINUATION)
+        CURRENT_CHANGES_IF_FETCH_NEXT
     ){
         if (Eval_Step_In_Subframe_Throws(f->out, f, flags))
             return true;
@@ -167,7 +167,7 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
 
 
 //
-//  Eval_Just_Use_Out: C
+//  Just_Use_Out_Executor: C
 //
 // This is a simple no-op continuation which can be used when you've already
 // calculated a result, but you're in a position where you need to give a
@@ -178,10 +178,11 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
 // !!! This is somewhat inefficient and probably calls for some special
 // loophole, but it's not easy to think of what a good place for that loophole
 // would be right now... so this goes ahead and fits into the homogenous
-// continuation model by giving a pass through option.
+// continuation model as a passthru option.
 //
-REB_R Eval_Just_Use_Out(REBFRM *f)
+REB_R Just_Use_Out_Executor(REBFRM *f)
 {
+    INIT_F_EXECUTOR(f, nullptr);
     return f->out;
 }
 
@@ -230,25 +231,23 @@ REB_R Eval_Just_Use_Out(REBFRM *f)
 REB_R Group_Executor(REBFRM *f)
 {
     if (IS_END(f->out)) {
-        if (IS_END(F_VALUE(f)))
+        if (IS_END(F_VALUE(f))) {
+            INIT_F_EXECUTOR(f, nullptr);
             return f->out;  // nothing after to try, indicate value absence
-
-        f->executor = &Eval_Frame_Workhorse;
+        }
+        INIT_F_EXECUTOR(f, &Reevaluation_Executor);
         f->u.reval.value = Lookback_While_Fetching_Next(f);
         return R_CONTINUATION;
     }
 
-    if (not VAL_LOGIC(FRM_SPARE(f)))
-        CLEAR_EVAL_FLAG(f, CONTINUATION);  // why unset?
-
     CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // `(1)` is evaluative
-    f->executor = &Eval_Post_Switch;
+    INIT_F_EXECUTOR(f, &Lookahead_Executor);
     return R_CONTINUATION;
 }
 
 
 //
-//  Eval_Brancher: C
+//  Brancher_Executor: C
 //
 // !!! Does a double-execution on its branch.  Uses a new idea of a preloaded
 // frame `->spare` cell to hold an argument without needing a varlist.  Used
@@ -259,9 +258,9 @@ REB_R Group_Executor(REBFRM *f)
 //    one
 //    == 5
 //
-REB_R Eval_Brancher(REBFRM *frame_)
+REB_R Brancher_Executor(REBFRM *frame_)
 {
-    if (IS_SYM_GROUP(D_SPARE)) {
+    if (IS_GROUP(D_SPARE) or IS_SYM_GROUP(D_SPARE)) {
         mutable_KIND_BYTE(D_SPARE) = mutable_MIRROR_BYTE(D_SPARE) = REB_BLOCK;
         CONTINUE (D_SPARE);
     }
@@ -280,19 +279,29 @@ REB_R Eval_Brancher(REBFRM *frame_)
     }
 
     Move_Value(D_SPARE, D_OUT);
-    DELEGATE (D_SPARE);
+
+    // !!! The current intent of "delegate" only works for dispatchers that
+    // coordinate with Action_Executor(), because the executor still gets
+    // called in order to finalize.  The emerging concept of an executor
+    // that signals not wanting to be called back with nullptr is that it
+    // does not heed the delegation flag used for that purpose.  This is a
+    // work in progress.  We can't say nullptr since we're returning a
+    // continuation, so use the Just_Use_Out_Executor().
+    //
+    INIT_F_EXECUTOR(frame_, &Just_Use_Out_Executor);
+    CONTINUE (D_SPARE);
 }
 
 
 //
-//  Eval_New_Expression: C
+//  New_Expression_Executor: C
 //
 // This is the continuation dispatcher for what would be considered a new
 // single step in the evaluator.  That can be from the point of view of the
 // debugger, or just in terms of marking the point at which an error message
 // would begin.
 //
-REB_R Eval_New_Expression(REBFRM *f)
+REB_R New_Expression_Executor(REBFRM *f)
 {
   #ifdef DEBUG_ENSURE_FRAME_EVALUATES
     f->was_eval_called = true;  // see definition for why this flag exists
@@ -343,6 +352,9 @@ REB_R Eval_New_Expression(REBFRM *f)
 
     kind.byte = KIND_BYTE(f_next);
 
+    const RELVAL *v;  // don't want to jump past initialization
+    const REBVAL *gotten;
+
     // If asked to evaluate `[]` then we have now done all the work the
     // evaluator needs to do--including marking the output stale.
     //
@@ -354,14 +366,14 @@ REB_R Eval_New_Expression(REBFRM *f)
 
     // shorthand for the value we are switch()-ing on
 
-    const RELVAL *v = Lookback_While_Fetching_Next(f);
+    v = Lookback_While_Fetching_Next(f);
     // ^-- can't just `v = f_next`, fetch may overwrite--request lookback!
 
-    const REBVAL *gotten = f_next_gotten;
+    gotten = f_next_gotten;
     UNUSED(gotten);
 
     assert(kind.byte == KIND_BYTE_UNCHECKED(v));
-    f->executor = &Eval_Frame_Workhorse;
+    INIT_F_EXECUTOR(f, &Reevaluation_Executor);
     f->u.reval.value = v;
     return R_CONTINUATION;
 
@@ -369,18 +381,19 @@ REB_R Eval_New_Expression(REBFRM *f)
     return R_THROWN;
 
   finished:
+    INIT_F_EXECUTOR(f, nullptr);
     return f->out;
 }
 
 
 //
-//  Eval_Frame_Workhorse: C
+//  Reevaluation_Executor: C
 //
 // Try and encapsulate the main frame work but without actually looping.
 // This means it needs more return results than just `bool` for threw.
 // It gives it the same signature as a dispatcher.
 //
-REB_R Eval_Frame_Workhorse(REBFRM *f)
+REB_R Reevaluation_Executor(REBFRM *f)
 {
     union {
         int byte;  // values bigger than REB_64 are used for in-situ literals
@@ -582,8 +595,16 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
       process_action: {  // Note: Also jumped to by the redo_checked code
         //
         // !!! Originally, there was no such thing as identity for a FRAME!
-        // that wasn't running a function.
+        // that wasn't running a function.  Now we give functions their own
+        // frames so that the identities are separate.  This may be wasteful
+        // in the case of simple argument fulfillment, but is needed when
+        // the parent frame represents evaluation across a block to an end...
+        // as routines like REDUCE need to hold onto a notion of those frames.
         //
+        // !!! Right now, the default behavior after a frame returns f->out
+        // is to jump up and call the eval post switch.
+        //
+        INIT_F_EXECUTOR(f, &Lookahead_Executor);
         return R_CONTINUATION;
       }
 
@@ -694,23 +715,10 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
       case REB_GROUP: {
         f_next_gotten = nullptr;  // arbitrary code changes fetched variables
 
-        // !!! here we alter *this* frame's executor to be the group
-        // executor.  This effectively hijacks it from re-entry.  We make a
-        // memory in the frame spare of whether or not it was already a
-        // continuation so it can put it back.
-        //
-        if (GET_EVAL_FLAG(f, CONTINUATION))
-            Init_True(f_spare);
-        else {
-            Init_False(f_spare);
-            SET_EVAL_FLAG(f, CONTINUATION);
-        }
-        assert(f->executor == &Eval_New_Expression);
-        f->executor = &Group_Executor;
+        assert(f->executor == &Reevaluation_Executor);
+        INIT_F_EXECUTOR(f, &Group_Executor);
 
-        REBFLGS flags = EVAL_MASK_DEFAULT
-            | EVAL_FLAG_CONTINUATION
-            | EVAL_FLAG_TO_END;
+        REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END;
         DECLARE_FRAME_AT_CORE (subframe, v, f_specifier, flags);
 
         // See notes on Group_Executor().  We don't want to lose the value in
@@ -1306,7 +1314,7 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     */
 
   post_switch:
-    f->executor = &Eval_Post_Switch;
+    INIT_F_EXECUTOR(f, &Lookahead_Executor);
     return R_CONTINUATION;
 
     // Stay THROWN and let stack levels above try and catch
@@ -1315,12 +1323,13 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
     return R_THROWN;
 
   finished:
+    INIT_F_EXECUTOR(f, nullptr);
     return f->out;
 }
 
 
 //
-//  Eval_Post_Switch: C
+//  Lookahead_Executor: C
 //
 // When we are sitting at what "looks like the end" of an evaluation step, we
 // still have to consider enfix.  e.g.
@@ -1351,7 +1360,7 @@ REB_R Eval_Frame_Workhorse(REBFRM *f)
 //
 // So this post-switch step is where all of it happens, and it's tricky!
 //
-REB_R Eval_Post_Switch(REBFRM *f)
+REB_R Lookahead_Executor(REBFRM *f)
 {
     // If something was run with the expectation it should take the next arg
     // from the output cell, and an evaluation cycle ran that wasn't an
@@ -1557,7 +1566,7 @@ REB_R Eval_Post_Switch(REBFRM *f)
 
         // Leave the enfix operator pending in the frame, and it's up to the
         // parent frame to decide whether to change the executor and use
-        // Eval_Post_Switch to jump back in and finish fulfilling this arg or
+        // Lookahead_Executor to jump back in and finish fulfilling this arg or
         // not.  If it does resume and we get to this check again,
         // f->prior->deferred can't be null, else it'd be an infinite loop.
         //
@@ -1571,16 +1580,22 @@ REB_R Eval_Post_Switch(REBFRM *f)
     // of parameter fulfillment.  We want to reuse the f->out value and get it
     // into the new function's frame.
 
+  blockscope {
     DECLARE_FRAME (subframe, f->feed, f->flags.bits & ~(EVAL_FLAG_ALLOCATED_FEED));
     Push_Frame(f->out, subframe);
     Push_Action(subframe, VAL_ACTION(f_next_gotten), VAL_BINDING(f_next_gotten));
     Begin_Enfix_Action(subframe, VAL_WORD_SPELLING(f_next));
 
     Fetch_Next_Forget_Lookback(subframe);  // advances next
+  }
+
   process_action:
     return R_CONTINUATION;
 
-
   finished:
+    if (GET_EVAL_FLAG(f, TO_END) and NOT_END(f->feed->value))
+        INIT_F_EXECUTOR(f, &New_Expression_Executor);
+    else
+        INIT_F_EXECUTOR(f, nullptr);
     return f->out;  // not thrown
 }

@@ -236,7 +236,7 @@ void Eval_Core_Expression_Checks_Debug(REBFRM *f)
 void Do_Process_Action_Checks_Debug(REBFRM *f) {
 
     assert(IS_FRAME(f->rootvar));
-    assert(f->arg == f->rootvar + 1);
+    assert(f->arg == FRM_ARGS_HEAD(f));
 
     REBACT *phase = VAL_PHASE(f->rootvar);
 

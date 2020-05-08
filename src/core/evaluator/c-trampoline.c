@@ -1,6 +1,6 @@
 //
 //  File: %c-trampoline.c
-//  Summary: "Central Interpreter Dispatcher"
+//  Summary: "Central Interpreter Loop for 'Stackless' Evaluation"
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
@@ -83,68 +83,64 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
     // v-- This is the TG_Break_At_Tick or C-DEBUG-BREAK landing spot --v
 
-    REB_R r /* = (f->executor)(f) */ ;  // !!!soon...
+    assert((F->executor == &Action_Executor) == (F->original != nullptr));
 
-    if (F->executor == &Eval_Just_Use_Out) {
-        r = Eval_Just_Use_Out(F);
-    }
-    else if (F->executor == &Eval_Brancher) {
-        r = Eval_Brancher(F);
-    }
-    else if (F->executor == &Eval_Frame_Workhorse) {  // was REEVALUATE_CELL
-        F->executor = &Eval_New_Expression;  // !!! until further study
-        r = Eval_Frame_Workhorse(F);
-    }
-    else if (F->executor == &Eval_Post_Switch) {  // was POST_SWITCH
-        F->executor = &Eval_New_Expression;  // !!! until further study
-        r = Eval_Post_Switch(F);
-    }
-    else if (F->executor == &Group_Executor) {
-        r = Group_Executor(F);
-    }
-    else if (F->original) {  // sign for Is_Action_Frame()
+    REB_R r = (F->executor)(F);
+
+    if (r != R_THROWN)
+        assert((F->executor == &Action_Executor) == (F->original != nullptr));
+
+    if (F->executor == nullptr) {  // no further execution for frame, drop it
+        assert(r == F->out);
+
+        // !!! Currently we do not drop the topmost frame, because some code
+        // (e.g. MATCH) would ask for a frame to be filled, and then steal
+        // its resulting varlist.  However, if MATCH is on the stack when it
+        // makes the call, it's not stackless...e.g. it should be written
+        // some other way.
         //
-        // !!! This related to a check in Do_Process_Action_Checks_Debug(),
-        // see notes there.
+        if (F == start) {
+            F->executor = &New_Expression_Executor;  // !!! Old invariant
+            return false;
+        }
+
+        // !!! Detaching vs. dropping a frame is used by routines like REDUCE,
+        // which wish to reuse a frame for successive evaluations.
         //
-        /* SET_CELL_FLAG(f->out, OUT_MARKED_STALE); */
-        assert(F->executor == &Eval_New_Expression);
-        r = Eval_Action(F);
-    }
-    else {
-        assert(F->executor == &Eval_New_Expression);
-        r = Eval_New_Expression(F);
+        if (GET_EVAL_FLAG(F, DETACH_DONT_DROP)) {
+            REBFRM* temp = F;
+            TG_Top_Frame = temp->prior;
+            temp->prior = nullptr;  // we don't "drop" it, but...
+            // !!! leave flag or reset it?
+        }
+        else
+            Drop_Frame(F);  // frees feed if necessary
+
+        r = F->out;
     }
 
-    if (r == R_CONTINUATION)
+    if (r == R_CONTINUATION) {
+        assert(F->executor != nullptr);  // *topmost* frame needs callback
         goto loop;  // keep going
+    }
+
+  #if !defined(NDEBUG)
+    if (not F->original)
+        Eval_Core_Exit_Checks_Debug(F);   // called unless a fail() longjmps
+  #endif
 
     if (r == R_THROWN) {
-    return_thrown:
-      #if !defined(NDEBUG)
-        Eval_Core_Exit_Checks_Debug(F);   // called unless a fail() longjmps
-        // don't care if f->flags has changes; thrown frame is not resumable
-      #endif
-
-        if (GET_EVAL_FLAG(F, CONTINUATION)) {
-            if (GET_EVAL_FLAG(F, FULFILLING_ARG)) {  // *before* function runs
-                assert(NOT_EVAL_FLAG(F->prior, DISPATCHER_CATCHES));  // no catch
-                assert(F->prior->original);  // must be running function
-                assert(F->prior->arg == F->out);  // must be fulfilling f->arg
-                Move_Value(F->prior->out, F->out);  // throw must be in out
-            }
+        while (F != start) {
             Drop_Frame(F);
-            if (F->original) {  // function is in process of running, can catch
+            if (F->original)  // function is running, assume only catchers ATM
                 goto loop;
-            }
-            goto return_thrown;  // no action to drop so this frame just ends
-        }
-
-        while (F != start and not F->original) {
-            Drop_Frame(F);
         }
     }
     else {
+        // !!! This is going to be the right place to handle other variants of
+        // return values consistently, e.g. API handles.  The return results
+        // from native dispatchers may be specific to interactions.
+
         assert(r == F->out);
 
         // Want to keep this flag between an operation and an ensuing enfix in
@@ -157,74 +153,29 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         CLEAR_EVAL_FLAG(F, DIDNT_LEFT_QUOTE_PATH);
         assert(NOT_FEED_FLAG(F->feed, NEXT_ARG_FROM_OUT));  // must be consumed
 
-      #if !defined(NDEBUG)
-        Eval_Core_Exit_Checks_Debug(F);  // called unless a fail() longjmps
-        assert(NOT_EVAL_FLAG(F, DOING_PICKUPS));
+        #if !defined(NDEBUG)
+        //assert(NOT_EVAL_FLAG(F, DOING_PICKUPS));
+        //assert(F->flags.bits == F->initial_flags);  // changes should be restored
+        #endif
 
-        assert(F->flags.bits == F->initial_flags);  // changes should be restored
-      #endif
+        CLEAR_CELL_FLAG(F->out, OUT_MARKED_STALE);  // !!! review
 
-        // If the evaluations are running to the end of a block or a group,
-        // we don't want to drop the frame.  But we do want an opportunity
-        // to hook the evaluation step here in the top level driver.
+        // We now are at the frame above the one that made the last
+        // request.  What we need to know is if it wanted to do any
+        // post-processing of the f->out that was resolved, or if it
+        // is happy to take the result "as is"
         //
-        if (GET_EVAL_FLAG(F, TO_END)) {
-            if (NOT_END(F->feed->value))
-                goto loop;
-        }
-
-        while (GET_EVAL_FLAG(F, CONTINUATION)) {
-            CLEAR_CELL_FLAG(F->out, OUT_MARKED_STALE);  // !!! review
-
-            if (GET_EVAL_FLAG(F, FULFILLING_ARG)) {
-                do {
-                    Drop_Frame(F);
-                } while (not F->original);
-                SET_EVAL_FLAG(F, ARG_FINISHED);
-                goto loop;
-            }
-
-            if (GET_EVAL_FLAG(F, DETACH_DONT_DROP)) {
-                REBFRM* temp = F;
-                TG_Top_Frame = temp->prior;
-                temp->prior = nullptr;  // we don't "drop" it, but...
-                // !!! leave flag or reset it?
-            }
-            else {
-                Drop_Frame(F);  // frees feed
-            }
-
-            if (F->original) {
-                //
-                // !!! As written we call back the Eval_Action() code, with
-                // or without an "ACTION_FOLLOWUP" flag.
-                //
-                if (NOT_EVAL_FLAG(F, DELEGATE_CONTROL))
-                    SET_EVAL_FLAG(F, ACTION_FOLLOWUP);
-                else
-                    assert(NOT_EVAL_FLAG(F, ACTION_FOLLOWUP));
-                goto loop;
-            }
-            else {
-                if (NOT_EVAL_FLAG(F, DELEGATE_CONTROL))
-                    goto loop;
-            }
-            Drop_Frame(F);
-        }
-
-        while (
-            F != start
-            and (NOT_EVAL_FLAG(F, CONTINUATION) or GET_EVAL_FLAG(F, TO_END))
-        ){
-            Drop_Frame(F);
-        }
+        // As it stands, the Action_Dispatcher always wants a chance to
+        // follow up... even if just to Drop the action.  Whether it
+        // calls the dispatcher or not again depends on DELEGATES_DISPATCH
+        //
+        goto loop;
     }
 
-    if (F != start)
-        goto loop;
+    assert(F == start);
 
-    if (r == F->out)
-        return false;  // not thrown
+    F->executor = &New_Expression_Executor;  // !!! Old invariant
+
     assert(r == R_THROWN);
     return true;  // thrown
 }

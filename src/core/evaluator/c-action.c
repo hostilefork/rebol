@@ -255,9 +255,9 @@ bool Lookahead_To_Sync_Enfix_Defer_Flag(REBFED *feed) {
 
 
 //
-//  Eval_Arg: C
+//  Arg_Executor: C
 //
-REB_R Eval_Arg(REBFRM *f)
+REB_R Arg_Executor(REBFRM *f)
 {
     if (GET_EVAL_FLAG(f, DOING_PICKUPS))
         goto fulfill_arg;
@@ -411,7 +411,7 @@ REB_R Eval_Arg(REBFRM *f)
     // https://github.com/metaeducation/ren-c/issues/823
 
   fulfill_arg: ;  // semicolon needed--next statement is declaration
-
+  blockscope {
     Reb_Param_Class pclass = VAL_PARAM_CLASS(f->param);
 
     switch (pclass) {
@@ -806,7 +806,6 @@ REB_R Eval_Arg(REBFRM *f)
         // overwriting what the optimization produced.  Trust that it
         // has already done it if it was necessary.
 
-        flags |= EVAL_FLAG_CONTINUATION;
         DECLARE_FRAME (subframe, f->feed, flags);
         subframe->executor = executor;
 
@@ -899,7 +898,7 @@ REB_R Eval_Arg(REBFRM *f)
                 fail (Error_Void_Evaluation_Raw());  // must be quoted
 
             DECLARE_FRAME (subframe, f->feed, flags);
-            subframe->executor = &Eval_Post_Switch;
+            subframe->executor = &Lookahead_Executor;
 
             Push_Frame(f->arg, subframe);
             bool threw = Eval_Throws(subframe);
@@ -931,6 +930,7 @@ REB_R Eval_Arg(REBFRM *f)
     }
 
     goto finalize_arg;
+  }
 
   finalize_arg:
     return R_INVISIBLE;
@@ -950,33 +950,56 @@ REB_R Eval_Arg(REBFRM *f)
 
 
 //
-//  Eval_Action: C
+//  Action_Executor: C
 //
 // !!! Attempt to break out the evaluation of actions in a continuation
 // sort of fashion.
 //
-REB_R Eval_Action(REBFRM *f)
+REB_R Action_Executor(REBFRM *f)
 {
     if (Is_Throwing(f)) {
+        assert(f->arg);  // how could it throw before any args evaluate?
+
+        if (NOT_END(f->param)) {  // *before* function runs
+            // !!! Investigate: why doesn't end check on f->arg work, too?
+            Move_Value(f->out, f->arg);  // throw must be in out
+            goto abort_action;
+        }
+
+        // Function was running, may want to see the throw
+
         if (GET_EVAL_FLAG(f, DISPATCHER_CATCHES))
             goto redo_continuation;  // might want to see BREAK/CONTINUE
         goto action_threw;  // could be an UNWIND or similar
     }
-    if (GET_EVAL_FLAG(f, ARG_FINISHED)) {
-        CLEAR_EVAL_FLAG(f, ARG_FINISHED);
+
+    // !!! Temporary state assumption: f->arg being nullptr means it's the
+    // first time being called.  (We are reserving the END state of the
+    // frame spare for the dispatcher, which currently shares this frame,
+    // and that makes sense).
+    //
+    if (f->arg == nullptr)
+        goto process_action;
+
+    // !!! Second assumption: if f->arg is not an end pointer, it means we
+    // want to finalize an argument which we trampolined out to evaluate.
+    //
+    if (NOT_END(f->param))
         goto finalize_arg;
-    }
-    if (GET_EVAL_FLAG(f, ACTION_FOLLOWUP)) {
-        CLEAR_EVAL_FLAG(f, ACTION_FOLLOWUP);
-        goto redo_continuation;
-    }
+           // !!! Investigate: why doesn't end check on f->arg work, too?
+
+    // If f->arg is END, that means we're in some kind of post argument phase.
 
     if (GET_EVAL_FLAG(f, DELEGATE_CONTROL)) {
         CLEAR_EVAL_FLAG(f, DELEGATE_CONTROL);
-        goto dispatch_completed;
+        goto dispatch_completed;  // the dispatcher didn't want a callback
     }
 
+    goto redo_continuation;  // Assume a followup was desired otherwise
+
   process_action:
+    assert(f->arg == nullptr);
+    f->arg = FRM_ARGS_HEAD(f);
 
   #if !defined(NDEBUG)
     assert(f->original);  // set by Begin_Action()
@@ -1052,7 +1075,7 @@ REB_R Eval_Action(REBFRM *f)
     //=//// ACTUAL LOOP BODY //////////////////////////////////////////////=//
 
       loop_body: blockscope {
-        REB_R r = Eval_Arg(f);
+        REB_R r = Arg_Executor(f);
         if (r == f->out)  // finished this arg
             goto continue_arg_loop;
         if (r == R_THROWN)
@@ -1114,7 +1137,7 @@ REB_R Eval_Action(REBFRM *f)
         SET_EVAL_FLAG(f, DOING_PICKUPS);
 
       blockscope {
-        REB_R r = Eval_Arg(f);
+        REB_R r = Arg_Executor(f);
         if (r == f->out)  // finished this arg
             goto continue_arg_loop;
         if (r == R_THROWN)
@@ -1248,7 +1271,6 @@ REB_R Eval_Action(REBFRM *f)
         //
       case REB_R_CONTINUATION:
         assert(FS_TOP != f);  // should have pushed a frame
-        assert(GET_EVAL_FLAG(FS_TOP, CONTINUATION));
         return R_CONTINUATION;
 
         // !!! Thrown values used to be indicated with a bit on the value
@@ -1319,7 +1341,9 @@ REB_R Eval_Action(REBFRM *f)
         //
         assert(NOT_EVAL_FLAG(f, FULFILL_ONLY));
         Drop_Action(f);
-        return R_CONTINUATION; }  // !!! e.g. R_REEVALUATE
+        INIT_F_EXECUTOR(f, &Reevaluation_Executor);
+        f->u.reval.value = Lookback_While_Fetching_Next(f);
+        return R_CONTINUATION; }
 
       default:
         assert(!"Invalid pseudotype returned from action dispatcher");
@@ -1401,8 +1425,22 @@ REB_R Eval_Action(REBFRM *f)
     }
 
     Drop_Action(f);
-    f->executor = &Eval_Post_Switch;
-    return R_CONTINUATION;
+
+    // !!! Initially this moved to the Lookahead_Executor(), but many action
+    // dispatches are on end frames where it would not apply.  As for those
+    // action dispatches from words seen traversing a block, that already
+    // moves the parent traversal frame into the Lookahead_Executor() mode.
+    // Doing two lookaheads at the same "moment" in evaluation is bad, e.g.
+    // it would break cases like:
+    //
+    //     null then x => [1] else [2]
+    //
+    // ...since two lookaheads calls one after `x => [1]` generates the
+    // ACTION!, and then after the fulfillment of the argument; so ELSE thinks
+    // it has already had two chances, so it runs deferred enfix too soon.
+    //
+    INIT_F_EXECUTOR(f, nullptr);
+    return f->out;
 
 
   action_threw:
@@ -1496,8 +1534,8 @@ REB_R Eval_Action(REBFRM *f)
     Expire_Out_Cell_Unless_Invisible(f);
 
     f->param = ACT_PARAMS_HEAD(FRM_PHASE(f));
-    f->arg = FRM_ARGS_HEAD(f);
-    f->special = f->arg;
+    f->arg = nullptr;  // start state (cues enumeration)
+    f->special = FRM_ARGS_HEAD(f);
 
     return R_CONTINUATION;
 }

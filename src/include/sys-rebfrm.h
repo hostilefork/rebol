@@ -76,21 +76,15 @@ STATIC_ASSERT(EVAL_FLAG_MARKED == NODE_FLAG_MARKED);
 STATIC_ASSERT(EVAL_FLAG_4_IS_TRUE == NODE_FLAG_FRAME);
 
 
-//=//// EVAL_FLAG_ARG_FINISHED ////////////////////////////////////////////=//
+//=//// EVAL_FLAG_5 ///////////////////////////////////////////////////////=//
 //
-// !!! Likely temporary flag used to cue Eval_Action() that an arg it asked
-// for is finished.
-//
-#define EVAL_FLAG_ARG_FINISHED \
+#define EVAL_FLAG_5 \
     FLAG_LEFT_BIT(5)
 
 
-//=//// EVAL_FLAG_ACTION_FOLLOWUP /////////////////////////////////////////=//
+//=//// EVAL_FLAG_6 ///////////////////////////////////////////////////////=//
 //
-// !!! Likely temporary flag used to cue Eval_Action() that a continuation it
-// asked for is now ready.
-//
-#define EVAL_FLAG_ACTION_FOLLOWUP \
+#define EVAL_FLAG_6 \
     FLAG_LEFT_BIT(6)
 
 
@@ -269,17 +263,14 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 #define EVAL_FLAG_PATH_HARD_QUOTE       EVAL_FLAG_21
 
 
-//=//// EVAL_FLAG_CONTINUATION ////////////////////////////////////////////=//
+//=//// EVAL_FLAG_ROOT_FRAME //////////////////////////////////////////////=//
 //
-// This frame is a continuation, which is to say that when it is finished it
-// should not return to the callsite of the evaluator, but it should first
-// complete the frame underneath it (which may also be a continuation).
+// This frame is the root of a trampoline stack, and hence it cannot be jumped
+// past by something like a YIELD, return, or other throw.  This would mean
+// crossing C stack levels that the interpreter does not control (e.g. some
+// code that called into Rebol as a library.)
 //
-// NOTE: This cannot currently be used uniquely in path dispatch because
-// the Free_Frame_Internal() mechanics use the flag as an indication that
-// it needs the feed to be freed.
-//
-#define EVAL_FLAG_CONTINUATION \
+#define EVAL_FLAG_ROOT_FRAME \
     FLAG_LEFT_BIT(22)
 
 

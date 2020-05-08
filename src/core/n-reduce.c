@@ -162,7 +162,6 @@ REBNATIVE(reduce2)
             v,  // REB_BLOCK or REB_GROUP
             EVAL_MASK_DEFAULT
                 | EVAL_FLAG_ALLOCATED_FEED
-                | EVAL_FLAG_CONTINUATION
                 | EVAL_FLAG_DETACH_DONT_DROP  // reused for each step
         );
         Push_Frame(D_OUT, f);

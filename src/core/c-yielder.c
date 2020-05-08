@@ -380,7 +380,7 @@ REBNATIVE(yield)
         if (f == FS_TOP)  // "alive", but couldn't find it in the stack walk
             fail ("Cannot yield to a generator that is suspended");
 
-        if (NOT_EVAL_FLAG(f, CONTINUATION))
+        if (GET_EVAL_FLAG(f, ROOT_FRAME))
             fail ("Cannot yield across frame that's not a continuation");
     }
   }

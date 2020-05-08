@@ -109,7 +109,7 @@
     did all [
         304 = either false @(var: <something-else> [1000 + 20]) [300 + 4]
         var = <something>
-        1020 = if true @(var: <something-else> [1000 + 20]) [300 + 4]
+        1020 = if true @(var: <something-else> [1000 + 20]) else [300 + 4]
         var = <something-else>
     ]
 )

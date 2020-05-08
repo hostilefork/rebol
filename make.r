@@ -1657,6 +1657,40 @@ add-new-obj-folders: function [
 folders: copy [%objs/ %objs/main/]
 add-new-obj-folders ext-objs folders
 
+; !!! This is an inelegant "interim" hack which gives subfolders for the obj
+; files that have paths in them in %file-base.r
+;
+; The purpose of introducing a directory structure for organization is largely
+; to assist those browsing who want to find a README.md for a group of related
+; files and explain why those files are together.
+;
+for-each [category entries] file-base [
+    if find [generated made] category [
+        continue  ; these categories are taken care of elsewhere
+    ]
+    switch type of entries [
+        word! [
+            assert [entries = 'main.c]  ; !!! anomaly, ignore it for now
+        ]
+        block! [
+            for-each entry entries [
+                entry: maybe if block? entry [first entry]
+                switch type of entry [
+                    word! []  ; assume taken care of
+                    path! [
+                        dir: first split-path to file! entry
+                        if not find folders dir [
+                            append folders join %objs/ dir
+                        ]
+                    ]
+                    fail
+                ]
+            ]
+        ]
+        fail
+    ]
+]
+
 app: make rebmake/application-class [
     name: 'r3-exe
     output: %r3 ;no suffix

@@ -3,14 +3,61 @@ REBOL [
     Title: "Generate native specifications"
     Rights: {
         Copyright 2012 REBOL Technologies
+        Copyright 2012-2020 Revolt Open Source Developers
         REBOL is a trademark of REBOL Technologies
     }
     License: {
         Licensed under the Apache License, Version 2.0
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
-    Author: "@codebybrett"
-    Needs: 2.100.100
+    Description: {
+        "Natives" are Rebol functions whose implementations are C code (as
+        opposed to blocks of user code, such as that made with FUNC).
+        
+        Though their bodies are C, native specifications are Rebol blocks.
+        For convenience that Rebol code is kept in the same file as the C
+        definition--in a C comment block.
+
+        Typically the declarations wind up looking like this:
+
+        //
+        //  native-name: native [
+        //
+        //  {Description of native would go here}
+        //
+        //      return: "Return description here"
+        //          [integer!]
+        //      argument "Argument description here"
+        //          [text!]
+        //      /refinement "Refinement description here"
+        //  ]
+        //
+        REBNATIVE(native_name) {
+            INCLUDE_PARAMS_OF_NATIVE_NAME;
+
+            if (REF(refinement)) {
+                 int i = VAL_INT32(argument);
+                 /* etc, etc. */
+            }
+            return D_OUT;
+        }
+
+        (Note that the C name of the native may need to be different from the
+        Rebol native; e.g. above the `-` cannot be part of a name in C, so
+        it gets converted to `_`.  See TO-C-NAME for the logic of this.)
+
+        In order for these specification blocks to be loaded along with the
+        function when the interpreter is built, a step in the build has to
+        scan through the files to scrape them out of the comments.  This
+        file implements that step, which recursively searches %src/core for
+        any `.c` files.  Similar code exists for processing "extensions",
+        which also implement C functions for natives.
+
+        Not only does the text for the spec have to be extracted, but the
+        `INCLUDE_PARAMS_OF_XXX` macros are generated to give a more readable
+        way of accessing the parameters than by numeric index.  See the
+        REF() and ARG() macro definitions for more on this.
+    }
 ]
 
 do %common.r
@@ -34,7 +81,7 @@ process: function [
     the-file: file
     if verbose [probe [file]]
 
-    source.text: read/string join src-dir/core/% file
+    source.text: read/string file
     proto-parser/emit-proto: :emit-native-proto
     proto-parser/process source.text
 ]
@@ -46,25 +93,30 @@ output-buffer: make text! 20000
 
 proto-count: 0
 
-files: sort read src-dir/core/%
-
-remove-each file files [
-
-    not all [
-        %.c = suffix? file
-        not find/match file "host-"
-        not find/match file "os-"
+gather-natives: func [dir] [
+    files: read dir
+    for-each file files [
+        file: join dir file
+        case [
+            dir? file [gather-natives file]
+            all [
+                %.c = suffix? file
+            ][
+                process file
+            ]
+        ]
     ]
 ]
 
-for-each file files [process file]
+gather-natives src-dir/core/%
+
 
 append output-buffer unsorted-buffer
 
 write-if-changed output-dir/boot/tmp-natives.r output-buffer
 
 print [proto-count "natives"]
-print " "
+print newline
 
 
 print "------ Generate tmp-generics.r"

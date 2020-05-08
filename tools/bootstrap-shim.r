@@ -58,6 +58,12 @@ trap [
 ;
 set: specialize 'lib/set [opt: true]
 
+; PRINT was changed to tolerate NEWLINE to mean print a newline only
+;
+print: func [value] [
+    lib/print either value == newline [""][value]
+]
+
 ; Enfixedness was conceived as not a property of an action itself, but of a
 ; particular relationship between a word and an action.  While this had some
 ; benefits, it became less and less relevant in a world of "opportunistic

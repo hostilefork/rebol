@@ -1322,22 +1322,36 @@ REB_R Action_Executor(REBFRM *f)
 
         // !!! Ideally we would check that f->out hadn't changed, but
         // that would require saving the old value somewhere...
+
+        // If a "good" output is in `f->out`, then the invisible should have
+        // had no effect on it.  So jump to the position after output would
+        // be checked by a normal function.
         //
-        // !!! Why is this test a NOT?
-
-        if (NOT_CELL_FLAG(f->out, OUT_MARKED_STALE) or IS_END(f_next))
+        if (NOT_CELL_FLAG(f->out, OUT_MARKED_STALE)) {
+            //
+            // Note: could be an END that is not "stale", example:
+            //
+            //     is-barrier?: func [x [<end> integer!]] [null? x]
+            //     is-barrier? (<| 10)
+            //
             goto skip_output_check;
+        }
 
-        // If an invisible is at the start of a frame and nothing is
-        // after it, it has to retrigger until it finds something (or
-        // until it hits the end of the frame).  It should not do a
-        // START_NEW_EXPRESSION()...the expression index doesn't update.
+        // If a "bad" output (e.g. END or stale) is in `f->out`, the invisible
+        // was effectively at the start of an evaluation.  We'll have to
+        // retrigger until it finds something (or hits the end of the frame).
         //
         //     do [comment "a" 1] => 1
+
+        if (IS_END(f_next))
+            goto skip_output_check;  // already at end, so leave at nothing
+
+        // We don't want New_Expression_Executor()...the expression index
+        // doesn't update.  Use Reevaluation_Executor()
         //
-        // !!! This was actually something more like a R_REEVALUATE.  It
-        // should be rethought in light of a debugger that can single step
-        // across invisibles (?)
+        // !!! How does this interact with the idea of a debugger that could
+        // single step across invisibles (?)  Is that only a "step in", as
+        // one would have to do when dealing with a function argument?
         //
         assert(NOT_EVAL_FLAG(f, FULFILL_ONLY));
         Drop_Action(f);

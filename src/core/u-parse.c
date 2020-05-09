@@ -181,21 +181,7 @@ inline static REBSYM VAL_CMD(const RELVAL *v) {
 }
 
 
-// Subparse_Throws() is a helper that sets up a call frame and invokes the
-// SUBPARSE native--which represents one level of PARSE recursion.
-//
-// !!! It is the intent of Revolt that calling functions be light and fast
-// enough through Do_Va() and other mechanisms that a custom frame constructor
-// like this one would not be needed.  Data should be gathered on how true
-// it's possible to make that.
-//
-// !!! Calling subparse creates another recursion.  This recursion means
-// that there are new arguments and a new frame spare cell.  Callers do not
-// evaluate directly into their output slot at this time (except the top
-// level parse), because most of them are framed to return other values.
-//
-static bool Subparse_Throws(
-    bool *interrupted_out,
+void Pack_Subparse(
     REBVAL *out,
     RELVAL *input,
     REBSPC *input_specifier,
@@ -222,17 +208,19 @@ static bool Subparse_Throws(
     Init_Integer(Prep_Stack_Cell(P_FIND_FLAGS_VALUE), flags);
 
     // If there's an array for collecting into, there has to be some way of
-    // passing it between frames.
+    // passing it between frames.  We need to track the state to roll back
+    // to on failure, so use the index of the array to mark the tail at the
+    // time it was saved into this frame.
     //
-    REBLEN collect_tail;
-    if (opt_collection) {
-        Init_Block(Prep_Stack_Cell(P_COLLECTION_VALUE), opt_collection);
-        collect_tail = ARR_LEN(opt_collection);  // roll back here on failure
-    }
-    else {
+    if (opt_collection)
+        Init_Any_Array_At(
+            Prep_Stack_Cell(P_COLLECTION_VALUE),
+            REB_BLOCK,
+            opt_collection,
+            ARR_LEN(opt_collection)  // keep track of the `collect_tail`
+        );
+    else
         Init_Blank(Prep_Stack_Cell(P_COLLECTION_VALUE));
-        collect_tail = 0;
-    }
 
     // Need to track NUM-QUOTES somewhere that it can be read from the frame
     //
@@ -240,14 +228,27 @@ static bool Subparse_Throws(
 
     assert(ACT_NUM_PARAMS(NAT_ACTION(subparse)) == 5); // checks RETURN:
     Init_Nulled(Prep_Stack_Cell(f->rootvar + 5));
+}
 
-    // !!! By calling the subparse native here directly from its C function
-    // vs. going through the evaluator, we don't get the opportunity to do
-    // things like HIJACK it.  Consider APPLY-ing it.
-    //
-    const REBVAL *r = N_subparse(f);
 
-    Drop_Action(f);
+bool Unpack_Subparse_Throws(
+    bool *interrupted_out,
+    REBVAL *out,
+    REBFRM *f,
+    const REBVAL *r
+){
+    REBARR *opt_collection;
+    REBLEN collect_tail;
+    if (IS_BLANK(P_COLLECTION_VALUE)) {
+        collect_tail = 0;
+        opt_collection = nullptr;
+    }
+    else {
+        collect_tail = VAL_INDEX(P_COLLECTION_VALUE);
+        opt_collection = VAL_ARRAY(P_COLLECTION_VALUE);
+    }
+
+    /* Drop_Action(f); */  // now done automatically if dispatched
     Drop_Frame(f);
 
     if ((r == R_THROWN or IS_NULLED(out)) and opt_collection)
@@ -290,6 +291,51 @@ static bool Subparse_Throws(
 
     *interrupted_out = false;
     return false;
+}
+
+
+// Subparse_Throws() is a helper that sets up a call frame and invokes the
+// SUBPARSE native--which represents one level of PARSE recursion.
+//
+// !!! It is the intent of Ren-C that calling functions be light and fast
+// enough through Do_Va() and other mechanisms that a custom frame constructor
+// like this one would not be needed.  Data should be gathered on how true
+// it's possible to make that.
+//
+// !!! Calling subparse creates another recursion.  This recursion means
+// that there are new arguments and a new frame spare cell.  Callers do not
+// evaluate directly into their output slot at this time (except the top
+// level parse), because most of them are framed to return other values.
+//
+static bool Subparse_Throws(
+    bool *interrupted_out,
+    REBVAL *out,
+    RELVAL *input,
+    REBSPC *input_specifier,
+    REBFRM *f,
+    REBARR *opt_collection,
+    REBFLGS flags
+){
+    Pack_Subparse(
+        out,
+        input, input_specifier,
+        f,
+        opt_collection,
+        flags
+    );
+
+    // !!! When all calls are converted to stackless, this will never do a
+    // C-style recursion.
+    //
+    const REBVAL *r = N_subparse(f);
+    Drop_Action(f);  // handled by Action_Executor() if stackless
+
+    return Unpack_Subparse_Throws(
+        interrupted_out,
+        out,
+        f,
+        r
+    );
 }
 
 
@@ -2755,6 +2801,11 @@ REBNATIVE(parse)
 {
     INCLUDE_PARAMS_OF_PARSE;
 
+    if (IS_BLANK(D_SPARE))
+        goto subparse_finished;
+    assert(IS_END(D_SPARE));
+
+  blockscope {
     if (not ANY_SERIES_KIND(CELL_KIND(VAL_UNESCAPED(ARG(input)))))
         fail ("PARSE input must be an ANY-SERIES! (use AS BLOCK! for PATH!)");
 
@@ -2768,11 +2819,10 @@ REBNATIVE(parse)
         f,
         rules_feed,
         EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
+            | EVAL_FLAG_TRAMPOLINE_KEEPALIVE
     );
 
-    bool interrupted;
-    if (Subparse_Throws(
-        &interrupted,
+    Pack_Subparse(
         SET_END(D_OUT),
         ARG(input), SPECIFIED,
         f,
@@ -2781,13 +2831,28 @@ REBNATIVE(parse)
         //
         // We always want "case-sensitivity" on binary bytes, vs. treating
         // as case-insensitive bytes for ASCII characters.
-    )){
-        // Any PARSE-specific THROWs (where a PARSE directive jumped the
-        // stack) should be handled here.  However, RETURN was eliminated,
-        // in favor of enforcing a more clear return value protocol for PARSE
+    );
 
+    Init_Blank(D_SPARE);  // signal next call that we won't be top of stack
+    assert(f->executor == &Action_Executor);  // was set by Begin_Action()
+    return R_CONTINUATION;
+  }
+
+  subparse_finished:
+  blockscope {
+    REBFRM *f = FS_TOP;
+    assert(f->prior == frame_);  // !!! Review this guarantee generically
+
+    const REBVAL *r = D_OUT;
+    bool interrupted;
+    bool threw = Unpack_Subparse_Throws(&interrupted, D_OUT, f, r);
+
+    // Any PARSE-specific THROWs (where a PARSE directive jumped the
+    // stack) should be handled here.  However, RETURN was eliminated,
+    // in favor of a more clear return value protocol for PARSE
+
+    if (threw)
         return R_THROWN;
-    }
 
     if (IS_NULLED(D_OUT))
         return nullptr;
@@ -2797,6 +2862,7 @@ REBNATIVE(parse)
     Move_Value(D_OUT, ARG(input));
     VAL_INDEX(D_OUT) = progress;
     return D_OUT;
+  }
 }
 
 

@@ -139,17 +139,19 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
     FLAG_LEFT_BIT(12)
 
 
-//=//// EVAL_FLAG_DETACH_DONT_DROP ////////////////////////////////////////=//
+//=//// EVAL_FLAG_TRAMPOLINE_KEEPALIVE ////////////////////////////////////=//
 //
-// !!! In trying to notice patterns of continuation handling to simplify it,
-// it's necessary to not have the same frame running when a parent frame
-// resumes.  But "Dropping" a frame costs more because it frees it, and if
-// something like a REDUCE wants to run several evaluations then it would
-// have to spin up a new frame each time.  It is probable that a better
-// way of saying this exists, but those patterns are emerging as the code
-// gets restyled...so this is just to try and eliminate "continuation type".
+// This flag asks the trampoline function to not call Drop_Frame() when it
+// sees that the frame's `executor` has reached the `nullptr` state.  Instead
+// it stays on the frame stack, and control is passed to the previous frame's
+// executor (which will then be receiving its frame pointer parameter that
+// will not be the current top of stack).
 //
-#define EVAL_FLAG_DETACH_DONT_DROP \
+// It's a feature used by routines which want to make several successive
+// requests on a frame (REDUCE, ANY, CASE, etc.) without tearing down the
+// frame and putting it back together again.
+//
+#define EVAL_FLAG_TRAMPOLINE_KEEPALIVE \
     FLAG_LEFT_BIT(13)
 
 

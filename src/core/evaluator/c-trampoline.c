@@ -45,12 +45,6 @@
 #endif  // ^-- SERIOUSLY: READ ABOUT C-DEBUG-BREAK AND PLACES TICKS ARE STORED
 
 
-// To make things simpler in the main evaluator loop, we abbreviate the top
-// frame just as "F"
-//
-#define F FS_TOP
-
-
 //
 //  Eval_Internal_Maybe_Stale_Throws: C
 //
@@ -75,24 +69,26 @@
 //
 bool Eval_Internal_Maybe_Stale_Throws(void)
 {
-    REBFRM *start = F;
+    REBFRM *start = FS_TOP;
+    REBFRM *f = start;  // *usually* FS_TOP, unless requested to not drop
 
   loop:
 
-    UPDATE_TICK_DEBUG(F, nullptr);
+    UPDATE_TICK_DEBUG(f, nullptr);
 
     // v-- This is the TG_Break_At_Tick or C-DEBUG-BREAK landing spot --v
 
-    assert((F->executor == &Action_Executor) == (F->original != nullptr));
+    assert((f->executor == &Action_Executor) == (f->original != nullptr));
 
-    REB_R r = (F->executor)(F);
+    REB_R r = (f->executor)(f);  // Note: f may not be FS_TOP at this moment
+    f = FS_TOP;  // refresh to whatever topmost frame is after call
 
     if (r != R_THROWN)
-        assert((F->executor == &Action_Executor) == (F->original != nullptr));
+        assert((f->executor == &Action_Executor) == (f->original != nullptr));
 
-    if (F->executor == nullptr) {  // no further execution for frame, drop it
-        assert(r == F->out);
-        CLEAR_CELL_FLAG(F->out, OUT_MARKED_STALE);  // !!! review
+    if (f->executor == nullptr) {  // no further execution for frame, drop it
+        assert(r == f->out);
+        CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);  // !!! review
 
         // !!! Currently we do not drop the topmost frame, because some code
         // (e.g. MATCH) would ask for a frame to be filled, and then steal
@@ -100,40 +96,44 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         // makes the call, it's not stackless...e.g. it should be written
         // some other way.
         //
-        if (F == start) {
-            F->executor = &New_Expression_Executor;  // !!! Old invariant
+        if (f == start) {
+            f->executor = &New_Expression_Executor;  // !!! Old invariant
             return false;
         }
 
-        // !!! Detaching vs. dropping a frame is used by routines like REDUCE,
-        // which wish to reuse a frame for successive evaluations.
+        // Some natives and executors want to be able to leave a pushed frame
+        // intact as the "top of stack" even when it has completed.  This
+        // means that when those executors run, their frame parameter is
+        // not the technical top of the stack.
         //
-        if (GET_EVAL_FLAG(F, DETACH_DONT_DROP)) {
-            REBFRM* temp = F;
-            TG_Top_Frame = temp->prior;
-            temp->prior = nullptr;  // we don't "drop" it, but...
-            // !!! leave flag or reset it?
+        REBFRM *prior = f->prior;
+        if (GET_EVAL_FLAG(f, TRAMPOLINE_KEEPALIVE)) {
+            f = prior;
+            assert(f != FS_TOP);  // sanity check (*not* the top of stack)
         }
-        else
-            Drop_Frame(F);  // frees feed if necessary
-
-        r = F->out;
+        else {
+            Drop_Frame(f);
+            f = prior;
+            assert(f == FS_TOP);  // sanity check (is the top of the stack)
+        }
+        goto loop;
     }
 
     if (r == R_CONTINUATION) {
-        assert(F->executor != nullptr);  // *topmost* frame needs callback
+        assert(f->executor != nullptr);  // *topmost* frame needs callback
         goto loop;  // keep going
     }
 
   #if !defined(NDEBUG)
-    if (not F->original)
-        Eval_Core_Exit_Checks_Debug(F);   // called unless a fail() longjmps
+    if (not f->original)
+        Eval_Core_Exit_Checks_Debug(f);   // called unless a fail() longjmps
   #endif
 
     if (r == R_THROWN) {
-        while (F != start) {
-            Drop_Frame(F);
-            if (F->original)  // function is running, assume only catchers ATM
+        while (f != start) {
+            Drop_Frame(f);
+            f = FS_TOP;  // refresh
+            if (f->original)  // function is running, assume only catchers ATM
                 goto loop;
         }
     }
@@ -142,7 +142,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         // return values consistently, e.g. API handles.  The return results
         // from native dispatchers may be specific to interactions.
 
-        assert(r == F->out);
+        assert(r == f->out);
 
         // Want to keep this flag between an operation and an ensuing enfix in
         // the same frame, so can't clear in Drop_Action(), e.g. due to:
@@ -151,12 +151,12 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         //     o: make object! [f: does [1]]
         //     o/f left-lit  ; want error suggesting -> here, need flag for that
         //
-        CLEAR_EVAL_FLAG(F, DIDNT_LEFT_QUOTE_PATH);
-        assert(NOT_FEED_FLAG(F->feed, NEXT_ARG_FROM_OUT));  // must be consumed
+        CLEAR_EVAL_FLAG(f, DIDNT_LEFT_QUOTE_PATH);
+        assert(NOT_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT));  // must be consumed
 
         #if !defined(NDEBUG)
-        //assert(NOT_EVAL_FLAG(F, DOING_PICKUPS));
-        //assert(F->flags.bits == F->initial_flags);  // changes should be restored
+        //assert(NOT_EVAL_FLAG(f, DOING_PICKUPS));
+        //assert(f->flags.bits == f->initial_flags);  // changes should be restored
         #endif
 
         // We now are at the frame above the one that made the last
@@ -171,9 +171,9 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         goto loop;
     }
 
-    assert(F == start);
+    assert(f == start);
 
-    F->executor = &New_Expression_Executor;  // !!! Old invariant
+    f->executor = &New_Expression_Executor;  // !!! Old invariant
 
     assert(r == R_THROWN);
     return true;  // thrown

@@ -1440,12 +1440,11 @@ REB_R Action_Executor(REBFRM *f)
 
     Drop_Action(f);
 
-    // !!! Initially this moved to the Lookahead_Executor(), but many action
-    // dispatches are on end frames where it would not apply.  As for those
-    // action dispatches from words seen traversing a block, that already
-    // moves the parent traversal frame into the Lookahead_Executor() mode.
-    // Doing two lookaheads at the same "moment" in evaluation is bad, e.g.
-    // it would break cases like:
+    // Note: Be careful that the lookahead executor runs only once when an
+    // action gets dispatched; so if the action dispatch took over a frame
+    // that was doing argument fulfillment, it should do that fulfillment's
+    // lookahead.  However, if the action had its own frame separate from
+    // the reevaluation executor, you wouldn't run twice, because:
     //
     //     null then x => [1] else [2]
     //
@@ -1453,7 +1452,7 @@ REB_R Action_Executor(REBFRM *f)
     // ACTION!, and then after the fulfillment of the argument; so ELSE thinks
     // it has already had two chances, so it runs deferred enfix too soon.
     //
-    INIT_F_EXECUTOR(f, nullptr);
+    INIT_F_EXECUTOR(f, &Lookahead_Executor);
     return f->out;
 
 

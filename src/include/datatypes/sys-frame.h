@@ -204,7 +204,10 @@ inline static bool Did_Reuse_Varlist_Of_Unknown_Size(
     //
     UNUSED(size_hint);
 
-    assert(f->varlist == nullptr);
+    if (f->varlist) {  // will hang around if old Push_Action() didn't manage
+        assert(NOT_SERIES_FLAG(f->varlist, MANAGED));
+        return true;  // whatever size big enough for the last Push_Action()
+    }
 
     if (not TG_Reuse)
         return false;
@@ -228,6 +231,12 @@ inline static void Conserve_Varlist(REBARR *varlist)
     assert(CTX_VARLIST(VAL_CONTEXT(rootvar)) == varlist);
     TRASH_POINTER_IF_DEBUG(PAYLOAD(Any, rootvar).second.node);  // phase
     TRASH_POINTER_IF_DEBUG(EXTRA(Binding, rootvar).node);
+
+    assert(0 == (SER(varlist)->info.bits & ~(  // <- note bitwise not
+        SERIES_INFO_0_IS_TRUE  // parallels NODE_FLAG_NODE
+        | FLAG_WIDE_BYTE_OR_0(0)  // don't mask out wide (0 for arrays))
+        | FLAG_LEN_BYTE_OR_255(255)  // mask out non-dynamic-len (dynamic)
+    )));
   #endif
 
     LINK(varlist).reuse = TG_Reuse;
@@ -826,11 +835,10 @@ inline static void Drop_Action(REBFRM *f) {
         CLEAR_SERIES_INFO(f->varlist, HOLD);
         CLEAR_SERIES_INFO(f->varlist, TELEGRAPH_NO_LOOKAHEAD);
 
-        assert(0 == (SER(f->varlist)->info.bits & ~( // <- note bitwise not
-            SERIES_INFO_0_IS_TRUE // parallels NODE_FLAG_NODE
-            | FLAG_WIDE_BYTE_OR_0(0) // don't mask out wide (0 for arrays))
-            | FLAG_LEN_BYTE_OR_255(255) // mask out non-dynamic-len (dynamic)
-        )));
+        // !!! We do not free unmanaged varlists after Drop_Action() because
+        // functions like MATCH try to claim them.  There are likely better
+        // invariants, but this means Push_Action() has to be tolerant of
+        // unmanaged varlists hanging around.
     }
 
     f->original = nullptr; // signal an action is no longer running
@@ -976,15 +984,6 @@ inline static REB_R Init_Continuation_With_Core(
       case REB_QUOTED:
         Unquotify(Derelativize(out, branch, branch_specifier), 1);
         goto just_use_out;
-
-      case REB_HANDLE: {  // temporarily means REBFRM*, chain to stack
-        REBFRM *subframe = VAL_HANDLE_POINTER(REBFRM, branch);
-        assert(GET_EVAL_FLAG(subframe, DETACH_DONT_DROP));
-        assert(subframe->prior == nullptr);
-        subframe->dsp_orig = DSP;  // may be accruing state
-        subframe->prior = f;
-        TG_Top_Frame = subframe;
-        return R_CONTINUATION; }
 
       case REB_BLOCK: {
         //

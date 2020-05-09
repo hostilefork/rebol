@@ -143,59 +143,58 @@ REBNATIVE(reduce2)
 
     REBVAL *v = ARG(value);
 
-    if (IS_END(D_SPARE)) {  // first call
-        if (not IS_BLOCK(v) and not IS_GROUP(v)) {
-            //
-            // Single value REDUCE does an EVAL, but doesn't allow arguments.
-            // (R3-Alpha, would return the input, e.g. `reduce ':foo` => :foo)
-            // If arguments are required, Eval_Value_Throws() will error.
-            //
-            // !!! Should error be "reduce-specific" if args were required?
-            //
-            Move_Value(D_SPARE, v);
-            Quotify(D_SPARE, 1);  // !!! DELEGATE_WITH doesn't suppress eval
-            DELEGATE_WITH (NAT_VALUE(reeval), v);
-        }
+    if (IS_LOGIC(D_SPARE))
+        goto eval_step_finished;
+    assert(IS_END(D_SPARE));
 
-        DECLARE_FRAME_AT (
-            f,
-            v,  // REB_BLOCK or REB_GROUP
-            EVAL_MASK_DEFAULT
-                | EVAL_FLAG_ALLOCATED_FEED
-                | EVAL_FLAG_DETACH_DONT_DROP  // reused for each step
-        );
-        Push_Frame(D_OUT, f);
-        TG_Top_Frame = f->prior;
-        f->prior = nullptr;
-        Init_Handle_Cdata(D_SPARE, f, 1);  // needs to protect from GC!
-
-        // We ask for an evaluation, but we want the output newline status to
-        // mirror the newlines of the evaluated positions.  We are allowed
-        // to use NODE_FLAG_MARKED on the spare cell for custom purposes.
+  blockscope {
+    if (not IS_BLOCK(v) and not IS_GROUP(v)) {
         //
-        bool line = IS_END(F_VALUE(f))
-            ? false
-            : GET_CELL_FLAG(F_VALUE(f), NEWLINE_BEFORE);
-        if (line)
-            SET_CELL_FLAG(D_SPARE, SPARE_MARKED_LINE_BEFORE);
-
-        return Init_Continuation_With(
-            frame_->out,
-            frame_,
-            0,
-            D_SPARE,  // for right now, try branch of HANDLE! for REBFRM*
-            END_NODE
-        );  // expect this to run Eval_Step_Throws(out, f)
+        // Single value REDUCE does an EVAL, but doesn't allow arguments.
+        // (R3-Alpha, would return the input, e.g. `reduce ':foo` => :foo)
+        // If arguments are required, Eval_Value_Throws() will error.
+        //
+        // !!! Should error be "reduce-specific" if args were required?
+        //
+        Move_Value(D_SPARE, v);
+        Quotify(D_SPARE, 1);  // !!! DELEGATE_WITH doesn't suppress eval
+        DELEGATE_WITH (NAT_VALUE(reeval), D_SPARE);
     }
 
+    DECLARE_FRAME_AT (
+        f,
+        v,  // REB_BLOCK or REB_GROUP
+        EVAL_MASK_DEFAULT
+            | EVAL_FLAG_ALLOCATED_FEED
+            | EVAL_FLAG_TRAMPOLINE_KEEPALIVE  // reused for each step
+    );
+    Push_Frame(D_OUT, f);
+
+    // We want the output newline status to mirror the newlines of the start
+    // of the eval positions.  But when the evaluation callback happens, we
+    // won't have the starting value anymore.  Cache newline flag in D_SPARE
+    // (which doubles as a non-END signal that we are not on our first call).
+    //
+    bool newline_before = IS_END(F_VALUE(f))
+        ? false
+        : GET_CELL_FLAG(F_VALUE(f), NEWLINE_BEFORE);
+    Init_Logic(D_SPARE, newline_before);
+
+    return R_CONTINUATION;
+  }
+
+  eval_step_finished:
+  blockscope {
     if (Is_Throwing(frame_)) {
         DS_DROP_TO(frame_->dsp_orig);
         Abort_Frame(frame_);
         return R_THROWN;
     }
 
-    REBFRM *f = VAL_HANDLE_POINTER(REBFRM, D_SPARE);  // checks it's handle
-    assert(f->prior == nullptr);  // current concept: it is unlinked
+    REBFRM *f = FS_TOP;
+    assert(f->prior == frame_);  // review this guarantee
+    assert(f->executor == nullptr);  // step should have completed
+    assert(GET_EVAL_FLAG(f, TRAMPOLINE_KEEPALIVE));  // flag is not cleared
 
     if (IS_END(D_OUT)) {  // e.g. `reduce []` or `reduce [comment "hi"]`
         assert(IS_END(F_VALUE(f)));
@@ -214,30 +213,22 @@ REBNATIVE(reduce2)
         else
             Move_Value(DS_PUSH(), D_OUT);
 
-        if (GET_CELL_FLAG(D_SPARE, SPARE_MARKED_LINE_BEFORE))
+        // !!! Expression evaluation checks on each step make sure there's no
+        // stack accrued (e.g. it would look for refinements relative to the
+        // dsp_orig).  So stack accrual must update the dsp_orig.  Review.
+        //
+        f->dsp_orig = DSP;
+
+        if (VAL_LOGIC(D_SPARE))
             SET_CELL_FLAG(DS_TOP, NEWLINE_BEFORE);
 
         if (NOT_END(F_VALUE(f))) {
-            if (GET_CELL_FLAG(F_VALUE(f), NEWLINE_BEFORE))
-                SET_CELL_FLAG(D_SPARE, SPARE_MARKED_LINE_BEFORE);
-            else
-                CLEAR_CELL_FLAG(D_SPARE, SPARE_MARKED_LINE_BEFORE);
-
-            return Init_Continuation_With(
-                frame_->out,
-                frame_,
-                0,
-                D_SPARE,  // for right now, try branch of HANDLE! for REBFRM*
-                END_NODE
-            );  // expect this to run Eval_Step_Throws(out, f)
+            Init_Logic(D_SPARE, GET_CELL_FLAG(F_VALUE(f), NEWLINE_BEFORE));
+            f->executor = &New_Expression_Executor;  // start a new evaluation
+            return R_CONTINUATION;
         }
     }
 
-    // !!! Trying to re-align all the bookkeeping: relink the frame in and
-    // go through standard drop machinery.  Temporary.
-    //
-    f->prior = frame_;
-    TG_Top_Frame = f;
     Drop_Frame_Unbalanced(f);  // plain Drop_Frame() asserts on accumulation
 
     REBFLGS pop_flags = NODE_FLAG_MANAGED | ARRAY_MASK_HAS_FILE_LINE;
@@ -249,6 +240,7 @@ REBNATIVE(reduce2)
         VAL_TYPE(v),
         Pop_Stack_Values_Core(frame_->dsp_orig, pop_flags)
     );
+  }
 }
 
 

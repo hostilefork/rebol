@@ -62,9 +62,20 @@
 //
 
 inline static bool Is_Throwing(REBFRM *f) {
-    assert(f == FS_TOP);  // only allow asking for top frame for now
-    UNUSED(f);  // a global state, but we pass in frame for futureproofing
-    return NOT_END(&TG_Thrown_Arg);
+    //
+    // !!! An original constraint on asking if something was throwing was
+    // that only the top frame could be asked about.  But Action_Executor()
+    // is called to re-dispatch when there may be a frame above (kept there
+    // by request from something like REDUCE).  We relax the constraint to
+    // only be able to return *true* to a throw request if there are no
+    // frames above on the stack.
+    //
+    if (NOT_END(&TG_Thrown_Arg)) {
+        assert(f == FS_TOP);
+        UNUSED(f);  // currently only used for debug build check
+        return true;
+    }
+    return false;
 }
 
 #if defined(NDEBUG)

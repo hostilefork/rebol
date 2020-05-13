@@ -30,6 +30,7 @@ enum {
     IDX_YIELDER_LAST_YIELDER_CONTEXT = 2,  // frame stack fragment to resume
     IDX_YIELDER_LAST_YIELD_RESULT = 3,  // so that `z: yield 1 + 2` is useful
     IDX_YIELDER_DATA_STACK = 4,  // saved if you YIELD during REDUCE, etc.
+    IDX_YIELDER_OUT = 5,  // whatever f->out in-progress was when interrupted
     IDX_YIELDER_MAX
 };
 
@@ -165,6 +166,24 @@ REB_R Yielder_Dispatcher(REBFRM *f)
         assert(temp->out == f->out);  // frame under yielder was TRUE_VALUE
         temp->prior = f;
 
+        // Restore the in-progress output cell state that was going on when
+        // the YIELD ran (e.g. if it interrupted a CASE or something, this
+        // would be what the case had in the out cell at moment of interrupt).
+        // Note special trick used to encode END inside an array by means of
+        // using the hidden identity of the details array itself.
+        //
+        REBVAL *out_copy = KNOWN(ARR_AT(details, IDX_YIELDER_OUT));
+        if (
+            KIND_BYTE_UNCHECKED(out_copy) == REB_BLOCK
+            and VAL_ARRAY(out_copy) == details
+        ){
+            SET_END(f->out);
+        }
+        else
+            Move_Value(f->out, out_copy);
+        if (out_copy->header.bits & CELL_FLAG_OUT_MARKED_STALE)
+            f->out->header.bits |= CELL_FLAG_OUT_MARKED_STALE;
+
         // We could make YIELD appear to return a VOID! when we jump back in
          // to resume it.  But it's more interesting to return what the YIELD
         // received as an arg (YIELD cached it in details before jumping)
@@ -258,9 +277,10 @@ REBNATIVE(yielder)
 
     assert(IS_BLOCK(ARR_AT(details, IDX_YIELDER_BODY)));
     Init_Blank(ARR_AT(details, IDX_YIELDER_STATE));  // starting
-    Init_Blank(ARR_AT(details, IDX_YIELDER_LAST_YIELDER_CONTEXT));
-    Init_Blank(ARR_AT(details, IDX_YIELDER_LAST_YIELD_RESULT));
-    Init_Blank(ARR_AT(details, IDX_YIELDER_DATA_STACK));
+    Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_LAST_YIELDER_CONTEXT));
+    Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_LAST_YIELD_RESULT));
+    Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_DATA_STACK));
+    Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_OUT));
 
     return Init_Action_Unbound(D_OUT, yielder);
 }
@@ -337,6 +357,20 @@ REBNATIVE(yield)
         return nullptr;
 
     REBARR *yielder_details = ACT_DETAILS(yielder_phase);
+
+    // Evaluations will frequently use the f->out to accrue state, perhaps
+    // preloading with something (like NULL) that is expected to be there.
+    // But we're interrupting the frame and returning what YIELD had instead
+    // of that evaluative product.  It must be preserved.  But since we can't
+    // put END values in blocks, use the hidden block to indicate that
+    //
+    REBVAL *out_copy = KNOWN(ARR_AT(yielder_details, IDX_YIELDER_OUT));
+    if (IS_END(yielder_frame->out))
+        Init_Block(out_copy, yielder_details);  // special identity
+    else
+        Move_Value(out_copy, yielder_frame->out);
+    if (yielder_frame->out->header.bits & CELL_FLAG_OUT_MARKED_STALE)
+        out_copy->header.bits |= CELL_FLAG_OUT_MARKED_STALE;
 
   blockscope {
     REBFRM *f = yield_frame;

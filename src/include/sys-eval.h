@@ -96,24 +96,14 @@
 #endif
 
 
-// Simple helper solving two problems that Eval_Internal_Maybe_Stale_Throws()
-// has such a long name to warn about:
+// Helper for calling Trampoline_Throws(), which acts through a function
+// pointer...so that if there is a hooked trampoline it won't be skipped.
 //
-//    (1) It calls through a function pointer, so that if there is a hook
-//    for tracing or debug stepping it won't be skipped.
-//
-//    (2) Clears off OUT_MARKED_STALE--an alias for NODE_FLAG_MARKED that
-//    is used for generic purposes and may be misinterpreted if it leaked.
-//
-// (Note that it is wasteful to clear the stale flag if running in a loop,
-// so the Do_XXX() versions don't use this.)
-//
-inline static bool Eval_Throws(REBFRM *f) {  assert(f == FS_TOP);
-    if ((*PG_Eval_Maybe_Stale_Throws)())
-        return true;
-    CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);
-    return false;
+inline static bool Eval_Throws(REBFRM *f) {
+    assert(f == FS_TOP);
+    return (*PG_Trampoline_Throws)();
 }
+
 
 // If you're sure the evaluator isn't hooked, it seems no point in asking to
 // "evaluate" a 1 (if there's nothing enfix after it).  You can take an inert
@@ -138,7 +128,7 @@ inline static bool Eval_Throws(REBFRM *f) {  assert(f == FS_TOP);
 // be removed if there appears to be no point in maintaining the complexity.
 //
 #define OPTIMIZATIONS_OK \
-    (PG_Eval_Maybe_Stale_Throws == &Eval_Internal_Maybe_Stale_Throws)
+    (PG_Trampoline_Throws == &Trampoline_Throws)
 
 
 // Even though ANY_INERT() is a quick test, you can't skip the cost of frame
@@ -248,7 +238,8 @@ inline static bool Eval_Step_Maybe_Stale_Throws(
 
     f->out = out;
     f->dsp_orig = DSP;
-    return (*PG_Eval_Maybe_Stale_Throws)(); // should already be pushed;
+    f->executor = &New_Expression_Executor;
+    return (*PG_Trampoline_Throws)(); // should already be pushed;
 }
 
 inline static bool Eval_Step_Throws(REBVAL *out, REBFRM *f) {
@@ -300,7 +291,7 @@ inline static bool Reevaluate_In_Subframe_Maybe_Stale_Throws(
     subframe->u.reval.value = reval;
 
     Push_Frame(out, subframe);
-    bool threw = (*PG_Eval_Maybe_Stale_Throws)();
+    bool threw = (*PG_Trampoline_Throws)();
     Drop_Frame(subframe);
 
     return threw;
@@ -332,6 +323,7 @@ inline static bool Eval_Step_In_Any_Array_At_Throws(
         specifier,
         flags | EVAL_FLAG_ALLOCATED_FEED
     );
+    INIT_F_EXECUTOR(f, &New_Expression_Executor);
 
     Push_Frame(out, f);
     bool threw = Eval_Throws(f);
@@ -375,6 +367,7 @@ inline static bool Eval_Step_In_Va_Throws_Core(
     DECLARE_VA_FEED (feed, p, vaptr, feed_flags);
 
     DECLARE_FRAME (f, feed, eval_flags);
+    INIT_F_EXECUTOR(f, &New_Expression_Executor);
 
     Push_Frame(out, f);
     bool threw = Eval_Throws(f);
@@ -422,6 +415,7 @@ inline static bool Eval_Value_Throws(
     );
 
     DECLARE_FRAME (f, feed, EVAL_MASK_DEFAULT);
+    INIT_F_EXECUTOR(f, &New_Expression_Executor);
 
     Push_Frame(out, f);
     bool threw = Eval_Throws(f);

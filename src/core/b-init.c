@@ -1345,7 +1345,7 @@ void Startup_Core(void)
     // routines.  These routines have no tracing, no debug handling, etc.  If
     // those features are needed, augmented functions must be substituted.
     //
-    PG_Eval_Maybe_Stale_Throws = &Eval_Internal_Maybe_Stale_Throws;
+    PG_Trampoline_Throws = &Trampoline_Throws;
     PG_Dispatch = &Dispatch_Internal;
 
     // boot->natives is from the automatically gathered list of natives found

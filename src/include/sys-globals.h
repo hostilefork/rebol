@@ -155,7 +155,7 @@ PVAR REBACT *PG_Dummy_Action;
 // !!! This is a work in progress, and demos have had shown varying levels
 // of success.  But it is believed to be the correct long term approach.
 //
-PVAR REBEVL *PG_Eval_Maybe_Stale_Throws;  // Evaluator (REBFRM* in, bool out)
+PVAR REBEVL *PG_Trampoline_Throws;  // Evaluator (REBFRM* in, bool out)
 PVAR REBNAT PG_Dispatch;  // Dispatcher (REBFRM* in, returns REBVAL*)
 
 PVAR REBDEV *PG_Device_List;  // Linked list of R3-Alpha-style "devices"

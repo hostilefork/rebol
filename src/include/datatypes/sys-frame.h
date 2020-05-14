@@ -548,7 +548,7 @@ inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
     TRASH_POINTER_IF_DEBUG(f->out);
 
     f->original = nullptr;  // !!! redundant!
-    INIT_F_EXECUTOR(f, &New_Expression_Executor);  // !!! should we not default it?
+    TRASH_POINTER_IF_DEBUG(f->executor);  // not defaulted
     f->varlist = nullptr;
 
   #ifdef DEBUG_ENSURE_FRAME_EVALUATES
@@ -997,11 +997,12 @@ inline static REB_R Init_Continuation_With_Core(
             blockframe,
             branch,
             branch_specifier,
-            EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END  // will clear stale at end
+            EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END
         );
 
         Init_Void(out);  // in case all invisibles, as usual
         Push_Frame(out, blockframe);
+        INIT_F_EXECUTOR(blockframe, &New_Expression_Executor);
         return R_CONTINUATION; }
 
       case REB_ACTION: {
@@ -1051,7 +1052,7 @@ inline static REB_R Init_Continuation_With_Core(
         // keep evaluating?
         //
         DECLARE_END_FRAME (subframe, EVAL_MASK_DEFAULT);
-        subframe->executor = &Brancher_Executor;
+        INIT_F_EXECUTOR(subframe, &Brancher_Executor);
         Push_Frame(out, subframe);
         Derelativize(FRM_SPARE(subframe), branch, branch_specifier);
         return R_CONTINUATION; }

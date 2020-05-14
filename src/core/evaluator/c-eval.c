@@ -1,6 +1,6 @@
 //
 //  File: %c-eval.c
-//  Summary: "Central Interpreter Evaluator"
+//  Summary: "Expression Evaluator Executor"
 //  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
@@ -20,28 +20,22 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// This file contains Eval_Internal_Maybe_Stale_Throws(), which is the central
-// evaluator implementation.  Most callers should use higher level wrappers,
-// because the long name conveys any direct caller must handle the following:
+// This file contains code for the expression evaluator executors on frames.
+// It is responsible for the typical interpretation of a BLOCK! or GROUP! of
+// code being executed, in terms of giving sequences like `x: 1 + 2` a meaning
+// for how SET-WORD! or INTEGER! behaves.  When it encounters something it
+// interprets as a function application, it defers to the action executor
+// found in %c-action.c
 //
-// * _Maybe_Stale_ => The evaluation targets an output cell which must be
-//   preloaded or set to END.  If there is no result (e.g. due to being just
-//   comments) then whatever was in that cell will still be there -but- will
-//   carry OUT_MARKED_STALE.  This is just an alias for NODE_FLAG_MARKED, and
-//   it must be cleared off before passing pointers to the cell to a routine
-//   which may interpret that flag differently.
+// Expression execution is divided into four parts, each of which has its own
+// "Executor" and interacts with the evaluator loop ("Trampoline"):
 //
-// * _Internal_ => This is the fundamental C code for the evaluator, but it
-//   can be "hooked".  Those hooks provide services like debug stepping and
-//   tracing.  So most calls to this routine should be through a function
-//   pointer and not directly.
+//    * New_Expression_Executor()
+//    * One or more Reevaluation_Executor() steps
+//    * Lookahead_Executor()
+//    * Finished_Executor()
 //
-// * _Throws => The return result is a boolean which all callers *must* heed.
-//   There is no "thrown value" data type or cell flag, so the only indication
-//   that a throw happened comes from this flag.  See %sys-throw.h
-//
-// Eval_Throws() is a small stub which takes care of the first two concerns,
-// though some low-level clients actually want the stale flag.
+// See comments on each for information about the steps.
 //
 //=//// NOTES /////////////////////////////////////////////////////////////=//
 //
@@ -51,11 +45,11 @@
 // * See %sys-do.h for wrappers that make it easier to run multiple evaluator
 //   steps in a frame and return the final result, giving VOID! by default.
 //
-// * Eval_Internal_Maybe_Stale_Throws() is LONG.  That's largely on purpose.
-//   Breaking it into functions would add overhead (in the debug build if not
-//   also release builds) and prevent interesting tricks and optimizations.
-//   It is separated into sections, and the invariants in each section are
-//   made clear with comments and asserts.
+// * Reevaluation_Executor() is LONG.  That's largely on purpose.  Breaking it
+//   into functions would add overhead (in the debug build if not also release
+//   builds) and prevent interesting tricks and optimizations.  It is
+//   separated into sections, and the invariants in each section are made
+//   clear with comments and asserts.
 //
 // * See %d-eval.c for more detailed assertions of the preconditions,
 //   postconditions, and state...which are broken out to help keep this file
@@ -154,7 +148,7 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
             return true;
     }
     else {  // !!! Reusing the frame, would inert optimization be worth it?
-        if ((*PG_Eval_Maybe_Stale_Throws)())  // reuse `f`
+        if ((*PG_Trampoline_Throws)())  // reuse `f`
             return true;
     }
 
@@ -167,22 +161,29 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
 
 
 //
-//  Just_Use_Out_Executor: C
+//  Finished_Executor: C
 //
-// This is a simple no-op continuation which can be used when you've already
-// calculated a result, but you're in a position where you need to give a
-// continuation because the caller was expecting a call back...and if you
-// return a pointer to `f->out` directly the system assumes that's the final
-// result.
+// Continuations signal their completion by setting the frame executor to a
+// pointer to this function.  It merely returns `f->out` "as is", and stops
+// the reevaluation process.
 //
 // !!! This is somewhat inefficient and probably calls for some special
 // loophole, but it's not easy to think of what a good place for that loophole
 // would be right now... so this goes ahead and fits into the homogenous
 // continuation model as a passthru option.
 //
-REB_R Just_Use_Out_Executor(REBFRM *f)
+REB_R Finished_Executor(REBFRM *f)
 {
-    INIT_F_EXECUTOR(f, nullptr);
+    // Can't use CLEAR_CELL_FLAG() as this might be END.  Note it can only
+    // be an END if the evaluation started with END (most routines preload
+    // with another value to fall out if it's stale).
+    //
+    f->out->header.bits &= ~(CELL_FLAG_OUT_MARKED_STALE);
+
+    if (GET_EVAL_FLAG(f, TO_END) and NOT_END(f->feed->value))
+        INIT_F_EXECUTOR(f, &New_Expression_Executor);
+    else
+        INIT_F_EXECUTOR(f, nullptr);
     return f->out;
 }
 
@@ -230,18 +231,32 @@ REB_R Just_Use_Out_Executor(REBFRM *f)
 //
 REB_R Group_Executor(REBFRM *f)
 {
-    if (IS_END(f->out)) {
-        if (IS_END(F_VALUE(f))) {
-            INIT_F_EXECUTOR(f, nullptr);
-            return f->out;  // nothing after to try, indicate value absence
-        }
-        INIT_F_EXECUTOR(f, &Reevaluation_Executor);
-        f->u.reval.value = Lookback_While_Fetching_Next(f);
-        return R_CONTINUATION;
+    // The value from before the group ran should still be in the `f->out`
+    // of the frame that invoked the group (not the frame where it ran, which
+    // had its own feed and wrote into this `f` frame's spare cell.)  It's
+    // okay to have this value "fall out", but not be picked up by enfix.
+    //
+    assert(IS_END(f->out) or GET_CELL_FLAG(f->out, OUT_MARKED_STALE));
+
+    // Subframe evaluated into the FRM_SPARE() which was preloaded with END.
+    // If it isn't still an END, the group didn't vaporize.
+    //
+    if (NOT_END(FRM_SPARE(f))) {
+        Move_Value(f->out, FRM_SPARE(f));  // move clears UNEVALUATED
+        assert(NOT_CELL_FLAG(f->out, UNEVALUATED));  // `(1)` is evaluative
+        INIT_F_EXECUTOR(f, &Lookahead_Executor);  // subsequent enfix is ok
+        return f->out;
     }
 
-    CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // `(1)` is evaluative
-    INIT_F_EXECUTOR(f, &Lookahead_Executor);
+    if (IS_END(F_VALUE(f))) {  // no input to try to fill in missing output
+        INIT_F_EXECUTOR(f, &Finished_Executor);
+        return f->out;  // use the END or stale `f->out` (enfix can't pick up)
+    }
+
+    // If there's more to try after a vaporized group, retrigger the evaluator
+    //
+    INIT_F_EXECUTOR(f, &Reevaluation_Executor);
+    f->u.reval.value = Lookback_While_Fetching_Next(f);
     return R_CONTINUATION;
 }
 
@@ -286,9 +301,9 @@ REB_R Brancher_Executor(REBFRM *frame_)
     // that signals not wanting to be called back with nullptr is that it
     // does not heed the delegation flag used for that purpose.  This is a
     // work in progress.  We can't say nullptr since we're returning a
-    // continuation, so use the Just_Use_Out_Executor().
+    // continuation, so use the Finished_Executor().
     //
-    INIT_F_EXECUTOR(frame_, &Just_Use_Out_Executor);
+    INIT_F_EXECUTOR(frame_, &Finished_Executor);
     CONTINUE (D_SPARE);
 }
 
@@ -300,6 +315,13 @@ REB_R Brancher_Executor(REBFRM *frame_)
 // single step in the evaluator.  That can be from the point of view of the
 // debugger, or just in terms of marking the point at which an error message
 // would begin.
+//
+// The frame's `->out` cell must be initialized bits before using this.
+// Whatever it contains will be marked with CELL_FLAG_OUT_MARKED_STALE, so
+// that it cannot accidentally be used as input during the current evaluation
+// (such as the left-hand side of an enfix operation).  However, the value
+// can fall through as the final output, as the flag is cleared in the
+// Finished_Executor().
 //
 REB_R New_Expression_Executor(REBFRM *f)
 {
@@ -381,7 +403,7 @@ REB_R New_Expression_Executor(REBFRM *f)
     return R_THROWN;
 
   finished:
-    INIT_F_EXECUTOR(f, nullptr);
+    INIT_F_EXECUTOR(f, &Finished_Executor);
     return f->out;
 }
 
@@ -701,13 +723,16 @@ REB_R Reevaluation_Executor(REBFRM *f)
         REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END;
         DECLARE_FRAME_AT_CORE (subframe, v, f_specifier, flags);
 
-        // See notes on Group_Executor().  We don't want to lose the value in
-        // f->out if nothing comes up, but we do need a flag to tell if no
-        // new value was produced (e.g. all comments or nothing)
+        // !!! Original code was more clever about using OUT_MARKED_STALE so
+        // that a distinct output cell did not need to be used for GROUP!
+        // However, management of OUT_MARKED_STALE has become rather complex
+        // in light of the state machine logic.  The GROUP! frame would have
+        // to subvert the clearing of the flag.  Using END in the spare is
+        // clearer than adding that flag.
         //
-        assert(IS_END(f->out) or GET_CELL_FLAG(f->out, OUT_MARKED_STALE));
-
-        Push_Frame(f->out, subframe);
+        SET_END(f_spare);
+        Push_Frame(f_spare, subframe);
+        INIT_F_EXECUTOR(subframe, &New_Expression_Executor);
         return R_CONTINUATION; }
 
 
@@ -1292,7 +1317,7 @@ REB_R Reevaluation_Executor(REBFRM *f)
     return R_THROWN;
 
   finished:
-    INIT_F_EXECUTOR(f, nullptr);
+    INIT_F_EXECUTOR(f, &Finished_Executor);
     return f->out;
 }
 
@@ -1555,9 +1580,6 @@ REB_R Lookahead_Executor(REBFRM *f)
     return R_CONTINUATION;
 
   finished:
-    if (GET_EVAL_FLAG(f, TO_END) and NOT_END(f->feed->value))
-        INIT_F_EXECUTOR(f, &New_Expression_Executor);
-    else
-        INIT_F_EXECUTOR(f, nullptr);
+    INIT_F_EXECUTOR(f, &Finished_Executor);
     return f->out;  // not thrown
 }

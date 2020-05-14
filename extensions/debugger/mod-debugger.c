@@ -84,10 +84,10 @@ bool Do_Breakpoint_Throws(
         // no rigor yet for supporting more than one hook at a time.
         //
         assert(
-            PG_Eval_Maybe_Stale_Throws == &Eval_Internal_Maybe_Stale_Throws
+            PG_Trampoline_Throws == &Trampoline_Throws
         );
 
-        PG_Eval_Maybe_Stale_Throws = cast(REBEVL*, cfunc);
+        PG_Trampoline_Throws = cast(REBEVL*, cfunc);
         Init_Void(out);
         return false;  // no throw, run normally (but now, hooked)
     }
@@ -275,9 +275,9 @@ bool Stepper_Eval_Hook_Throws(REBFRM * const f)
     // "whole steps".  So if you say `print 1 + 2`, right now that will break
     // after the whole expression is done.
     //
-    PG_Eval_Maybe_Stale_Throws = &Eval_Internal_Maybe_Stale_Throws;
+    PG_Trampoline_Throws = &Trampoline_Throws;
 
-    bool threw = Eval_Internal_Maybe_Stale_Throws();
+    bool threw = Trampoline_Throws();
 
     // !!! We cannot run more code while in a thrown state, hence we could not
     // invoke a nested console after a throw.  We have to either set a global

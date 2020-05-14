@@ -1142,7 +1142,7 @@ REBNATIVE(case2)
         // true/false answer *and* know what the right hand argument was, for
         // full case coverage and for DEFAULT to work.
         //
-        INIT_F_EXECUTOR(f, &Just_Use_Out_Executor);  // `f` isn't involved
+        INIT_F_EXECUTOR(f, &Finished_Executor);  // `f` isn't involved
         Init_Nulled(D_SPARE);  // jump back to predicate_was_evaluated
         Move_Value(predicate_arg, D_OUT);
         CONTINUE_WITH (predicate, predicate_arg);
@@ -1198,11 +1198,11 @@ REBNATIVE(case2)
 
     // !!! The `f` frame is on top, holding state for the enumeration.  We are
     // going to push another frame which will need its own enumeration state.
-    // When that is finished we will want the "Just_Use_Out_Executor".  This
+    // When that is finished we will want the "Finished_Executor".  This
     // may be the correct interpretation of `nullptr` on dispatch, and instead
     // of crashing or erroring the frame that's just there would stay there.
     //
-    f->executor = &Just_Use_Out_Executor;
+    INIT_F_EXECUTOR(f, &Finished_Executor);
     return Init_Continuation_With_Core(
         D_OUT,
         f,

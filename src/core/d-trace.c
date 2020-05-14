@@ -212,7 +212,7 @@ bool Traced_Eval_Hook_Throws(void)
 
     int depth = Eval_Depth() - Trace_Depth;
     if (depth < 0 || depth >= Trace_Level)
-        return Eval_Internal_Maybe_Stale_Throws();  // (REPL uses to hide)
+        return Trampoline_Throws();  // (REPL uses to hide)
 
     SHORTHAND (v, f->feed->value, NEVERNULL(const RELVAL*));
 
@@ -222,8 +222,8 @@ bool Traced_Eval_Hook_Throws(void)
     // We're running, so while we're running we shouldn't hook again until
     // a dispatch says we're running the traced dispatcher.
     //
-    assert(PG_Eval_Maybe_Stale_Throws == &Traced_Eval_Hook_Throws);
-    PG_Eval_Maybe_Stale_Throws = &Eval_Internal_Maybe_Stale_Throws;
+    assert(PG_Trampoline_Throws == &Traced_Eval_Hook_Throws);
+    PG_Trampoline_Throws = &Trampoline_Throws;
 
     if (not (
         KIND_BYTE(*v) == REB_ACTION
@@ -245,11 +245,11 @@ bool Traced_Eval_Hook_Throws(void)
     REBNAT saved_dispatch_hook = PG_Dispatch;
     PG_Dispatch = &Traced_Dispatch_Hook;
 
-    bool threw = Eval_Internal_Maybe_Stale_Throws();
+    bool threw = Trampoline_Throws();
 
     PG_Dispatch = saved_dispatch_hook;
 
-    PG_Eval_Maybe_Stale_Throws = &Traced_Eval_Hook_Throws;
+    PG_Trampoline_Throws = &Traced_Eval_Hook_Throws;
     return threw;
 }
 
@@ -382,12 +382,12 @@ REB_R Traced_Dispatch_Hook(REBFRM * const f)
     //
     bool last_phase = (ACT_UNDERLYING(phase) == phase);
 
-    REBEVL *saved_eval = PG_Eval_Maybe_Stale_Throws;
-    PG_Eval_Maybe_Stale_Throws = &Traced_Eval_Hook_Throws;
+    REBEVL *saved_eval = PG_Trampoline_Throws;
+    PG_Trampoline_Throws = &Traced_Eval_Hook_Throws;
 
     REB_R r = Dispatch_Internal(f);
 
-    PG_Eval_Maybe_Stale_Throws = saved_eval;
+    PG_Trampoline_Throws = saved_eval;
 
 /*    if (PG_Dispatch != Traced_Dispatch_Hook)
         return r; // TRACE OFF during the traced code, don't print any more
@@ -457,14 +457,14 @@ REBNATIVE(trace)
         Trace_Level = Int32(mode);
 
     if (Trace_Level) {
-        PG_Eval_Maybe_Stale_Throws = &Traced_Eval_Hook_Throws;
+        PG_Trampoline_Throws = &Traced_Eval_Hook_Throws;
 
         if (REF(function))
             Trace_Flags |= TRACE_FLAG_FUNCTION;
         Trace_Depth = Eval_Depth() - 1; // subtract current TRACE frame
     }
     else
-        PG_Eval_Maybe_Stale_Throws = &Eval_Internal_Maybe_Stale_Throws;
+        PG_Trampoline_Throws = &Trampoline_Throws;
 
     return nullptr;
 }

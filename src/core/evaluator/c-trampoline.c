@@ -46,10 +46,7 @@
 
 
 //
-//  Eval_Internal_Maybe_Stale_Throws: C
-//
-// See notes at top of file for general remarks on this central function's
-// name, and that wrappers should nearly always be used to call it.
+//  Trampoline_Throws: C
 //
 // !!! The end goal is that this function is never found recursively on a
 // standard evaluation stack.  The only way it should be found on the stack
@@ -67,7 +64,7 @@
 // as continuations are run.  This is radically different, and is requiring
 // rethinking during the stackless transition.
 //
-bool Eval_Internal_Maybe_Stale_Throws(void)
+bool Trampoline_Throws(void)
 {
     REBFRM *start = FS_TOP;
     REBFRM *f = start;  // *usually* FS_TOP, unless requested to not drop
@@ -88,7 +85,7 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
     if (f->executor == nullptr) {  // no further execution for frame, drop it
         assert(r == f->out);
-        /* CLEAR_CELL_FLAG(f->out, OUT_MARKED_STALE);  // !!! review */
+        assert(NOT_CELL_FLAG(f->out, OUT_MARKED_STALE));
 
         // !!! Currently we do not drop the topmost frame, because some code
         // (e.g. MATCH) would ask for a frame to be filled, and then steal
@@ -96,10 +93,8 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
         // makes the call, it's not stackless...e.g. it should be written
         // some other way.
         //
-        if (f == start) {
-            f->executor = &New_Expression_Executor;  // !!! Old invariant
+        if (f == start)
             return false;
-        }
 
         // Some natives and executors want to be able to leave a pushed frame
         // intact as the "top of stack" even when it has completed.  This
@@ -131,6 +126,10 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
 
     if (r == R_THROWN) {
         while (f != start) {
+            if (not f->original and f->out != f->prior->out) {
+                //assert(f->out == FRM_SPARE(f->prior));
+                Move_Value(f->prior->out, f->out);
+            }
             Drop_Frame(f);
             f = FS_TOP;  // refresh
             if (f->original)  // function is running, assume only catchers ATM
@@ -172,8 +171,6 @@ bool Eval_Internal_Maybe_Stale_Throws(void)
     }
 
     assert(f == start);
-
-    f->executor = &New_Expression_Executor;  // !!! Old invariant
 
     assert(r == R_THROWN);
     return true;  // thrown

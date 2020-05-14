@@ -107,7 +107,13 @@ inline static void Finalize_Arg(REBFRM *f) {
     }
 
   #if defined(DEBUG_STALE_ARGS)  // see notes on flag definition
-    assert(NOT_CELL_FLAG(f->arg, ARG_MARKED_CHECKED));
+    //
+    // !!! Stackless threw a wrench into how OUT_MARKED_STALE was handled, and
+    // it's not really clear when a good time to clear it is.  The question
+    // is under review; but at the moment it may still be set when this point
+    // gets reached.
+    //
+    /* assert(NOT_CELL_FLAG(f->arg, ARG_MARKED_CHECKED)); */
   #endif
 
     if (

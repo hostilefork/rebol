@@ -1041,6 +1041,208 @@ REBNATIVE(case)
 
 
 //
+//  case2: native [
+//
+//  {Evaluates each condition, and when true, evaluates what follows it}
+//
+//      return: "Last matched case evaluation, or null if no cases matched"
+//          [<opt> any-value!]
+//      :predicate "Unary case-processing action (default is /DID)"
+//          [refinement! action! <skip>]
+//      cases "Conditions followed by branches"
+//          [block!]
+//      /all "Do not stop after finding first logically true case"
+//  ]
+//
+REBNATIVE(case2)
+{
+    INCLUDE_PARAMS_OF_CASE2;
+
+    REBFRM *f;
+    REBVAL *predicate = ARG(predicate);  // will be canonized on first call
+    REBVAL *last_branch_result = ARG(return);  // don't need return cell
+    REBVAL *predicate_arg = ARG(cases);  // can reuse...`f` frame holds cases
+
+    if (IS_END(D_SPARE))
+        goto initial_entry_point; 
+
+    f = FS_TOP;
+    assert(f->prior == frame_);  // !!! review this guaranteee
+    assert(f->executor == nullptr);
+
+    if (IS_NULLED(D_SPARE))
+        goto predicate_was_evaluated;
+
+    if (IS_BLANK(D_SPARE))
+        goto evaluate_new_condition;
+
+    if (IS_LOGIC(D_SPARE)) {
+        if (VAL_LOGIC(D_SPARE))
+            goto condition_was_evaluated;
+        else
+            goto branch_was_evaluated;
+    }
+    assert(IS_END(D_SPARE));
+    goto initial_entry_point;
+
+  initial_entry_point:
+  blockscope {
+    if (not IS_NULLED(predicate)) {
+        REBSTR *opt_label;
+        if (Get_If_Word_Or_Path_Throws(
+            D_OUT,
+            &opt_label,
+            predicate,
+            SPECIFIED,
+            false  // push_refinements = false, specialize for multiple uses
+        )){
+            return R_THROWN;
+        }
+        if (not IS_ACTION(D_OUT))
+            fail ("PREDICATE provided to CASE must look up to an ACTION!");
+
+        Move_Value(predicate, D_OUT);
+    }
+
+    DECLARE_FRAME_AT (
+        f_cases,  // will be named "f" on later calls
+        ARG(cases),
+        EVAL_MASK_DEFAULT
+            | EVAL_FLAG_ALLOCATED_FEED
+            | EVAL_FLAG_TRAMPOLINE_KEEPALIVE
+    );
+    f = f_cases;
+
+    Init_Nulled(last_branch_result);  // default return result
+
+    Push_Frame(D_OUT, f);
+    goto evaluate_new_condition;
+  }
+
+  evaluate_new_condition: blockscope {
+    Init_Nulled(D_OUT);  // If end of input, this will be the "stale" result
+    Init_True(D_SPARE);  // next entry point will be condition_was_evaluated
+    INIT_F_EXECUTOR(f, &New_Expression_Executor);
+    return R_CONTINUATION;
+  }
+
+  condition_was_evaluated: blockscope {
+    if (IS_END(F_VALUE(f))) {
+        CLEAR_CELL_FLAG(D_OUT, OUT_MARKED_STALE);
+        goto reached_end;
+    }
+
+    if (GET_CELL_FLAG(D_OUT, OUT_MARKED_STALE))
+        goto evaluate_new_condition;  // a COMMENT, but not at end.
+
+    if (IS_ACTION(predicate)) {
+        //
+        // NOTE: It may seem tempting to run PREDICATE from on `f` directly,
+        // allowing it to take arity > 2.  Don't do this.  We have to get a
+        // true/false answer *and* know what the right hand argument was, for
+        // full case coverage and for DEFAULT to work.
+        //
+        INIT_F_EXECUTOR(f, &Just_Use_Out_Executor);  // `f` isn't involved
+        Init_Nulled(D_SPARE);  // jump back to predicate_was_evaluated
+        Move_Value(predicate_arg, D_OUT);
+        CONTINUE_WITH (predicate, predicate_arg);
+    }
+
+    goto predicate_was_evaluated;  // use condition's truthiness (e.g. DID)
+  }
+
+  predicate_was_evaluated: blockscope {
+    if (not IS_TRUTHY(D_OUT)) {
+        if (
+            IS_BLOCK(F_VALUE(f))
+            or IS_ACTION(F_VALUE(f))
+            or IS_QUOTED(F_VALUE(f))
+            or IS_SYM_WORD(F_VALUE(f))
+            or IS_SYM_PATH(F_VALUE(f))
+            or IS_SYM_GROUP(F_VALUE(f))
+        ){
+            // Acceptable "branches" (e.g. for IF), just skipped on no match
+            //
+            Fetch_Next_Forget_Lookback(f);
+        }
+        else if (IS_GROUP(F_VALUE(f))) {
+            //
+            // IF evaluates branches that are GROUP! even if it does not
+            // run them.  This implies CASE should too.
+            //
+            // !!! We want to evaluate this as if it were a soft quote.  This
+            // means it should do whatever that does w.r.t. enfix, etc.
+            // Review implications.
+            //
+            Init_Blank(D_SPARE);  // resume with evaluate_new_condition
+            f->executor = &New_Expression_Executor;
+            return R_CONTINUATION;
+        }
+        else {
+            // Maintain symmetry with IF on non-taken branches:
+            //
+            // >> if false <some-tag>
+            // ** Script Error: if does not allow tag! for its branch...
+            //
+            fail (Error_Bad_Value_Core(F_VALUE(f), F_SPECIFIER(f)));
+        }
+
+        goto evaluate_new_condition;
+    }
+
+    // !!! This should test for legal branch types and have a message like
+    // "illegal branch", which indicates the right location.  Right now it
+    // allows FRAME! and the error is likely unhelpful.
+    //
+    Init_False(D_SPARE);  // will resume with branch_was_evaluated
+
+    // !!! The `f` frame is on top, holding state for the enumeration.  We are
+    // going to push another frame which will need its own enumeration state.
+    // When that is finished we will want the "Just_Use_Out_Executor".  This
+    // may be the correct interpretation of `nullptr` on dispatch, and instead
+    // of crashing or erroring the frame that's just there would stay there.
+    //
+    f->executor = &Just_Use_Out_Executor;
+    return Init_Continuation_With_Core(
+        D_OUT,
+        f,
+        0,  // don't delegate, don't catch throws
+        F_VALUE(f),  // branch
+        F_SPECIFIER(f),  // branch_specifier
+        END_NODE  // with
+    );
+  }
+
+  branch_was_evaluated: blockscope {
+    Voidify_If_Nulled(D_OUT); // null is reserved for no branch taken
+
+    if (not REF(all)) {
+        Drop_Frame(f);
+        return D_OUT;
+    }
+
+    Move_Value(last_branch_result, D_OUT);
+    Fetch_Next_Forget_Lookback(f);  // keep matching if /ALL
+    goto evaluate_new_condition;
+  }
+
+  reached_end: blockscope {
+    Drop_Frame(f);
+
+    // Last evaluation will "fall out" if there is no branch:
+    //
+    //     case /not [1 < 2 [...] 3 < 4 [...] 10 + 20] = 30
+    //
+    if (not IS_NULLED(D_OUT)) // prioritize fallout result
+        return D_OUT;
+
+    assert(REF(all) or IS_NULLED(last_branch_result));
+    RETURN (last_branch_result);  // else last branch "falls out", may be null
+  }
+}
+
+
+//
 //  switch: native [
 //
 //  {Selects a choice and evaluates the block that follows it.}

@@ -141,6 +141,9 @@ inline static int FRM_LINE(REBFRM *f) {
 #define F_VALUE(f) \
     ((f)->feed->value)
 
+#define F_SPECIFIER(f) \
+    ((f)->feed->specifier)
+
 inline static void INIT_F_EXECUTOR(REBFRM *f, REBNAT executor)
 {
     if (f->original)
@@ -981,21 +984,20 @@ inline static REB_R Init_Continuation_With_Core(
     // broken control flow if such shortcuts were taken.  Review.
 
     switch (VAL_TYPE(branch)) {
+      case REB_BLANK:
+        Init_Nulled(out);
+        goto just_use_out;
+
       case REB_QUOTED:
         Unquotify(Derelativize(out, branch, branch_specifier), 1);
         goto just_use_out;
 
       case REB_BLOCK: {
-        //
-        // What we want to do is Do_Any_Array_At_Throws.  This means
-        // we must initialize to void (in case all invisibles) and
-        // we must clear off the stale flag at the end.
-        //
         DECLARE_FRAME_AT_CORE (
             blockframe,
             branch,
             branch_specifier,
-            EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END
+            EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END  // will clear stale at end
         );
 
         Init_Void(out);  // in case all invisibles, as usual
@@ -1035,10 +1037,6 @@ inline static REB_R Init_Continuation_With_Core(
         REBSTR *opt_label = nullptr;
         Begin_Prefix_Action(subframe, opt_label);
         return R_CONTINUATION; }
-
-      case REB_BLANK:
-        Init_Nulled(out);
-        goto just_use_out;
 
       group_continuation:
       case REB_GROUP: {
@@ -1169,15 +1167,21 @@ inline static REB_R Init_Continuation_With_Core(
         return R_CONTINUATION; }
 
       default:
-        assert(!"Bad branch type");
-        fail ("Bad branch type");  // !!! should be an assert or panic
+        //
+        // !!! Things like CASE currently ask for a branch-based continuation
+        // on types they haven't checked, but encounter via evaluation.
+        // Hence we FAIL here instead of panic()...but that suggests this
+        // should be narrowed to the kinds of types branching permits.
+        //
+        fail ("Bad branch type");
     }
 
-  just_use_out: ;
+  just_use_out: blockscope {
     DECLARE_END_FRAME (subframe, EVAL_MASK_DEFAULT);
-    subframe->executor = &Just_Use_Out_Executor;
+    INIT_F_EXECUTOR(subframe, &Finished_Executor);
     Push_Frame(f->out, subframe);
     return R_CONTINUATION;
+  }
 }
 
 #define Init_Continuation_With(out,f,flags,branch,with) \

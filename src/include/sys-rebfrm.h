@@ -64,21 +64,43 @@ STATIC_ASSERT(EVAL_FLAG_1_IS_FALSE == NODE_FLAG_FREE);
 // REBFRM are a REBNOD subclass, and may be referred to by FRAME! values that
 // keep them alive such that they need to be GC'd.
 //
+// !!! This flag corresponds to the cell bit for OUT_MARKED_STALE.  It could
+// be an interesting optimization if this was EVAL_FLAG_KEEP_STALE_BIT; it
+// could be directly &'d with the cell, so instead of:
+//
+//     if (NOT_EVAL_FLAG(f, KEEP_STALE_BIT))
+//         f->out.header.bits &= ~CELL_FLAG_OUT_MARKED_STALE;
+//
+// It could be:
+//
+//     f->out.header.bits &= (f->flags.bits & EVAL_FLAG_KEEP_STALE_BIT)
+//
+// But it's not obvious that's faster, and it would make it perhaps a bit
+// confusing that the GC mark bit in series nodes is different from that in
+// frames.  Review as a possibility.
+//
 #define EVAL_FLAG_MARKED \
     FLAG_LEFT_BIT(3)
 STATIC_ASSERT(EVAL_FLAG_MARKED == NODE_FLAG_MARKED);
 
 
-//=//// EVAL_FLAG_4_IS_TRUE ///////////////////////////////////////////////////////=//
+//=//// EVAL_FLAG_4_IS_TRUE ///////////////////////////////////////////////=//
 //
 #define EVAL_FLAG_4_IS_TRUE \
     FLAG_LEFT_BIT(4)
 STATIC_ASSERT(EVAL_FLAG_4_IS_TRUE == NODE_FLAG_FRAME);
 
 
-//=//// EVAL_FLAG_5 ///////////////////////////////////////////////////////=//
+//=//// EVAL_FLAG_KEEP_STALE_BIT //////////////////////////////////////////=//
 //
-#define EVAL_FLAG_5 \
+// It is not generally desirable that after an evaluation is performed, that
+// the CELL_FLAG_OUT_MARKED_STALE bit would be preserved.  The cell flag for
+// marking is used for other purposes in other contexts.  But some evaluations
+// don't want to sacrifice the value in f->out to set the output cell to END
+// just to know when there was no evaluation... e.g. GROUP! evals, or when
+// CASE wants to do a fallout of a condition vs. a branch.
+//
+#define EVAL_FLAG_KEEP_STALE_BIT \
     FLAG_LEFT_BIT(5)
 
 

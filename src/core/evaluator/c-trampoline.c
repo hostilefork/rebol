@@ -85,7 +85,6 @@ bool Trampoline_Throws(void)
 
     if (f->executor == nullptr) {  // no further execution for frame, drop it
         assert(r == f->out);
-        assert(NOT_CELL_FLAG(f->out, OUT_MARKED_STALE));
 
         // !!! Currently we do not drop the topmost frame, because some code
         // (e.g. MATCH) would ask for a frame to be filled, and then steal

@@ -178,7 +178,8 @@ REB_R Finished_Executor(REBFRM *f)
     // be an END if the evaluation started with END (most routines preload
     // with another value to fall out if it's stale).
     //
-    f->out->header.bits &= ~(CELL_FLAG_OUT_MARKED_STALE);
+    if (NOT_EVAL_FLAG(f, KEEP_STALE_BIT))
+        f->out->header.bits &= ~(CELL_FLAG_OUT_MARKED_STALE);
 
     if (GET_EVAL_FLAG(f, TO_END) and NOT_END(f->feed->value))
         INIT_F_EXECUTOR(f, &New_Expression_Executor);
@@ -231,24 +232,17 @@ REB_R Finished_Executor(REBFRM *f)
 //
 REB_R Group_Executor(REBFRM *f)
 {
-    // The value from before the group ran should still be in the `f->out`
-    // of the frame that invoked the group (not the frame where it ran, which
-    // had its own feed and wrote into this `f` frame's spare cell.)  It's
-    // okay to have this value "fall out", but not be picked up by enfix.
+    // Check for lack of staleness (this also implies not a END if not stale).
+    // Use raw bit test instead of GET_CELL_FLAG() since f->out may be END.
     //
-    assert(IS_END(f->out) or GET_CELL_FLAG(f->out, OUT_MARKED_STALE));
-
-    // Subframe evaluated into the FRM_SPARE() which was preloaded with END.
-    // If it isn't still an END, the group didn't vaporize.
-    //
-    if (NOT_END(FRM_SPARE(f))) {
-        Move_Value(f->out, FRM_SPARE(f));  // move clears UNEVALUATED
-        assert(NOT_CELL_FLAG(f->out, UNEVALUATED));  // `(1)` is evaluative
+    if (not (f->out->header.bits & CELL_FLAG_OUT_MARKED_STALE)) {
+        CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // `(1)` is evaluative
         INIT_F_EXECUTOR(f, &Lookahead_Executor);  // subsequent enfix is ok
         return f->out;
     }
 
     if (IS_END(F_VALUE(f))) {  // no input to try to fill in missing output
+        f->out->header.bits &= ~CELL_FLAG_OUT_MARKED_STALE;
         INIT_F_EXECUTOR(f, &Finished_Executor);
         return f->out;  // use the END or stale `f->out` (enfix can't pick up)
     }
@@ -717,22 +711,38 @@ REB_R Reevaluation_Executor(REBFRM *f)
       case REB_GROUP: {
         f_next_gotten = nullptr;  // arbitrary code changes fetched variables
 
+        // The IS_VOID() case here is specifically for REEVAL with invisibles,
+        // because it's desirable for `void? reeval :comment "hi" 1` to be
+        // 1 and not #[false].  The problem is that REEVAL is not invisible,
+        // and hence it wants to make sure something is written to the output
+        // so that standard invisibility doesn't kick in...hence it preloads
+        // with a non-stale void.
+        //
+        assert(
+            IS_END(f->out)
+            or GET_CELL_FLAG(f->out, OUT_MARKED_STALE)
+            or IS_VOID(f->out)
+        );
+
+        // We use KEEP_STALE_BIT so that the stale f->out isn't lost in the
+        // event of something like `1 + 2 (comment "hi")`.  This way we avoid
+        // needing to use another output cell in Group_Executor() that we have
+        // to copy back into f->out for that effect.
+        //
+        DECLARE_FRAME_AT_CORE (subframe, v, f_specifier,
+            EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END | EVAL_FLAG_KEEP_STALE_BIT
+        );
+        INIT_F_EXECUTOR(subframe, &New_Expression_Executor);
+        Push_Frame(f->out, subframe);
+
+        // Use Group_Executor() in the *current* frame level, whose feed is
+        // the parent of the GROUP!.  It will get the evaluative result of
+        // `subframe` (which is a new frame to use a new feed).  Again: that
+        // result may be stale, e.g. the f->out we started with.
+        //
         assert(f->executor == &Reevaluation_Executor);
         INIT_F_EXECUTOR(f, &Group_Executor);
 
-        REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END;
-        DECLARE_FRAME_AT_CORE (subframe, v, f_specifier, flags);
-
-        // !!! Original code was more clever about using OUT_MARKED_STALE so
-        // that a distinct output cell did not need to be used for GROUP!
-        // However, management of OUT_MARKED_STALE has become rather complex
-        // in light of the state machine logic.  The GROUP! frame would have
-        // to subvert the clearing of the flag.  Using END in the spare is
-        // clearer than adding that flag.
-        //
-        SET_END(f_spare);
-        Push_Frame(f_spare, subframe);
-        INIT_F_EXECUTOR(subframe, &New_Expression_Executor);
         return R_CONTINUATION; }
 
 

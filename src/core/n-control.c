@@ -1047,11 +1047,11 @@ REBNATIVE(case)
 //
 //      return: "Last matched case evaluation, or null if no cases matched"
 //          [<opt> any-value!]
-//      :predicate "Unary case-processing action (default is /DID)"
-//          [refinement! action! <skip>]
 //      cases "Conditions followed by branches"
 //          [block!]
 //      /all "Do not stop after finding first logically true case"
+//      /predicate "Case pre-processor, tested for logic (default: IDENTITY)"
+//          [word! path! action!]
 //  ]
 //
 REBNATIVE(case2)
@@ -1061,7 +1061,7 @@ REBNATIVE(case2)
     REBFRM *f;
     REBVAL *predicate = ARG(predicate);  // will be canonized on first call
     REBVAL *last_branch_result = ARG(return);  // don't need return cell
-    REBVAL *predicate_arg = ARG(cases);  // can reuse...`f` frame holds cases
+    REBVAL *predicate_label = ARG(cases);  // can reuse, `f` frame holds cases
 
     if (IS_END(D_SPARE))
         goto initial_entry_point; 
@@ -1070,24 +1070,36 @@ REBNATIVE(case2)
     assert(f->prior == frame_);  // !!! review this guaranteee
     assert(f->executor == nullptr);
 
-    if (IS_NULLED(D_SPARE))
-        goto predicate_was_evaluated;
-
     if (IS_BLANK(D_SPARE))
         goto evaluate_new_condition;
 
-    if (IS_LOGIC(D_SPARE)) {
-        if (VAL_LOGIC(D_SPARE))
-            goto condition_was_evaluated;
-        else
-            goto branch_was_evaluated;
-    }
-    assert(IS_END(D_SPARE));
-    goto initial_entry_point;
+    assert(IS_LOGIC(D_SPARE));
+    if (VAL_LOGIC(D_SPARE))
+        goto condition_was_evaluated;
+    else
+        goto branch_was_evaluated;
 
   initial_entry_point:
   blockscope {
-    if (not IS_NULLED(predicate)) {
+    DECLARE_FRAME_AT (
+        f_cases,  // will be named "f" on later calls
+        ARG(cases),  // slot gets reused for `predicate_label`
+        EVAL_MASK_DEFAULT
+            | EVAL_FLAG_ALLOCATED_FEED
+            | EVAL_FLAG_TRAMPOLINE_KEEPALIVE
+            | EVAL_FLAG_KEEP_STALE_BIT
+    );
+    f = f_cases;
+
+    if (IS_NULLED(predicate)) {
+      #if !defined(NDEBUG)
+        if (SPORADICALLY(5)) {  // test optimization for parity with IDENTITY
+            Move_Value(predicate, NAT_VALUE(identity));  // baseline predicate
+            Init_Word(predicate_label, VAL_TYPESET_STRING(PAR(predicate)));
+        }
+      #endif
+    }
+    else {
         REBSTR *opt_label;
         if (Get_If_Word_Or_Path_Throws(
             D_OUT,
@@ -1102,16 +1114,11 @@ REBNATIVE(case2)
             fail ("PREDICATE provided to CASE must look up to an ACTION!");
 
         Move_Value(predicate, D_OUT);
+        if (opt_label)
+            Init_Word(predicate_label, opt_label);
+        else  // better to say "predicate doesn't allow..." than "_ doesn't"
+            Init_Word(predicate_label, VAL_TYPESET_STRING(PAR(predicate)));
     }
-
-    DECLARE_FRAME_AT (
-        f_cases,  // will be named "f" on later calls
-        ARG(cases),
-        EVAL_MASK_DEFAULT
-            | EVAL_FLAG_ALLOCATED_FEED
-            | EVAL_FLAG_TRAMPOLINE_KEEPALIVE
-    );
-    f = f_cases;
 
     Init_Nulled(last_branch_result);  // default return result
 
@@ -1120,38 +1127,27 @@ REBNATIVE(case2)
   }
 
   evaluate_new_condition: blockscope {
-    Init_Nulled(D_OUT);  // If end of input, this will be the "stale" result
-    Init_True(D_SPARE);  // next entry point will be condition_was_evaluated
-    INIT_F_EXECUTOR(f, &New_Expression_Executor);
+    Init_Nulled(D_OUT);  // Stale value if no condition found
+    Init_True(D_SPARE);  // Next entry point will be condition_was_evaluated
+
+    if (IS_ACTION(predicate)) {
+        Push_Action(f, VAL_ACTION(predicate), VAL_BINDING(predicate));
+        Begin_Prefix_Action(f, VAL_WORD_SPELLING(predicate_label));
+    }
+    else
+        INIT_F_EXECUTOR(f, &New_Expression_Executor);
     return R_CONTINUATION;
   }
 
   condition_was_evaluated: blockscope {
-    if (IS_END(F_VALUE(f))) {
+    if (GET_CELL_FLAG(D_OUT, OUT_MARKED_STALE)) {
         CLEAR_CELL_FLAG(D_OUT, OUT_MARKED_STALE);
         goto reached_end;
     }
 
-    if (GET_CELL_FLAG(D_OUT, OUT_MARKED_STALE))
-        goto evaluate_new_condition;  // a COMMENT, but not at end.
+    if (IS_END(F_VALUE(f)))
+        goto reached_end;
 
-    if (IS_ACTION(predicate)) {
-        //
-        // NOTE: It may seem tempting to run PREDICATE from on `f` directly,
-        // allowing it to take arity > 2.  Don't do this.  We have to get a
-        // true/false answer *and* know what the right hand argument was, for
-        // full case coverage and for DEFAULT to work.
-        //
-        INIT_F_EXECUTOR(f, &Finished_Executor);  // `f` isn't involved
-        Init_Nulled(D_SPARE);  // jump back to predicate_was_evaluated
-        Move_Value(predicate_arg, D_OUT);
-        CONTINUE_WITH (predicate, predicate_arg);
-    }
-
-    goto predicate_was_evaluated;  // use condition's truthiness (e.g. DID)
-  }
-
-  predicate_was_evaluated: blockscope {
     if (not IS_TRUTHY(D_OUT)) {
         if (
             IS_BLOCK(F_VALUE(f))
@@ -1214,6 +1210,11 @@ REBNATIVE(case2)
   }
 
   branch_was_evaluated: blockscope {
+    if (GET_CELL_FLAG(D_OUT, OUT_MARKED_STALE)) {
+        assert(!"Stale value seen, should not be possible here.");
+        fail ("Stale value seen, should not be possible here.");
+    }
+
     Voidify_If_Nulled(D_OUT); // null is reserved for no branch taken
 
     if (not REF(all)) {

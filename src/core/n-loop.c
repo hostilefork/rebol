@@ -1665,24 +1665,36 @@ REBNATIVE(while)
 {
     INCLUDE_PARAMS_OF_WHILE;
 
-    REBVAL * const is_running_body = D_SPARE;  // alias (optimized out)
+    enum {
+        ST_WHILE_INITIAL_ENTRY = 0,
+        ST_WHILE_CONDITION_WAS_EVALUATED,
+        ST_WHILE_BODY_WAS_EVALUATED
+    };
 
-    if (IS_END(is_running_body)) {  // initial state of D_SPARE
-        Init_Blank(ARG(return));  // result if body never runs
-        Init_False(is_running_body);  // run condition for starters
-        CONTINUE (ARG(condition));
+    switch (D_STATE_BYTE) {
+      case ST_WHILE_INITIAL_ENTRY: goto initial_entry;
+      case ST_WHILE_CONDITION_WAS_EVALUATED: goto condition_was_evaluated;
+      case ST_WHILE_BODY_WAS_EVALUATED: goto body_was_evaluated;
+      default: assert(false);
     }
 
-    if (not VAL_LOGIC(is_running_body)) {  // just ran the condition
-        if (IS_FALSEY(D_OUT)) {  // will error if void, neither true nor false
-            Move_Value(D_OUT, ARG(return));  // restore last body run
-            Voidify_If_Nulled_Or_Blank(D_OUT);  // null->BREAK, blank->not run
-            RETURN (ARG(return));  // condition false, return last body result
-        }
-        Init_True(is_running_body);
-        CONTINUE_CATCHABLE (ARG(body));  // run the body
-    }
+  initial_entry: blockscope {
+    Init_Blank(ARG(return));  // result if body never runs
+    D_STATE_BYTE = ST_WHILE_CONDITION_WAS_EVALUATED;  // next entry
+    CONTINUE (ARG(condition));
+  }
 
+  condition_was_evaluated: blockscope {
+    if (IS_FALSEY(D_OUT)) {  // will error if void, neither true nor false
+        Move_Value(D_OUT, ARG(return));  // restore last body run
+        Voidify_If_Nulled_Or_Blank(D_OUT);  // null->BREAK, blank->not run
+        RETURN (ARG(return));  // condition false, return last body result
+    }
+    D_STATE_BYTE = ST_WHILE_BODY_WAS_EVALUATED;  // next entry
+    CONTINUE_CATCHABLE (ARG(body));
+  }
+
+  body_was_evaluated: blockscope {
     if (D_THROWING) {
         bool broke;
         if (not Catching_Break_Or_Continue(D_OUT, &broke))
@@ -1695,6 +1707,7 @@ REBNATIVE(while)
     }
 
     Move_Value(ARG(return), D_OUT);  // save body result
-    Init_False(is_running_body);
+    D_STATE_BYTE = ST_WHILE_CONDITION_WAS_EVALUATED;  // next entry
     CONTINUE (ARG(condition));  // run the condition, no catching of throws
+  }
 }

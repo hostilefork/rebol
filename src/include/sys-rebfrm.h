@@ -53,9 +53,25 @@ STATIC_ASSERT(EVAL_FLAG_0_IS_TRUE == NODE_FLAG_NODE);
 STATIC_ASSERT(EVAL_FLAG_1_IS_FALSE == NODE_FLAG_FREE);
 
 
-//=//// EVAL_FLAG_2 ///////////////////////////////////////////=//
+//=//// EVAL_FLAG_TRAMPOLINE_KEEPALIVE ////////////////////////////////////=//
 //
-#define EVAL_FLAG_2 \
+// This flag asks the trampoline function to not call Drop_Frame() when it
+// sees that the frame's `executor` has reached the `nullptr` state.  Instead
+// it stays on the frame stack, and control is passed to the previous frame's
+// executor (which will then be receiving its frame pointer parameter that
+// will not be the current top of stack).
+//
+// It's a feature used by routines which want to make several successive
+// requests on a frame (REDUCE, ANY, CASE, etc.) without tearing down the
+// frame and putting it back together again.
+//
+// !!! Note that this is NODE_FLAG_MANAGED.  Right now, the concept of
+// "managed" vs. "unmanaged" doesn't completely apply to frames--they are all
+// basically managed, but references to them in values are done through a
+// level of indirection (a varlist) which will be patched up to not point
+// to them if they are freed.  So this bit is used for another purpose.
+//
+#define EVAL_FLAG_TRAMPOLINE_KEEPALIVE \
     FLAG_LEFT_BIT(2)
 
 
@@ -104,9 +120,17 @@ STATIC_ASSERT(EVAL_FLAG_4_IS_TRUE == NODE_FLAG_FRAME);
     FLAG_LEFT_BIT(5)
 
 
-//=//// EVAL_FLAG_6 ///////////////////////////////////////////////////////=//
+//=//// EVAL_FLAG_TO_END //////////////////////////////////////////////////=//
 //
-#define EVAL_FLAG_6 \
+// !!! This is a revival of an old idea that a frame flag would hold the state
+// of whether to do to the end or not.  The reason that idea was scrapped was
+// because if the Eval() routine was hooked (e.g. by a stepwise debugger)
+// then the hook would be unable to see successive calls to Eval() if it
+// didn't return and make another call.  That no longer applies, since it
+// always has to return in stackless to the Trampoline, so TO_END is really
+// just a convenience with no real different effect in evaluator returns.
+//
+#define EVAL_FLAG_TO_END \
     FLAG_LEFT_BIT(6)
 
 
@@ -114,79 +138,20 @@ STATIC_ASSERT(EVAL_FLAG_4_IS_TRUE == NODE_FLAG_FRAME);
 STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 
 
-//=//// EVAL_FLAG_DISPATCHER_CATCHES //////////////////////////////////////=//
+//=//// FLAGS 8-15 ARE USED FOR THE STATE_BYTE() //////////////////////////=//
 //
-// While a continuation is running, the native or dispatcher that made the
-// request is no longer on the stack.  But if something like a WHILE loop
-// wishes to catch a BREAK, it has to be told about it.  Setting this flag
-// when asking for a continuation will give a callback in the thrown state,
-// which can be tested with Is_Throwing().
+// One byte's worth is used to encode a "frame state" that can be used by
+// natives or dispatchers, e.g. to encode which step they are on.
 //
-#define EVAL_FLAG_DISPATCHER_CATCHES \
-    FLAG_LEFT_BIT(8)
 
-
-//=//// EVAL_FLAG_9 ///////////////////////////////////////////////////////=//
-//
-#define EVAL_FLAG_9 \
-    FLAG_LEFT_BIT(9)
-
-
-//=//// EVAL_FLAG_10 //////////////////////////////////////////////////////=//
-//
-#define EVAL_FLAG_10 \
-    FLAG_LEFT_BIT(10)
-
-
-//=//// EVAL_FLAG_FULFILLING_ARG //////////////////////////////////////////=//
-//
-// Deferred lookback operations need to know when they are dealing with an
-// argument fulfillment for a function, e.g. `summation 1 2 3 |> 100` should
-// be `(summation 1 2 3) |> 100` and not `summation 1 2 (3 |> 100)`.  This
-// also means that `add 1 <| 2` will act as an error.
-//
-#define EVAL_FLAG_FULFILLING_ARG \
-    FLAG_LEFT_BIT(11)
-
-
-//=//// EVAL_FLAG_TO_END //////////////////////////////////////////////////=//
-//
-// !!! This is a revival of an old idea that a frame flag would hold the state
-// of whether to do to the end or not.  The reason that idea was scrapped was
-// because if the Eval() routine was hooked (e.g. by a stepwise debugger)
-// then the hook would be unable to see successive calls to Eval() if it
-// didn't return and make another call.
-//
-#define EVAL_FLAG_TO_END \
-    FLAG_LEFT_BIT(12)
-
-
-//=//// EVAL_FLAG_TRAMPOLINE_KEEPALIVE ////////////////////////////////////=//
-//
-// This flag asks the trampoline function to not call Drop_Frame() when it
-// sees that the frame's `executor` has reached the `nullptr` state.  Instead
-// it stays on the frame stack, and control is passed to the previous frame's
-// executor (which will then be receiving its frame pointer parameter that
-// will not be the current top of stack).
-//
-// It's a feature used by routines which want to make several successive
-// requests on a frame (REDUCE, ANY, CASE, etc.) without tearing down the
-// frame and putting it back together again.
-//
-#define EVAL_FLAG_TRAMPOLINE_KEEPALIVE \
-    FLAG_LEFT_BIT(13)
-
-
-//=//// EVAL_FLAG_14 //////////////////////////////////////////////////////=//
-//
-#define EVAL_FLAG_14 \
-    FLAG_LEFT_BIT(14)
-
-
-//=//// EVAL_FLAG_15 //////////////////////////////////////////////////////=//
-//
-#define EVAL_FLAG_15 \
-    FLAG_LEFT_BIT(15)
+#undef EVAL_FLAG_8
+#undef EVAL_FLAG_9
+#undef EVAL_FLAG_10
+#undef EVAL_FLAG_11
+#undef EVAL_FLAG_12
+#undef EVAL_FLAG_13
+#undef EVAL_FLAG_14
+#undef EVAL_FLAG_15
 
 
 //=//// EVAL_FLAG_RUNNING_ENFIX ///////////////////////////////////////////=//
@@ -231,9 +196,14 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
     FLAG_LEFT_BIT(17)
 
 
-//=//// EVAL_FLAG_18 //////////////////////////////////////////////////////=//
+//=//// EVAL_FLAG_FULFILLING_ARG //////////////////////////////////////////=//
 //
-#define EVAL_FLAG_18 \
+// Deferred lookback operations need to know when they are dealing with an
+// argument fulfillment for a function, e.g. `summation 1 2 3 |> 100` should
+// be `(summation 1 2 3) |> 100` and not `summation 1 2 (3 |> 100)`.  This
+// also means that `add 1 <| 2` will act as an error.
+//
+#define EVAL_FLAG_FULFILLING_ARG \
     FLAG_LEFT_BIT(18)
 
 
@@ -441,9 +411,15 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
     FLAG_LEFT_BIT(30)
 
 
-//=//// EVAL_FLAG_31 ///////////////////////////////////////=//
+//=//// EVAL_FLAG_DISPATCHER_CATCHES //////////////////////////////////////=//
 //
-#define EVAL_FLAG_31 \
+// While a continuation is running, the native or dispatcher that made the
+// request is no longer on the stack.  But if something like a WHILE loop
+// wishes to catch a BREAK, it has to be told about it.  Setting this flag
+// when asking for a continuation will give a callback in the thrown state,
+// which can be tested with Is_Throwing().
+//
+#define EVAL_FLAG_DISPATCHER_CATCHES \
     FLAG_LEFT_BIT(31)
 
 

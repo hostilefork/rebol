@@ -1214,6 +1214,7 @@ REB_R Action_Executor(REBFRM *f)
     // means of tracking extra state information?
     //
     SET_END(f_spare);
+    STATE_BYTE(f) = 0;  // reset to zero for each phase
 
     // While you can't evaluate into an array cell (because it may move)
     // an evaluation is allowed to be performed into stable cells on the

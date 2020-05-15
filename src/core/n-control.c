@@ -61,17 +61,28 @@ REBNATIVE(if)
 {
     INCLUDE_PARAMS_OF_IF;
 
-    if (not IS_END(D_SPARE)) {
-        assert(IS_BLANK(D_SPARE));  // our signal that this is a re-entry
-        return Voidify_If_Nulled(D_OUT);  // null reserved for branch not run
+    enum {
+        ST_IF_INITIAL_ENTRY,
+        ST_IF_BRANCH_WAS_EVALUATED
+    };
+
+    switch (D_STATE_BYTE) {
+      case ST_IF_INITIAL_ENTRY: goto initial_entry;
+      case ST_IF_BRANCH_WAS_EVALUATED: goto branch_was_evaluated;
+      default: assert(false);
     }
 
+  initial_entry: blockscope {
     if (IS_CONDITIONAL_FALSE(ARG(condition)))  // void or literal blocks fail
         return nullptr;  // branch not run, null signals ELSE and THEN
 
-    Init_Blank(D_SPARE);  // indicate next re-entry should return voidifed out
-
+    D_STATE_BYTE = ST_IF_BRANCH_WAS_EVALUATED;  // next entry
     CONTINUE_WITH (ARG(branch), ARG(condition));  // pass condition if action
+  }
+
+  branch_was_evaluated: blockscope {
+    return Voidify_If_Nulled(D_OUT);  // null reserved for branch not run
+  }
 }
 
 
@@ -867,7 +878,7 @@ REBNATIVE(none)
 
 
 //
-//  case: native [
+//  case1: native [
 //
 //  {Evaluates each condition, and when true, evaluates what follows it}
 //
@@ -880,9 +891,9 @@ REBNATIVE(none)
 //      /all "Do not stop after finding first logically true case"
 //  ]
 //
-REBNATIVE(case)
+REBNATIVE(case1)
 {
-    INCLUDE_PARAMS_OF_CASE;
+    INCLUDE_PARAMS_OF_CASE1;
 
     REBVAL *predicate = ARG(predicate);
     if (not IS_NULLED(predicate)) {
@@ -1041,7 +1052,7 @@ REBNATIVE(case)
 
 
 //
-//  case2: native [
+//  case: native [
 //
 //  {Evaluates each condition, and when true, evaluates what follows it}
 //
@@ -1054,33 +1065,37 @@ REBNATIVE(case)
 //          [word! path! action!]
 //  ]
 //
-REBNATIVE(case2)
+REBNATIVE(case)
 {
-    INCLUDE_PARAMS_OF_CASE2;
+    INCLUDE_PARAMS_OF_CASE;
 
     REBFRM *f;
     REBVAL *predicate = ARG(predicate);  // will be canonized on first call
     REBVAL *last_branch_result = ARG(return);  // don't need return cell
     REBVAL *predicate_label = ARG(cases);  // can reuse, `f` frame holds cases
 
-    if (IS_END(D_SPARE))
-        goto initial_entry_point; 
+    enum {
+        ST_CASE_INITIAL_ENTRY = 0,
+        ST_CASE_EVALUATE_NEW_CONDITION,
+        ST_CASE_CONDITION_WAS_EVALUATED,
+        ST_CASE_BRANCH_WAS_EVALUATED
+    };
+
+    if (D_STATE_BYTE == ST_CASE_INITIAL_ENTRY)
+        goto initial_entry;
 
     f = FS_TOP;
     assert(f->prior == frame_);  // !!! review this guaranteee
     assert(f->executor == nullptr);
 
-    if (IS_BLANK(D_SPARE))
-        goto evaluate_new_condition;
+    switch (D_STATE_BYTE) {
+      case ST_CASE_EVALUATE_NEW_CONDITION: goto evaluate_new_condition;
+      case ST_CASE_CONDITION_WAS_EVALUATED: goto condition_was_evaluated;
+      case ST_CASE_BRANCH_WAS_EVALUATED: goto branch_was_evaluated;
+      default: assert(false);
+    }
 
-    assert(IS_LOGIC(D_SPARE));
-    if (VAL_LOGIC(D_SPARE))
-        goto condition_was_evaluated;
-    else
-        goto branch_was_evaluated;
-
-  initial_entry_point:
-  blockscope {
+  initial_entry: blockscope {
     DECLARE_FRAME_AT (
         f_cases,  // will be named "f" on later calls
         ARG(cases),  // slot gets reused for `predicate_label`
@@ -1128,7 +1143,6 @@ REBNATIVE(case2)
 
   evaluate_new_condition: blockscope {
     Init_Nulled(D_OUT);  // Stale value if no condition found
-    Init_True(D_SPARE);  // Next entry point will be condition_was_evaluated
 
     if (IS_ACTION(predicate)) {
         Push_Action(f, VAL_ACTION(predicate), VAL_BINDING(predicate));
@@ -1136,6 +1150,8 @@ REBNATIVE(case2)
     }
     else
         INIT_F_EXECUTOR(f, &New_Expression_Executor);
+
+    D_STATE_BYTE = ST_CASE_CONDITION_WAS_EVALUATED;  // next entry
     return R_CONTINUATION;
   }
 
@@ -1170,8 +1186,9 @@ REBNATIVE(case2)
             // means it should do whatever that does w.r.t. enfix, etc.
             // Review implications.
             //
-            Init_Blank(D_SPARE);  // resume with evaluate_new_condition
             f->executor = &New_Expression_Executor;
+
+            D_STATE_BYTE = ST_CASE_EVALUATE_NEW_CONDITION;  // next entry
             return R_CONTINUATION;
         }
         else {
@@ -1189,8 +1206,6 @@ REBNATIVE(case2)
     // !!! This should test for legal branch types and have a message like
     // "illegal branch", which indicates the right location.  Right now it
     // allows FRAME! and the error is likely unhelpful.
-    //
-    Init_False(D_SPARE);  // will resume with branch_was_evaluated
 
     // !!! The `f` frame is on top, holding state for the enumeration.  We are
     // going to push another frame which will need its own enumeration state.
@@ -1199,6 +1214,8 @@ REBNATIVE(case2)
     // of crashing or erroring the frame that's just there would stay there.
     //
     INIT_F_EXECUTOR(f, &Finished_Executor);
+
+    D_STATE_BYTE = ST_CASE_BRANCH_WAS_EVALUATED;  // next entry
     return Init_Continuation_With_Core(
         D_OUT,
         f,
@@ -1234,7 +1251,7 @@ REBNATIVE(case2)
     //
     //     case /not [1 < 2 [...] 3 < 4 [...] 10 + 20] = 30
     //
-    if (not IS_NULLED(D_OUT)) // prioritize fallout result
+    if (not IS_NULLED(D_OUT))  // prioritize fallout result
         return D_OUT;
 
     assert(REF(all) or IS_NULLED(last_branch_result));

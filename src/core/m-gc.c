@@ -170,17 +170,20 @@ static void Queue_Mark_Node_Deep(void *p)
     if (first & NODE_BYTEMASK_0x10_MARKED)
         return;  // may not be finished marking yet, but has been queued
 
-    if (first & NODE_BYTEMASK_0x01_CELL) {  // e.g. a pairing
+    if (first & NODE_BYTEMASK_0x01_CELL) {
         REBVAL *v = VAL(p);
-        if (GET_CELL_FLAG(v, MANAGED))
-            Queue_Mark_Pairing_Deep(v);
-        else {
+        if (first & NODE_BYTEMASK_0x08_FRAME) {
+            //
             // !!! It's a frame?  API handle?  Skip frame case (keysource)
             // for now, but revisit as technique matures.
             //
             REBFRM *f = FRM(p);
             f->flags.bits |= NODE_FLAG_MARKED;
             goto append_to_stack;
+        }
+        else {  // e.g. a pairing
+            if (GET_CELL_FLAG(v, MANAGED))
+                Queue_Mark_Pairing_Deep(v);
         }
         return;  // it's 2 cells, sizeof(REBSER), but no room for REBSER data
     }

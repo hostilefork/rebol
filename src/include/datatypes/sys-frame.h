@@ -144,6 +144,16 @@ inline static int FRM_LINE(REBFRM *f) {
 #define F_SPECIFIER(f) \
     ((f)->feed->specifier)
 
+
+#if !defined(__cplusplus)
+    #define STATE_BYTE(f) \
+        mutable_SECOND_BYTE((f)->flags)
+#else
+    inline static REBYTE& STATE_BYTE(REBFRM *f)
+      { return mutable_SECOND_BYTE(f->flags); }
+#endif
+
+
 inline static void INIT_F_EXECUTOR(REBFRM *f, REBNAT executor)
 {
     if (f->original)
@@ -929,10 +939,11 @@ inline static void Drop_Dummy_Frame_Unbalanced(REBFRM *f) {
 // Quick access functions from natives (or compatible functions that name a
 // Reb_Frame pointer `frame_`) to get some of the common public fields.
 //
-#define D_FRAME     frame_
-#define D_OUT       FRM_OUT(frame_)         // GC-safe slot for output value
-#define D_SPARE     FRM_SPARE(frame_)       // scratch GC-safe cell
-#define D_THROWING  Is_Throwing(frame_)     // check continuation throw state
+#define D_FRAME         frame_
+#define D_OUT           FRM_OUT(frame_)         // GC-safe slot for output
+#define D_SPARE         FRM_SPARE(frame_)       // scratch GC-safe cell
+#define D_THROWING      Is_Throwing(frame_)     // check continuation throw
+#define D_STATE_BYTE    STATE_BYTE(frame_)      // eval byte (defaults 0)
 
 // !!! Numbered arguments got more complicated with the idea of moving the
 // definitional returns into the first slot (if applicable).  This makes it

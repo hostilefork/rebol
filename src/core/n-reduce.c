@@ -143,11 +143,18 @@ REBNATIVE(reduce2)
 
     REBVAL *v = ARG(value);
 
-    if (IS_LOGIC(D_SPARE))
-        goto eval_step_finished;
-    assert(IS_END(D_SPARE));
+    enum {
+        ST_REDUCE_INITIAL_ENTRY = 0,
+        ST_REDUCE_EVAL_STEP_FINISHED
+    };
 
-  blockscope {
+    switch (D_STATE_BYTE) {
+      case ST_REDUCE_INITIAL_ENTRY: goto initial_entry;
+      case ST_REDUCE_EVAL_STEP_FINISHED: goto eval_step_finished;
+      default: assert(false);
+    }
+
+  initial_entry: blockscope {
     if (not IS_BLOCK(v) and not IS_GROUP(v)) {
         //
         // Single value REDUCE does an EVAL, but doesn't allow arguments.
@@ -168,6 +175,8 @@ REBNATIVE(reduce2)
             | EVAL_FLAG_ALLOCATED_FEED
             | EVAL_FLAG_TRAMPOLINE_KEEPALIVE  // reused for each step
     );
+    INIT_F_EXECUTOR(f, &New_Expression_Executor);
+    SET_END(D_OUT);  // result if all invisibles
     Push_Frame(D_OUT, f);
 
     // We want the output newline status to mirror the newlines of the start
@@ -179,12 +188,11 @@ REBNATIVE(reduce2)
         ? false
         : GET_CELL_FLAG(F_VALUE(f), NEWLINE_BEFORE);
     Init_Logic(D_SPARE, newline_before);
-
+    D_STATE_BYTE = ST_REDUCE_EVAL_STEP_FINISHED;
     return R_CONTINUATION;
   }
 
-  eval_step_finished:
-  blockscope {
+  eval_step_finished: blockscope {
     if (Is_Throwing(frame_)) {
         DS_DROP_TO(frame_->dsp_orig);
         Abort_Frame(frame_);
@@ -223,8 +231,10 @@ REBNATIVE(reduce2)
             SET_CELL_FLAG(DS_TOP, NEWLINE_BEFORE);
 
         if (NOT_END(F_VALUE(f))) {
+            SET_END(D_OUT);  // result if all invisibles
             Init_Logic(D_SPARE, GET_CELL_FLAG(F_VALUE(f), NEWLINE_BEFORE));
-            f->executor = &New_Expression_Executor;  // start a new evaluation
+            INIT_F_EXECUTOR(f, &New_Expression_Executor);
+            assert(D_STATE_BYTE == ST_REDUCE_EVAL_STEP_FINISHED);
             return R_CONTINUATION;
         }
     }

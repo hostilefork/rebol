@@ -43,4 +43,5 @@
     ([304 1020] = reduce [comment <AE> 300 + 4 1000 + 20])
     ([304 1020] = reduce [300 + 4 comment <AE> 1000 + 20])
     ([304 1020] = reduce [300 + 4 1000 + 20 comment <AE>])
+    ([3] = reduce [1 + 2 comment "woo" () () ()])
 ]

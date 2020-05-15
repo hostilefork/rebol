@@ -18,10 +18,12 @@
 (1 = reeval func [] [reduce [return 1 2] 2])
 ; recursive behaviour
 (1 = first reduce [first reduce [1]])
+
 ; infinite recursion
 (
-    blk: [reduce blk]
-    error? trap blk
+    n: 0
+    blk: [elide if 10000 = n: n + 1 [throw <finished>] reduce blk]
+    <finished> = catch blk
 )
 
 ([3 _ 300] = reduce [1 + 2 if false [10 + 20] 100 + 200])

@@ -96,53 +96,6 @@ REBNATIVE(reduce)
 
     REBVAL *v = ARG(value);
 
-    if (IS_BLOCK(v) or IS_GROUP(v)) {
-        REBDSP dsp_orig = DSP;
-
-        if (Reduce_To_Stack_Throws(D_OUT, v, VAL_SPECIFIER(v)))
-            return R_THROWN;
-
-        REBFLGS pop_flags = NODE_FLAG_MANAGED | ARRAY_MASK_HAS_FILE_LINE;
-        if (GET_ARRAY_FLAG(VAL_ARRAY(v), NEWLINE_AT_TAIL))
-            pop_flags |= ARRAY_FLAG_NEWLINE_AT_TAIL;
-
-        return Init_Any_Array(
-            D_OUT,
-            VAL_TYPE(v),
-            Pop_Stack_Values_Core(dsp_orig, pop_flags)
-        );
-    }
-
-    // Single element REDUCE does an EVAL, but doesn't allow arguments.
-    // (R3-Alpha, would just return the input, e.g. `reduce :foo` => :foo)
-    // If there are arguments required, Eval_Value_Throws() will error.
-    //
-    // !!! Should the error be more "reduce-specific" if args were required?
-
-    if (Eval_Value_Throws(D_OUT, v, SPECIFIED))
-        return R_THROWN;
-
-    return D_OUT; // let caller worry about whether to error on nulls
-}
-
-
-//
-//  reduce2: native [
-//
-//  {Evaluates expressions, keeping each result (DO only gives last result)}
-//
-//      return: "New array or value"
-//          [<opt> any-value!]
-//      value "GROUP! and BLOCK! evaluate each item, single values evaluate"
-//          [any-value!]
-//  ]
-//
-REBNATIVE(reduce2)
-{
-    INCLUDE_PARAMS_OF_REDUCE2;
-
-    REBVAL *v = ARG(value);
-
     enum {
         ST_REDUCE_INITIAL_ENTRY = 0,
         ST_REDUCE_EVAL_STEP_FINISHED

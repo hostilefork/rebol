@@ -100,8 +100,9 @@
 
 ; infinite recursion
 (
-    blk: [case blk]
-    error? trap blk
+    n: 0
+    blk: [elide if 10000 = n: n + 1 [throw <finished>] case blk]
+    <finished> = catch blk
 )
 
 

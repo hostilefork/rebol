@@ -404,10 +404,9 @@ REBNATIVE(else)  // see `tweak :else #defer on` in %base-defs.r
     if (not IS_NULLED(ARG(optional)))  // Note: VOID!s are crucially non-NULL
         RETURN (ARG(optional));
 
-    if (Do_Branch_With_Throws(D_OUT, D_SPARE, ARG(branch), NULLED_CELL))
-        return R_THROWN;
-
-    return D_OUT;  // don't voidify, allows chaining: `else [...] then [...]`
+    // We don't "voidify" the result, allows chaining: `else [...] then [...]`
+    //
+    DELEGATE (ARG(branch));
 }
 
 
@@ -431,10 +430,9 @@ REBNATIVE(then)  // see `tweak :then #defer on` in %base-defs.r
     if (IS_NULLED(ARG(optional)))  // Note: VOID!s are crucially non-NULL
         return nullptr;  // left didn't run, so signal THEN didn't run either
 
-    if (Do_Branch_With_Throws(D_OUT, D_SPARE, ARG(branch), ARG(optional)))
-        return R_THROWN;
-
-    return D_OUT;  // don't voidify, allows chaining: `then [...] then [...]`
+    // We don't "voidify" the result, allows chaining: `then [...] then [...]`
+    //
+    DELEGATE_WITH (ARG(branch), ARG(optional));
 }
 
 
@@ -455,13 +453,28 @@ REBNATIVE(also)  // see `tweak :also #defer on` in %base-defs.r
 {
     INCLUDE_PARAMS_OF_ALSO;  // `then func [x] [(...) :x]` => `also [...]`
 
+    enum {
+        ST_ALSO_INITIAL_ENTRY = 0,
+        ST_ALSO_RETURN_ORIGINAL_INPUT
+    };
+
+    switch (D_STATE_BYTE) {
+      case ST_ALSO_INITIAL_ENTRY: goto initial_entry;
+      case ST_ALSO_RETURN_ORIGINAL_INPUT: goto return_original_input;
+      default: assert(false);
+    }
+
+  initial_entry: blockscope {
     if (IS_NULLED(ARG(optional)))  // Note: VOID!s are crucially non-NULL
         return nullptr;  // telegraph original input, but don't run
 
-    if (Do_Branch_With_Throws(D_OUT, D_SPARE, ARG(branch), ARG(optional)))
-        return R_THROWN;
+    D_STATE_BYTE = ST_ALSO_RETURN_ORIGINAL_INPUT;
+    CONTINUE_WITH (ARG(branch), ARG(optional));
+  }
 
+  return_original_input: blockscope {
     RETURN (ARG(optional));  // ran, but pass thru the original input
+  }
 }
 
 
@@ -499,10 +512,7 @@ REBNATIVE(either_match)
     if (VAL_LOGIC(D_OUT))
         RETURN (ARG(value));
 
-    if (Do_Branch_With_Throws(D_OUT, D_SPARE, ARG(branch), ARG(value)))
-        return R_THROWN;
-
-    return D_OUT;
+    DELEGATE_WITH (ARG(branch), ARG(value));
 }
 
 
@@ -874,180 +884,6 @@ REBNATIVE(none)
 
     Drop_Frame(f);
     return Init_True(D_OUT);  // !!! suggests LOGIC! on failure, bad?
-}
-
-
-//
-//  case1: native [
-//
-//  {Evaluates each condition, and when true, evaluates what follows it}
-//
-//      return: "Last matched case evaluation, or null if no cases matched"
-//          [<opt> any-value!]
-//      :predicate "Unary case-processing action (default is /DID)"
-//          [refinement! action! <skip>]
-//      cases "Conditions followed by branches"
-//          [block!]
-//      /all "Do not stop after finding first logically true case"
-//  ]
-//
-REBNATIVE(case1)
-{
-    INCLUDE_PARAMS_OF_CASE1;
-
-    REBVAL *predicate = ARG(predicate);
-    if (not IS_NULLED(predicate)) {
-        REBSTR *opt_label;
-        if (Get_If_Word_Or_Path_Throws(
-            D_OUT,
-            &opt_label,
-            predicate,
-            SPECIFIED,
-            false  // push_refinements = false, specialize for multiple uses
-        )){
-            return R_THROWN;
-        }
-        if (not IS_ACTION(D_OUT))
-            fail ("PREDICATE provided to CASE must look up to an ACTION!");
-
-        Move_Value(predicate, D_OUT);
-    }
-
-    DECLARE_FRAME_AT (f, ARG(cases), EVAL_MASK_DEFAULT);
-    SHORTHAND (v, f->feed->value, NEVERNULL(const RELVAL*));
-    SHORTHAND (specifier, f->feed->specifier, REBSPC*);
-
-    REBVAL *last_branch_result = ARG(cases);  // can reuse--frame holds cases
-    Init_Nulled(last_branch_result);  // default return result
-
-    Push_Frame(nullptr, f);
-
-    while (true) {
-
-        Init_Nulled(D_OUT);  // forget previous result, new case running
-
-        // Feed the frame forward one step for predicate argument.
-        //
-        // NOTE: It may seem tempting to run PREDICATE from on `f` directly,
-        // allowing it to take arity > 2.  Don't do this.  We have to get a
-        // true/false answer *and* know what the right hand argument was, for
-        // full case coverage and for DEFAULT to work.
-
-        if (Eval_Step_Maybe_Stale_Throws(D_OUT, f))
-            goto threw;
-
-        if (IS_END(*v)) {
-            CLEAR_CELL_FLAG(D_OUT, OUT_MARKED_STALE);
-            goto reached_end;
-        }
-
-        if (GET_CELL_FLAG(D_OUT, OUT_MARKED_STALE))
-            continue;  // a COMMENT, but not at end.
-
-        bool matched;
-        if (IS_NULLED(predicate)) {
-            matched = IS_TRUTHY(D_OUT);
-        }
-        else {
-            DECLARE_LOCAL (temp);
-            if (RunQ_Throws(
-                temp,
-                true,  // fully = true (e.g. argument must be taken)
-                rebU1(predicate),
-                D_OUT,  // argument
-                rebEND
-            )){
-                goto threw;
-            }
-            matched = IS_TRUTHY(temp);
-        }
-
-        if (not matched) {
-            if (IS_BLOCK(*v) or IS_ACTION(*v) or IS_QUOTED(*v)) {
-                //
-                // Accepted branches for IF/etc. that are skipped on no match
-            }
-            else if (IS_GROUP(*v)) {
-                //
-                // IF evaluates branches that are GROUP! even if it does not
-                // run them.  This implies CASE should too.
-                //
-                if (Eval_Value_Throws(D_SPARE, *v, *specifier)) {
-                    Move_Value(D_OUT, D_SPARE);
-                    goto threw;
-                }
-            }
-            else {
-                //
-                // Maintain symmetry with IF's on non-taken branches:
-                //
-                // >> if false <some-tag>
-                // ** Script Error: if does not allow tag! for its branch...
-                //
-                fail (Error_Bad_Value_Core(*v, *specifier));
-            }
-
-            Fetch_Next_Forget_Lookback(f); // skip next, whatever it is
-            continue;
-        }
-
-        // Can't use Do_Branch(), *v is unevaluated RELVAL...simulate it
-
-        if (IS_GROUP(*v)) {
-            if (Do_Any_Array_At_Throws(D_SPARE, *v, *specifier)) {
-                Move_Value(D_OUT, D_SPARE);
-                goto threw;
-            }
-            *v = D_SPARE;
-        }
-
-        if (IS_QUOTED(*v)) {
-            Unquotify(Derelativize(D_OUT, *v, *specifier), 1);
-        }
-        else if (IS_BLOCK(*v)) {
-            if (Do_Any_Array_At_Throws(D_OUT, *v, *specifier))
-                goto threw;
-        }
-        else if (IS_ACTION(*v)) {
-            DECLARE_LOCAL (temp);
-            if (Do_Branch_With_Throws(temp, nullptr, KNOWN(*v), D_OUT)) {
-                Move_Value(D_OUT, temp);
-                goto threw;
-            }
-            Move_Value(D_OUT, temp);
-        }
-        else
-            fail (Error_Bad_Value_Core(*v, *specifier));
-
-        Voidify_If_Nulled(D_OUT); // null is reserved for no branch taken
-
-        if (not REF(all)) {
-            Drop_Frame(f);
-            return D_OUT;
-        }
-
-        Move_Value(last_branch_result, D_OUT);
-        Fetch_Next_Forget_Lookback(f);  // keep matching if /ALL
-    }
-
-  reached_end:;
-
-    Drop_Frame(f);
-
-    // Last evaluation will "fall out" if there is no branch:
-    //
-    //     case /not [1 < 2 [...] 3 < 4 [...] 10 + 20] = 30
-    //
-    if (not IS_NULLED(D_OUT)) // prioritize fallout result
-        return D_OUT;
-
-    assert(REF(all) or IS_NULLED(last_branch_result));
-    RETURN (last_branch_result);  // else last branch "falls out", may be null
-
-  threw:;
-
-    Abort_Frame(f);
-    return R_THROWN;
 }
 
 
@@ -1487,15 +1323,24 @@ REBNATIVE(default)
 
     REBVAL *target = ARG(target);
 
+    enum {
+        ST_DEFAULT_INITIAL_ENTRY = 0,
+        ST_DEFAULT_BRANCH_WAS_EVALUATED
+    };
+
+    switch (D_STATE_BYTE) {
+      case ST_DEFAULT_INITIAL_ENTRY: goto initial_entry;
+      case ST_DEFAULT_BRANCH_WAS_EVALUATED: goto branch_was_evaluated;
+      default: assert(false);
+    }
+
+  initial_entry: blockscope {
     if (IS_NULLED(target)) { // e.g. `case [... default [...]]`
         UNUSED(ARG(look));
         if (NOT_END(frame_->feed->value))  // !!! shortcut w/variadic for now
             fail ("DEFAULT usage with no left hand side must be at <end>");
 
-        if (Do_Branch_Throws(D_OUT, D_SPARE, ARG(branch)))
-            return R_THROWN;
-
-        return D_OUT; // NULL is okay in this case
+        DELEGATE (ARG(branch));
     }
 
     if (IS_SET_WORD(target))
@@ -1560,9 +1405,11 @@ REBNATIVE(default)
         return D_OUT;  // count it as "already set" !!! is this right?
     }
 
-    if (Do_Branch_Throws(D_OUT, D_SPARE, ARG(branch)))
-        return R_THROWN;
+    D_STATE_BYTE = ST_DEFAULT_BRANCH_WAS_EVALUATED;
+    CONTINUE (ARG(branch));
+  }
 
+  branch_was_evaluated: blockscope {
     if (IS_SET_WORD(target))
         Move_Value(Sink_Word_May_Fail(target, SPECIFIED), D_OUT);
     else {
@@ -1582,6 +1429,7 @@ REBNATIVE(default)
         }
     }
     return D_OUT;
+  }
 }
 
 

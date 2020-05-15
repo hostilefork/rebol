@@ -1588,7 +1588,8 @@ REB_R Typeset_Checker_Dispatcher(REBFRM *f)
 //
 REB_R Unchecked_Dispatcher(REBFRM *f)
 {
-    return Init_Delegation_Details_0(f->out, f);  // no re-entry after eval
+    Push_Delegation_Details_0(f->out, f);  // no re-entry after eval
+    return R_CONTINUATION;
 }
 
 
@@ -1601,7 +1602,8 @@ REB_R Voider_Dispatcher(REBFRM *f)
 {
     if (IS_END(FRM_SPARE(f))) {  // first run
         Init_Blank(FRM_SPARE(f));  // mark we are no longer on first entry
-        return Init_Continuation_Details_0(f->out, f);  // re-enter after eval
+        Push_Continuation_Details_0(f->out, f);  // re-enter after eval
+        return R_CONTINUATION;
     }
     assert(IS_BLANK(FRM_SPARE(f)));  // should not have changed
 
@@ -1621,7 +1623,8 @@ REB_R Returner_Dispatcher(REBFRM *f)
 {
     if (IS_END(FRM_SPARE(f))) {  // first run
         Init_Blank(FRM_SPARE(f));  // mark we are no longer on first entry
-        return Init_Continuation_Details_0(f->out, f);  // re-enter after eval
+        Push_Continuation_Details_0(f->out, f);  // re-enter after eval
+        return R_CONTINUATION;
     }
     assert(IS_BLANK(FRM_SPARE(f)));  // should not have changed
 
@@ -1663,7 +1666,8 @@ REB_R Elider_Dispatcher(REBFRM *f)
             if (GET_CELL_FLAG(f->out, UNEVALUATED))
                 SET_CELL_FLAG(FRM_SPARE(f), UNEVALUATED);  // proxy eval flag
         }
-        return Init_Continuation_Details_0(f->out, f);  // re-entry after eval
+        Push_Continuation_Details_0(f->out, f);  // re-entry after eval
+        return R_CONTINUATION;
     }
 
     if (GET_CELL_FLAG(FRM_SPARE(f), SPARE_MARKED_END)) {
@@ -1749,7 +1753,8 @@ REB_R Adapter_Dispatcher(REBFRM *f)
         //
         assert(IS_BLOCK(ARR_HEAD(details)));  // the prelude
         Init_Blank(FRM_SPARE(f));  // Indicate we're on "phase two"
-        return Init_Continuation_Details_0(f->out, f);  // re-enter after eval
+        Push_Continuation_Details_0(f->out, f);  // re-enter after eval
+        return R_CONTINUATION;
     }
 
     assert(IS_BLANK(FRM_SPARE(f)));  // how we indicated second run
@@ -1825,7 +1830,7 @@ REB_R Encloser_Dispatcher(REBFRM *f)
     // have stolen the original frame--there is no longer a complete entity to
     // come back and reinvoke.
     //
-    return Init_Continuation_With_Core(
+    Push_Continuation_With_Core(
         f->out,
         f,
         EVAL_FLAG_DELEGATE_CONTROL,
@@ -1833,6 +1838,7 @@ REB_R Encloser_Dispatcher(REBFRM *f)
         SPECIFIED,
         rootvar
     );
+    return R_CONTINUATION;
 }
 
 

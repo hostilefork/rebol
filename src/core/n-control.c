@@ -1052,7 +1052,7 @@ REBNATIVE(case)
     INIT_F_EXECUTOR(f, &Finished_Executor);
 
     D_STATE_BYTE = ST_CASE_BRANCH_WAS_EVALUATED;  // next entry
-    return Init_Continuation_With_Core(
+    Push_Continuation_With_Core(
         D_OUT,
         f,
         0,  // don't delegate, don't catch throws
@@ -1060,6 +1060,7 @@ REBNATIVE(case)
         F_SPECIFIER(f),  // branch_specifier
         END_NODE  // with
     );
+    return R_CONTINUATION;
   }
 
   branch_was_evaluated: blockscope {

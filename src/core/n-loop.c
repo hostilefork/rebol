@@ -149,7 +149,7 @@ static REB_R Loop_Series_Common(
     //
     REBINT s = VAL_INDEX(start);
     if (s == end) {
-        if (Do_Branch_Throws(out, nullptr, body)) {
+        if (Do_Branch_Throws(out, body)) {
             bool broke;
             if (not Catching_Break_Or_Continue(out, &broke))
                 return R_THROWN;
@@ -172,7 +172,7 @@ static REB_R Loop_Series_Common(
             ? cast(REBINT, *state) <= end
             : cast(REBINT, *state) >= end
     ){
-        if (Do_Branch_Throws(out, nullptr, body)) {
+        if (Do_Branch_Throws(out, body)) {
             bool broke;
             if (not Catching_Break_Or_Continue(out, &broke))
                 return R_THROWN;
@@ -225,7 +225,7 @@ static REB_R Loop_Integer_Common(
     // Run only once if start is equal to end...edge case.
     //
     if (start == end) {
-        if (Do_Branch_Throws(out, nullptr, body)) {
+        if (Do_Branch_Throws(out, body)) {
             bool broke;
             if (not Catching_Break_Or_Continue(out, &broke))
                 return R_THROWN;
@@ -244,7 +244,7 @@ static REB_R Loop_Integer_Common(
         return nullptr;  // avoid infinite loops
 
     while (counting_up ? *state <= end : *state >= end) {
-        if (Do_Branch_Throws(out, nullptr, body)) {
+        if (Do_Branch_Throws(out, body)) {
             bool broke;
             if (not Catching_Break_Or_Continue(out, &broke))
                 return R_THROWN;
@@ -311,7 +311,7 @@ static REB_R Loop_Number_Common(
     // Run only once if start is equal to end...edge case.
     //
     if (s == e) {
-        if (Do_Branch_Throws(out, nullptr, body)) {
+        if (Do_Branch_Throws(out, body)) {
             bool broke;
             if (not Catching_Break_Or_Continue(out, &broke))
                 return R_THROWN;
@@ -328,7 +328,7 @@ static REB_R Loop_Number_Common(
         return Init_Blank(out);  // avoid infinite loop, blank means never ran
 
     while (counting_up ? *state <= e : *state >= e) {
-        if (Do_Branch_Throws(out, nullptr, body)) {
+        if (Do_Branch_Throws(out, body)) {
             bool broke;
             if (not Catching_Break_Or_Continue(out, &broke))
                 return R_THROWN;
@@ -569,7 +569,7 @@ static REB_R Loop_Each_Core(struct Loop_Each_State *les) {
             }
         }
 
-        if (Do_Branch_Throws(les->out, nullptr, les->body)) {
+        if (Do_Branch_Throws(les->out, les->body)) {
             if (not Catching_Break_Or_Continue(les->out, &broke))
                 return R_THROWN;  // non-loop-related throw
 
@@ -914,7 +914,7 @@ REBNATIVE(for_skip)
             VAL_INDEX(var) = index;
         }
 
-        if (Do_Branch_Throws(D_OUT, nullptr, ARG(body))) {
+        if (Do_Branch_Throws(D_OUT, ARG(body))) {
             bool broke;
             if (not Catching_Break_Or_Continue(D_OUT, &broke))
                 return R_THROWN;
@@ -995,7 +995,7 @@ REBNATIVE(cycle)
     INCLUDE_PARAMS_OF_CYCLE;
 
     do {
-        if (Do_Branch_Throws(D_OUT, nullptr, ARG(body))) {
+        if (Do_Branch_Throws(D_OUT, ARG(body))) {
             bool broke;
             if (not Catching_Break_Or_Continue(D_OUT, &broke)) {
                 const REBVAL *label = VAL_THROWN_LABEL(D_OUT);
@@ -1267,7 +1267,7 @@ static REB_R Remove_Each_Core(struct Remove_Each_State *res)
             ++index;
         }
 
-        if (Do_Branch_Throws(res->out, nullptr, res->body)) {
+        if (Do_Branch_Throws(res->out, res->body)) {
             if (not Catching_Break_Or_Continue(res->out, &res->broke)) {
                 REBLEN removals = Finalize_Remove_Each(res);
                 UNUSED(removals);
@@ -1545,7 +1545,7 @@ REBNATIVE(loop)
         count = Int64(ARG(count));
 
     for (; count > 0; count--) {
-        if (Do_Branch_Throws(D_OUT, nullptr, ARG(body))) {
+        if (Do_Branch_Throws(D_OUT, ARG(body))) {
             bool broke;
             if (not Catching_Break_Or_Continue(D_OUT, &broke))
                 return R_THROWN;
@@ -1627,7 +1627,7 @@ REBNATIVE(until)
     INCLUDE_PARAMS_OF_UNTIL;
 
     do {
-        if (Do_Branch_Throws(D_OUT, nullptr, ARG(body))) {
+        if (Do_Branch_Throws(D_OUT, ARG(body))) {
             bool broke;
             if (not Catching_Break_Or_Continue(D_OUT, &broke))
                 return R_THROWN;

@@ -973,7 +973,7 @@ inline static REBVAL *D_ARG_Core(REBFRM *f, REBLEN n) {  // 1 for first arg
 // continuation finishes, and its f->out pointer will contain whatever was
 // produced.
 //
-inline static REB_R Init_Continuation_With_Core(
+inline static REBFRM *Push_Continuation_With_Core(
     REBVAL *out,
     REBFRM *f,
     REBFLGS flags,  // EVAL_FLAG_(DELEGATE_CONTROL/DISPATCHER_CATCHES)
@@ -1014,7 +1014,7 @@ inline static REB_R Init_Continuation_With_Core(
         Init_Void(out);  // in case all invisibles, as usual
         Push_Frame(out, blockframe);
         INIT_F_EXECUTOR(blockframe, &New_Expression_Executor);
-        return R_CONTINUATION; }
+        return blockframe; }
 
       case REB_ACTION: {
         REBACT *action = VAL_ACTION(branch);
@@ -1048,7 +1048,7 @@ inline static REB_R Init_Continuation_With_Core(
         Push_Action(subframe, action, binding);
         REBSTR *opt_label = nullptr;
         Begin_Prefix_Action(subframe, opt_label);
-        return R_CONTINUATION; }
+        return subframe; }
 
       group_continuation:
       case REB_GROUP: {
@@ -1066,7 +1066,7 @@ inline static REB_R Init_Continuation_With_Core(
         INIT_F_EXECUTOR(subframe, &Brancher_Executor);
         Push_Frame(out, subframe);
         Derelativize(FRM_SPARE(subframe), branch, branch_specifier);
-        return R_CONTINUATION; }
+        return subframe; }
 
       case REB_SYM_WORD:
       case REB_SYM_PATH: {
@@ -1095,7 +1095,7 @@ inline static REB_R Init_Continuation_With_Core(
             push_refinements
         );
         if (threw)
-            return R_THROWN;
+            fail ("Unsupported THROW in branch (TBD)");
 
         if (IS_VOID(out))  // need `[:x]` if it's void (unset)
             fail (Error_Need_Non_Void_Core(branch, branch_specifier));
@@ -1176,7 +1176,7 @@ inline static REB_R Init_Continuation_With_Core(
 
         REBSTR *opt_label = nullptr;
         Begin_Prefix_Action(subframe, opt_label);
-        return R_CONTINUATION; }
+        return subframe; }
 
       default:
         //
@@ -1192,12 +1192,12 @@ inline static REB_R Init_Continuation_With_Core(
     DECLARE_END_FRAME (subframe, EVAL_MASK_DEFAULT);
     INIT_F_EXECUTOR(subframe, &Finished_Executor);
     Push_Frame(f->out, subframe);
-    return R_CONTINUATION;
+    return subframe;
   }
 }
 
-#define Init_Continuation_With(out,f,flags,branch,with) \
-    Init_Continuation_With_Core( \
+#define Push_Continuation_With(out,f,flags,branch,with) \
+    Push_Continuation_With_Core( \
         (out), /* Note: repeat macro arg `f` as (f)->out would be bad! */ \
         (f), \
         (flags), \
@@ -1206,29 +1206,44 @@ inline static REB_R Init_Continuation_With_Core(
         (with))
 
 #define DELEGATE(branch) \
-    return Init_Continuation_With( \
-        frame_->out, frame_, EVAL_FLAG_DELEGATE_CONTROL, (branch), END_NODE) 
+    do { \
+        Push_Continuation_With(frame_->out, \
+            frame_, EVAL_FLAG_DELEGATE_CONTROL, (branch), END_NODE); \
+        return R_CONTINUATION; \
+    } while (0)
 
 #define DELEGATE_WITH(branch,with) \
-    return Init_Continuation_With( \
-        frame_->out, frame_, EVAL_FLAG_DELEGATE_CONTROL, (branch), (with))
+    do { \
+        Push_Continuation_With(frame_->out, \
+            frame_, EVAL_FLAG_DELEGATE_CONTROL, (branch), (with)); \
+        return R_CONTINUATION; \
+    } while (0)
 
 #define CONTINUE(branch) \
-    return Init_Continuation_With(frame_->out, frame_, 0, (branch), END_NODE)
+    do { \
+        Push_Continuation_With(frame_->out, frame_, 0, (branch), END_NODE); \
+        return R_CONTINUATION; \
+    } while (0)
 
 #define CONTINUE_WITH(branch,with) \
-    return Init_Continuation_With(frame_->out, frame_, 0, (branch), (with))
+    do { \
+        Push_Continuation_With(frame_->out, frame_, 0, (branch), (with)); \
+        return R_CONTINUATION; \
+    } while (0)
 
 #define CONTINUE_CATCHABLE(branch) \
-    return Init_Continuation_With( \
-        frame_->out, frame_, EVAL_FLAG_DISPATCHER_CATCHES, (branch), END_NODE)
+    do { \
+        Push_Continuation_With(frame_->out, \
+            frame_, EVAL_FLAG_DISPATCHER_CATCHES, (branch), END_NODE); \
+        return R_CONTINUATION; \
+    } while (0)
 
 
 // Common behavior shared by dispatchers which execute on BLOCK!s of code.
 // Assumes the code to be run is in the first details slot, and is relative
 // to the varlist of the frame.
 //
-inline static REB_R Init_Continuation_Details_0_Core(
+inline static REBFRM *Push_Continuation_Details_0_Core(
     REBVAL *out,  // !!! See assert below
     REBFRM *f,
     REBFLGS flags
@@ -1261,7 +1276,7 @@ inline static REB_R Init_Continuation_Details_0_Core(
     // paramlist but do not have an instance of an action to line them up
     // with.  We use the frame (identified by varlist) as the "specifier".
     //
-    return Init_Continuation_With_Core(
+    return Push_Continuation_With_Core(
         out,
         f,
         flags,
@@ -1271,11 +1286,11 @@ inline static REB_R Init_Continuation_Details_0_Core(
     );
 }
 
-#define Init_Continuation_Details_0(out,f) \
-    Init_Continuation_Details_0_Core((out), (f), 0)
+#define Push_Continuation_Details_0(out,f) \
+    Push_Continuation_Details_0_Core((out), (f), 0)
 
-#define Init_Delegation_Details_0(out,f) \
-    Init_Continuation_Details_0_Core((out), (f), EVAL_FLAG_DELEGATE_CONTROL)
+#define Push_Delegation_Details_0(out,f) \
+    Push_Continuation_Details_0_Core((out), (f), EVAL_FLAG_DELEGATE_CONTROL)
 
 
 // The native entry prelude makes sure that once native code starts running,

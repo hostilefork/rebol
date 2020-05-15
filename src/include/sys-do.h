@@ -175,88 +175,30 @@ inline static bool RunQ_Throws(
 //
 inline static bool Do_Branch_Core_Throws(
     REBVAL *out,
-    REBVAL *cell,  // mutable temporary scratch cell, only if SYM-GROUP! legal
     const REBVAL *branch,
     const REBVAL *condition  // can be END, but use nullptr vs. a NULLED cell!
 ){
     assert(branch != out and condition != out);
 
-    enum Reb_Kind kind = VAL_TYPE(branch);
-
-  redo:
-
-    switch (kind) {
-      case REB_QUOTED:
-        Unquotify(Move_Value(out, branch), 1);
-        return false;
-
-      case REB_BLOCK:
-        return Do_Any_Array_At_Throws(out, branch, SPECIFIED);
-
-      case REB_ACTION:
-        return RunQ_Throws(
-            out,
-            false, // !fully, e.g. arity-0 functions can ignore condition
-            rebU1(branch),
-            condition, // may be an END marker, if not Do_Branch_With() case
-            rebEND // ...but if condition wasn't an END marker, we need one
-        );
-
-      case REB_BLANK:
-        Init_Nulled(out);
-        return false;
-
-      case REB_SYM_WORD:
-      case REB_SYM_PATH: {
-        REBSTR *name;
-        const bool push_refinements = false;
-        if (Get_If_Word_Or_Path_Throws(
-            out,
-            &name,
-            branch,
-            SPECIFIED,
-            push_refinements
-        )) {
-            return true;
-        }
-
-        if (IS_VOID(out))  // need `[:x]` if it's void (unset)
-            fail (Error_Need_Non_Void_Core(branch, SPECIFIED));
-
-        return false; }
-
-      case REB_SYM_GROUP: {
-        assert(cell != nullptr);  // needs GC-safe cell for this case
-
-        // A SYM-GROUP! can be used for opportunistic double-evaluation, e.g.
-        // code which generates a branch -but- that code is run only if the
-        // branch is applicable:
-        //
-        //    >> either 1 (print "prints" [2 + 3]) (print "this too" [4 + 5])
-        //    prints
-        //    this too
-        //    == 5
-        //
-        //    >> either 1 @(print "prints" [2 + 3]) @(print "doesn't" [4 + 5])
-        //    prints
-        //    == 5
-        //
-        if (Do_Any_Array_At_Throws(cell, branch, SPECIFIED))
-            return true;
-
-        branch = cell;
-        kind = VAL_TYPE(branch);
-        goto redo; }  // Note: Could potentially infinite loop if SYM-GROUP!
-
-      default:
-        break;
-    }
-
-    fail ("Bad branch type");
+    // !!! In the interests of avoiding code duplication, this goes ahead and
+    // invokes the trampoline directly with the same continuation code used
+    // by stackless IF, CASE, DEFAULT, etc. on branches.
+    //
+    REBFRM *f = Push_Continuation_With_Core(
+        out,
+        FS_TOP,  // should not be touched
+        0,  // no flags (hence passed in frame ignored)
+        branch,
+        SPECIFIED,
+        condition
+    );
+    bool threw = (*PG_Trampoline_Throws)(f);
+    Drop_Frame(f);
+    return threw;
 }
 
-#define Do_Branch_With_Throws(out,cell,branch,condition) \
-    Do_Branch_Core_Throws((out), (cell), (branch), NULLIFY_NULLED(condition))
+#define Do_Branch_With_Throws(out,branch,condition) \
+    Do_Branch_Core_Throws((out), (branch), NULLIFY_NULLED(condition))
 
-#define Do_Branch_Throws(out,cell,branch) \
-    Do_Branch_Core_Throws((out), (cell), (branch), END_NODE)
+#define Do_Branch_Throws(out,branch) \
+    Do_Branch_Core_Throws((out), (branch), END_NODE)

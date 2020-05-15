@@ -25,7 +25,7 @@
 #include "sys-core.h"
 
 enum {
-    IDX_YIELDER_BODY = 0,  // Init_Continuation_Details_0() uses details[0]
+    IDX_YIELDER_BODY = 0,  // Push_Continuation_Details_0() uses details[0]
     IDX_YIELDER_STATE = 1,  // can't be frame spare (that's reset each call!)
     IDX_YIELDER_LAST_YIELDER_CONTEXT = 2,  // frame stack fragment to resume
     IDX_YIELDER_LAST_YIELD_RESULT = 3,  // so that `z: yield 1 + 2` is useful
@@ -70,7 +70,8 @@ REB_R Yielder_Dispatcher(REBFRM *f)
         // If there is no yield, we want a callback so we can mark the
         // generator as finished.
         //
-        return Init_Continuation_Details_0(f->out, f);  // re-enter after eval
+        Push_Continuation_Details_0(f->out, f);  // re-enter after eval
+        return R_CONTINUATION;
     }
 
     if (IS_FRAME(state)) {  // interrupted frame stack fragment needs resuming

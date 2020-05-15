@@ -1254,7 +1254,7 @@ REB_R Downshot_Dispatcher(REBFRM *f) // runs until count is reached
     --VAL_INT64(n);
 
     REBVAL *code = FRM_ARG(f, 1);
-    if (Do_Branch_Throws(f->out, FRM_SPARE(f), code))
+    if (Do_Branch_Throws(f->out, code))
         return R_THROWN;
 
     return Voidify_If_Nulled(f->out);
@@ -1273,7 +1273,7 @@ REB_R Upshot_Dispatcher(REBFRM *f) // won't run until count is reached
     }
 
     REBVAL *code = FRM_ARG(f, 1);
-    if (Do_Branch_Throws(f->out, FRM_SPARE(f), code))
+    if (Do_Branch_Throws(f->out, code))
         return R_THROWN;
 
     return Voidify_If_Nulled(f->out);

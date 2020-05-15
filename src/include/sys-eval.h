@@ -101,7 +101,7 @@
 //
 inline static bool Eval_Throws(REBFRM *f) {
     assert(f == FS_TOP);
-    return (*PG_Trampoline_Throws)();
+    return (*PG_Trampoline_Throws)(f);
 }
 
 
@@ -233,13 +233,14 @@ inline static bool Did_Init_Inert_Optimize_Complete(
 inline static bool Eval_Step_Maybe_Stale_Throws(
     REBVAL *out,
     REBFRM *f
-){  assert(f == FS_TOP);
+){
+    assert(f == FS_TOP);
     assert(NOT_FEED_FLAG(f->feed, NO_LOOKAHEAD));
 
     f->out = out;
     f->dsp_orig = DSP;
     f->executor = &New_Expression_Executor;
-    return (*PG_Trampoline_Throws)(); // should already be pushed;
+    return (*PG_Trampoline_Throws)(f); // should already be pushed;
 }
 
 inline static bool Eval_Step_Throws(REBVAL *out, REBFRM *f) {
@@ -291,7 +292,7 @@ inline static bool Reevaluate_In_Subframe_Maybe_Stale_Throws(
     subframe->u.reval.value = reval;
 
     Push_Frame(out, subframe);
-    bool threw = (*PG_Trampoline_Throws)();
+    bool threw = (*PG_Trampoline_Throws)(subframe);
     Drop_Frame(subframe);
 
     return threw;

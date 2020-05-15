@@ -64,10 +64,9 @@
 // as continuations are run.  This is radically different, and is requiring
 // rethinking during the stackless transition.
 //
-bool Trampoline_Throws(void)
+bool Trampoline_Throws(REBFRM *f_stop)
 {
-    REBFRM *start = FS_TOP;
-    REBFRM *f = start;  // *usually* FS_TOP, unless requested to not drop
+    REBFRM *f = FS_TOP;  // *usually* FS_TOP, unless requested to not drop
 
   loop:
 
@@ -92,7 +91,7 @@ bool Trampoline_Throws(void)
         // makes the call, it's not stackless...e.g. it should be written
         // some other way.
         //
-        if (f == start)
+        if (f == f_stop)
             return false;
 
         // Some natives and executors want to be able to leave a pushed frame
@@ -124,7 +123,7 @@ bool Trampoline_Throws(void)
   #endif
 
     if (r == R_THROWN) {
-        while (f != start) {
+        while (f != f_stop) {
             if (not f->original and f->out != f->prior->out) {
                 //assert(f->out == FRM_SPARE(f->prior));
                 Move_Value(f->prior->out, f->out);
@@ -169,7 +168,7 @@ bool Trampoline_Throws(void)
         goto loop;
     }
 
-    assert(f == start);
+    assert(f == f_stop);
 
     assert(r == R_THROWN);
     return true;  // thrown

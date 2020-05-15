@@ -58,7 +58,7 @@ inline static bool Do_Feed_To_End_Maybe_Stale_Throws(
     Push_Frame(out, f);
     do {
         f->executor = &New_Expression_Executor;
-        threw = (*PG_Trampoline_Throws)();
+        threw = (*PG_Trampoline_Throws)(f);
     } while (not threw and NOT_END(feed->value));
     Drop_Frame(f);
 

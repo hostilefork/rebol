@@ -148,7 +148,7 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
             return true;
     }
     else {  // !!! Reusing the frame, would inert optimization be worth it?
-        if ((*PG_Trampoline_Throws)())  // reuse `f`
+        if ((*PG_Trampoline_Throws)(f))  // reuse `f`
             return true;
     }
 

@@ -260,9 +260,11 @@ REBVAL *Spawn_Interrupt_Dangerous(void *opaque)
 // would not interfere.  But in a single-threaded model, we make sure we
 // don't add any stack levels in the hoook.
 //
-bool Stepper_Eval_Hook_Throws(REBFRM * const f)
+bool Stepper_Eval_Hook_Throws(REBFRM *f_stop)
 {
-    assert(f == FS_TOP);
+    UNUSED(f_stop);
+
+    REBFRM *f = FS_TOP;
 
     // At the moment, the only thing the stepper eval hook does is set a
     // signal for a breakpoint to happen on the *next* instruction.
@@ -277,7 +279,7 @@ bool Stepper_Eval_Hook_Throws(REBFRM * const f)
     //
     PG_Trampoline_Throws = &Trampoline_Throws;
 
-    bool threw = Trampoline_Throws();
+    bool threw = Trampoline_Throws(f);
 
     // !!! We cannot run more code while in a thrown state, hence we could not
     // invoke a nested console after a throw.  We have to either set a global

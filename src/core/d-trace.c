@@ -206,13 +206,15 @@ REBVAL *Trace_Eval_Dangerous(REBFRM *f)
 // it doesn't use printf, but relies on features not exposed to usermode.  As
 // the debug and hooking API matures this should be split into the two forms.
 //
-bool Traced_Eval_Hook_Throws(void)
+bool Traced_Eval_Hook_Throws(REBFRM *f_stop)
 {
+    UNUSED(f_stop);
+
     REBFRM *f = FS_TOP;
 
     int depth = Eval_Depth() - Trace_Depth;
     if (depth < 0 || depth >= Trace_Level)
-        return Trampoline_Throws();  // (REPL uses to hide)
+        return Trampoline_Throws(f);  // (REPL uses to hide)
 
     SHORTHAND (v, f->feed->value, NEVERNULL(const RELVAL*));
 
@@ -245,7 +247,7 @@ bool Traced_Eval_Hook_Throws(void)
     REBNAT saved_dispatch_hook = PG_Dispatch;
     PG_Dispatch = &Traced_Dispatch_Hook;
 
-    bool threw = Trampoline_Throws();
+    bool threw = Trampoline_Throws(f);
 
     PG_Dispatch = saved_dispatch_hook;
 

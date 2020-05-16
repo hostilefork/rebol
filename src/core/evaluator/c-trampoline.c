@@ -85,6 +85,23 @@ bool Trampoline_Throws(REBFRM *f_stop)
     if (f->executor == nullptr) {  // no further execution for frame, drop it
         assert(r == f->out);
 
+        assert(Eval_Count >= 0);
+        if (--Eval_Count == 0) {
+            SET_END(FRM_SPARE(f));
+
+            // Note that Do_Signals_Throws() may do a recycle step of the GC,
+            // or may spawn an entire interactive debugging session via
+            // breakpoint before it returns.  May also FAIL and longjmp out.
+            //
+            if (Do_Signals_Throws(FRM_SPARE(f))) {
+                Move_Value(f->out, FRM_SPARE(f));
+                r = R_THROWN;
+                goto thrown;
+            }
+
+            assert(FRM_SPARE(f));
+        }
+
         // !!! Currently we do not drop the topmost frame, because some code
         // (e.g. MATCH) would ask for a frame to be filled, and then steal
         // its resulting varlist.  However, if MATCH is on the stack when it
@@ -123,6 +140,7 @@ bool Trampoline_Throws(REBFRM *f_stop)
   #endif
 
     if (r == R_THROWN) {
+      thrown:
         while (f != f_stop) {
             if (not f->original and f->out != f->prior->out) {
                 //assert(f->out == FRM_SPARE(f->prior));

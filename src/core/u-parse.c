@@ -88,22 +88,34 @@
 #define P_RULE              (f->feed->value + 0)  // rvalue
 #define P_RULE_SPECIFIER    (f->feed->specifier + 0)  // rvalue
 
-#define P_INPUT_VALUE       (f->rootvar + 1)
+#define P_RETURN_VALUE      (f->rootvar + 1)
+
+#define P_INPUT_VALUE       (f->rootvar + 2)
 #define P_TYPE              VAL_TYPE(P_INPUT_VALUE)
 #define P_INPUT             VAL_SERIES(P_INPUT_VALUE)
 #define P_INPUT_SPECIFIER   VAL_SPECIFIER(P_INPUT_VALUE)
 #define P_POS               VAL_INDEX(P_INPUT_VALUE)
 
-#define P_FIND_FLAGS_VALUE  (f->rootvar + 2)
+#define P_FIND_FLAGS_VALUE  (f->rootvar + 3)
 #define P_FIND_FLAGS        VAL_INT64(P_FIND_FLAGS_VALUE)
 #define P_HAS_CASE          (did (P_FIND_FLAGS & AM_FIND_CASE))
 
-#define P_COLLECTION_VALUE  (f->rootvar + 3)
+#define P_COLLECTION_VALUE  (f->rootvar + 4)
 #define P_COLLECTION \
     (IS_BLANK(P_COLLECTION_VALUE) ? nullptr : VAL_ARRAY(P_COLLECTION_VALUE))
 
-#define P_NUM_QUOTES_VALUE  (f->rootvar + 4)
+#define P_NUM_QUOTES_VALUE  (f->rootvar + 5)
 #define P_NUM_QUOTES        VAL_INT32(P_NUM_QUOTES_VALUE)
+
+#define P_MINCOUNT_VALUE    (f->rootvar + 6)
+#define P_MINCOUNT          VAL_INT32(P_MINCOUNT_VALUE)
+
+#define P_MAXCOUNT_VALUE    (f->rootvar + 7)
+#define P_MAXCOUNT          VAL_INT32(P_MAXCOUNT_VALUE)
+
+#define P_START_VALUE       (f->rootvar + 8)
+#define P_START             VAL_INT32(P_START_VALUE)
+
 
 #define P_OUT (f->out)
 
@@ -200,6 +212,8 @@ void Pack_Subparse(
     f->arg = m_cast(REBVAL*, END_NODE);
     f->special = END_NODE;
 
+    Init_Nulled(Prep_Stack_Cell(P_RETURN_VALUE));  // not used
+
     Derelativize(Prep_Stack_Cell(P_INPUT_VALUE), input, input_specifier);
 
     // We always want "case-sensitivity" on binary bytes, vs. treating as
@@ -222,12 +236,17 @@ void Pack_Subparse(
     else
         Init_Blank(Prep_Stack_Cell(P_COLLECTION_VALUE));
 
-    // Need to track NUM-QUOTES somewhere that it can be read from the frame
+    // These are <local>, which means they're not things you can pass in to
+    // subparse.  They are calculated from the parameters on the first entry.
     //
     Init_Nulled(Prep_Stack_Cell(P_NUM_QUOTES_VALUE));
+    Init_Nulled(Prep_Stack_Cell(P_MINCOUNT_VALUE));
+    Init_Nulled(Prep_Stack_Cell(P_MAXCOUNT_VALUE));
+    Init_Nulled(Prep_Stack_Cell(P_START_VALUE));
 
-    assert(ACT_NUM_PARAMS(NAT_ACTION(subparse)) == 5); // checks RETURN:
-    Init_Nulled(Prep_Stack_Cell(f->rootvar + 5));
+    assert(
+        f->rootvar + ACT_NUM_PARAMS(NAT_ACTION(subparse)) == P_START_VALUE
+    );
 }
 
 
@@ -327,8 +346,9 @@ static bool Subparse_Throws(
     // !!! When all calls are converted to stackless, this will never do a
     // C-style recursion.
     //
-    const REBVAL *r = N_subparse(f);
-    Drop_Action(f);  // handled by Action_Executor() if stackless
+    bool threw = Eval_Throws(f);
+
+    const REBVAL *r = threw ? R_THROWN : out;
 
     return Unpack_Subparse_Throws(
         interrupted_out,
@@ -1400,7 +1420,7 @@ static REB_R Handle_Seek_Rule_Dont_Update_Begin(
 //      find-flags [integer!]
 //      collection "Array into which any KEEP values are collected"
 //          [blank! any-series!]
-//      <local> num-quotes
+//      <local> num-quotes mincount maxcount start
 //  ]
 //
 REBNATIVE(subparse)
@@ -1430,7 +1450,6 @@ REBNATIVE(subparse)
 // * A special throw to indicate a return out of the PARSE itself, triggered
 // by the RETURN instruction.  This also returns a thrown value, but will
 // be caught by PARSE before returning.
-//
 {
     INCLUDE_PARAMS_OF_SUBPARSE;
 
@@ -1440,6 +1459,8 @@ REBNATIVE(subparse)
 
     REBFRM *f = frame_; // nice alias of implicit native parameter
 
+  if (D_STATE_BYTE == 0) {
+    //
     // If the input is quoted, e.g. `parse lit ''''[...] [rules]`, we dequote
     // it while we are processing the ARG().  This is because we are trying
     // to update and maintain the value as we work in a way that can be shown
@@ -1452,6 +1473,29 @@ REBNATIVE(subparse)
     //
     Init_Integer(P_NUM_QUOTES_VALUE, VAL_NUM_QUOTES(P_INPUT_VALUE));
     Dequotify(P_INPUT_VALUE);
+
+    // Mincount and maxcount may need to carry a value across calls.  They are
+    // reset at the main continuation.
+    //
+    Init_Integer(P_MINCOUNT_VALUE, 1);
+    Init_Integer(P_MAXCOUNT_VALUE, 1);
+
+    // Capture the `start` of the subparse wherever it was at the beginning.
+    // (The P_POS is done using feeds, so the error reporting and debug will
+    // report the position in the rules.)  `begin` is currently restarted on
+    // each callback.
+    //
+    Init_Integer(P_START_VALUE, P_POS);
+
+    assert(IS_END(P_OUT)); // invariant provided by evaluator
+
+    D_STATE_BYTE = 1;  // indicate the initialization has been done
+  }
+  else {
+    assert(D_STATE_BYTE == 1);
+    assert(IS_NULLED(P_OUT));  // temporary due to continuation on BLANK!
+    SET_END(P_OUT);
+  }
 
     // Make sure index position is not past END
     //
@@ -1468,10 +1512,8 @@ REBNATIVE(subparse)
     // were not clear; many cases dropped them on the floor in R3-Alpha, and
     // no real resolution exists...see the UNUSED(interrupted) cases.)
     //
-    REBLEN collection_tail = P_COLLECTION ? ARR_LEN(P_COLLECTION) : 0;
+    REBLEN collection_tail = P_COLLECTION ? VAL_INDEX(P_COLLECTION_VALUE) : 0;
     UNUSED(ARG(collection)); // implicitly accessed as P_COLLECTION
-
-    assert(IS_END(P_OUT)); // invariant provided by evaluator
 
   #if !defined(NDEBUG)
     //
@@ -1485,8 +1527,9 @@ REBNATIVE(subparse)
 
     DECLARE_LOCAL (save);
 
-    REBLEN start = P_POS; // recovery restart point
     REBLEN begin = P_POS; // point at beginning of match
+    assert(P_MINCOUNT == 1);
+    assert(P_MAXCOUNT == 1);
 
     // The loop iterates across each REBVAL's worth of "rule" in the rule
     // block.  Some of these rules just set `flags` and `continue`, so that
@@ -1504,9 +1547,6 @@ REBNATIVE(subparse)
     REBFLGS flags = 0;
     const RELVAL *set_or_copy_word = NULL;
 
-    REBINT mincount = 1; // min pattern count
-    REBINT maxcount = 1; // max pattern count
-
   #if defined(DEBUG_ENSURE_FRAME_EVALUATES)
     //
     // For the same reasons that the evaluator always wants to run through and
@@ -1516,10 +1556,10 @@ REBNATIVE(subparse)
     f->was_eval_called = true;
   #endif
 
-    while (true) {  // not `while (NOT_END`, see DEBUG_ENSURE_FRAME_EVALUATES
+  loop:  // not `while (NOT_END`, see DEBUG_ENSURE_FRAME_EVALUATES
 
-        /* Print_Parse_Index(f); */
-        UPDATE_EXPRESSION_START(f);
+    /* Print_Parse_Index(f); */
+    UPDATE_EXPRESSION_START(f);
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1527,159 +1567,243 @@ REBNATIVE(subparse)
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        // For non-iterated rules, including setup for iterated rules.
-        // The input index is not advanced here, but may be changed by
-        // a GET-WORD variable.
+    // For non-iterated rules, including setup for iterated rules.
+    // The input index is not advanced here, but may be changed by
+    // a GET-WORD variable.
 
     //=//// HANDLE BAR! FIRST... BEFORE GROUP! ////////////////////////////=//
 
-        // BAR!s cannot be abstracted.  If they could be, then you'd have to
-        // run all GET-GROUP! `:(...)` to find them in alternates lists.
+    // BAR!s cannot be abstracted.  If they could be, then you'd have to
+    // run all GET-GROUP! `:(...)` to find them in alternates lists.
 
-        const RELVAL *rule = P_RULE;  // start w/rule in block, may eval/fetch
+    const RELVAL *rule = P_RULE;  // start w/rule in block, may eval/fetch
 
-        if (IS_END(rule))
-            goto do_signals;
+    if (IS_END(rule))
+        goto return_position;  // used to `do_signals` (now trampoline does)
 
-        if (IS_BAR(rule)) { // reached BAR! without a match failure, good!
-            //
-            // Note: First test, so `[| ...anything...]` is a "no-op" match
-            //
-            return Init_Integer(P_OUT, P_POS); // indicate match @ current pos
-        }
+    if (IS_BAR(rule)) {  // reached BAR! without a match failure, good!
+        //
+        // Note: First test, so `[| ...anything...]` is a "no-op" match
+        //
+        goto return_position;  // indicate match @ current pos
+    }
 
     //=//// (GROUP!) AND :(GET-GROUP!) PROCESSING /////////////////////////=//
 
-        if (IS_GROUP(rule) or IS_GET_GROUP(rule)) {
-            //
-            // Code below may jump here to re-process groups, consider:
-            //
-            //    rule: lit (print "Hi")
-            //    parse "a" [:('rule) "a"]
-            //
-            // First it processes the group to get RULE, then it looks that
-            // up and gets another group.  In theory this could continue
-            // indefinitely, but for now a GET-GROUP! can't return another.
+    if (IS_GROUP(rule) or IS_GET_GROUP(rule)) {
+        //
+        // Code below may jump here to re-process groups, consider:
+        //
+        //    rule: lit (print "Hi")
+        //    parse "a" [:('rule) "a"]
+        //
+        // First it processes the group to get RULE, then it looks that
+        // up and gets another group.  In theory this could continue
+        // indefinitely, but for now a GET-GROUP! can't return another.
 
-          process_group:
+      process_group:
 
-            rule = Process_Group_For_Parse(f, save, rule);
-            if (rule == R_THROWN) {
-                Move_Value(P_OUT, save);
-                return R_THROWN;
-            }
-            if (rule == R_INVISIBLE) { // was a (...), or null-bearing :(...)
-                FETCH_NEXT_RULE(f); // ignore result and go on to next rule
-                continue;
-            }
-            // was a GET-GROUP!, e.g. :(...), fall through so its result will
-            // act as a rule in its own right.
-            //
-            assert(IS_SPECIFIC(rule)); // can use w/P_RULE_SPECIFIER, harmless
+        rule = Process_Group_For_Parse(f, save, rule);
+        if (rule == R_THROWN) {
+            Move_Value(P_OUT, save);
+            return R_THROWN;
         }
-        else {
-            // If we ran the GROUP! then that invokes the evaluator, and so
-            // we already gave the GC and cancellation a chance to run.  But
-            // if not, we might want to do it here... (?)
-
-          do_signals:
-
-            assert(Eval_Count >= 0);
-            if (--Eval_Count == 0) {
-                SET_END(P_CELL);
-
-                if (Do_Signals_Throws(P_CELL)) {
-                    Move_Value(P_OUT, P_CELL);
-                    return R_THROWN;
-                }
-
-                assert(IS_END(P_CELL));
-            }
+        if (rule == R_INVISIBLE) { // was a (...), or null-bearing :(...)
+            FETCH_NEXT_RULE(f); // ignore result and go on to next rule
+            goto loop;
         }
+        // was a GET-GROUP!, e.g. :(...), fall through so its result will
+        // act as a rule in its own right.
+        //
+        assert(IS_SPECIFIC(rule)); // can use w/P_RULE_SPECIFIER, harmless
 
-        UPDATE_TICK_DEBUG(f, nullptr);  // after GC, identify *last* tick
+        if (IS_END(rule)) {
+            assert("END was checked twice; was this second case possible?");
+            goto return_position;
+        }
+    }
+    else {
+        // If we ran the GROUP! then that invokes the evaluator, and so
+        // we already gave the GC and cancellation a chance to run.  But
+        // if not, we might want to do it here... (?)
 
-        if (IS_END(rule))
-            break;  // done all the things we need to do for end position
+        // !!! Moved due to stackless to trampoline !!!
+    }
 
     //=//// ANY-WORD!/ANY-PATH! PROCESSING ////////////////////////////////=//
 
-        // Some iterated rules have a parameter.  `3 into [some "a"]` will
-        // actually run the INTO `rule` 3 times with the `subrule` of
-        // `[some "a"]`.  Because it is iterated it is only captured the first
-        // time through, nullptr indicates it's not been captured yet.
-        //
-        const RELVAL *subrule = nullptr;
+    // Some iterated rules have a parameter.  `3 into [some "a"]` will
+    // actually run the INTO `rule` 3 times with the `subrule` of
+    // `[some "a"]`.  Because it is iterated it is only captured the first
+    // time through, nullptr indicates it's not been captured yet.
+    //
+    const RELVAL *subrule = nullptr;
 
-        if (ANY_PLAIN_GET_SET_WORD(rule)) { // word!, set-word!, or get-word!
+    if (ANY_PLAIN_GET_SET_WORD(rule)) { // word!, set-word!, or get-word!
 
-            REBSYM cmd = VAL_CMD(rule);
-            if (cmd != SYM_0) {
-                if (not IS_WORD(rule)) // Command but not WORD! (COPY:, :THRU)
+        REBSYM cmd = VAL_CMD(rule);
+        if (cmd != SYM_0) {
+            if (not IS_WORD(rule)) // Command but not WORD! (COPY:, :THRU)
+                fail (Error_Parse_Command(f));
+
+            if (cmd > SYM_BREAK)  // R3-Alpha claimed "optimization"
+                goto skip_pre_rule;  // but jump tables are fast, review
+
+            switch (cmd) {
+              case SYM_WHILE:
+                assert(P_MINCOUNT == 1 and P_MAXCOUNT == 1);  // true on entry
+                Init_Integer(P_MINCOUNT_VALUE, 0);
+                Init_Integer(P_MAXCOUNT_VALUE, INT32_MAX);
+                FETCH_NEXT_RULE(f);
+                goto loop;
+
+              case SYM_ANY:
+                assert(P_MINCOUNT == 1 and P_MAXCOUNT == 1);  // true on entry
+                Init_Integer(P_MINCOUNT_VALUE, 0);
+                goto sym_some;
+
+              case SYM_SOME:
+                assert(P_MINCOUNT == 1 and P_MAXCOUNT == 1);  // true on entry
+              sym_some:;
+                flags |= PF_ANY_OR_SOME;
+                Init_Integer(P_MAXCOUNT_VALUE, INT32_MAX);
+                FETCH_NEXT_RULE(f);
+                goto loop;
+
+              case SYM_OPT:
+                Init_Integer(P_MINCOUNT_VALUE, 0);
+                FETCH_NEXT_RULE(f);
+                goto loop;
+
+              case SYM_COPY:
+                flags |= PF_COPY;
+                goto set_or_copy_pre_rule;
+
+              case SYM_SET:
+                flags |= PF_SET;
+                goto set_or_copy_pre_rule;
+
+              set_or_copy_pre_rule:;
+
+                FETCH_NEXT_RULE(f);
+
+                if (not (IS_WORD(P_RULE) or IS_SET_WORD(P_RULE)))
+                    fail (Error_Parse_Variable(f));
+
+                if (VAL_CMD(P_RULE))  // set set [...]
                     fail (Error_Parse_Command(f));
 
-                if (cmd > SYM_BREAK)  // R3-Alpha claimed "optimization"
-                    goto skip_pre_rule;  // but jump tables are fast, review
+                FETCH_NEXT_RULE_KEEP_LAST(&set_or_copy_word, f);
+                goto loop;
 
-                switch (cmd) {
-                  case SYM_WHILE:
-                    assert(mincount == 1 and maxcount == 1);  // true on entry
-                    mincount = 0;
-                    maxcount = INT32_MAX;
+              case SYM_COLLECT: {
+                FETCH_NEXT_RULE(f);
+                if (not (IS_WORD(P_RULE) or IS_SET_WORD(P_RULE)))
+                    fail (Error_Parse_Variable(f));
+
+                FETCH_NEXT_RULE_KEEP_LAST(&set_or_copy_word, f);
+
+                REBARR *collection = Make_Array_Core(
+                    10,  // !!! how big?
+                    NODE_FLAG_MANAGED
+                );
+                PUSH_GC_GUARD(collection);
+
+                DECLARE_FRAME (subframe, f->feed, EVAL_MASK_DEFAULT);
+
+                bool interrupted;
+                assert(IS_END(P_OUT));  // invariant until finished
+                bool threw = Subparse_Throws(
+                    &interrupted,
+                    P_OUT,
+                    P_INPUT_VALUE, // affected by P_POS assignment above
+                    SPECIFIED,
+                    subframe,
+                    collection,
+                    P_FIND_FLAGS | PF_ONE_RULE
+                );
+
+                DROP_GC_GUARD(collection);
+                UNUSED(interrupted);  // !!! ignore ACCEPT/REJECT (?)
+
+                if (threw)
+                    return R_THROWN;
+
+                if (IS_NULLED(P_OUT)) {  // match of rule failed
+                    SET_END(P_OUT);  // restore invariant
+                    goto next_alternate;  // backtrack collect, seek |
+                }
+                P_POS = VAL_INT32(P_OUT);
+                SET_END(P_OUT);  // restore invariant
+
+                Init_Block(
+                    Sink_Word_May_Fail(
+                        set_or_copy_word,
+                        P_RULE_SPECIFIER
+                    ),
+                    collection
+                );
+                goto loop; }
+
+              case SYM_KEEP: {
+                if (not P_COLLECTION)
+                    fail ("Used PARSE KEEP with no COLLECT in effect");
+
+                FETCH_NEXT_RULE(f);  // e.g. skip the KEEP word!
+
+                // !!! We follow the R3-Alpha principle of not using
+                // PATH! dispatch here, so it's `keep only` instead of
+                // `keep/only`.  But is that any good?  Review.
+                //
+                bool only;
+                if (IS_WORD(P_RULE) and VAL_WORD_SYM(P_RULE) == SYM_ONLY) {
+                    only = true;
                     FETCH_NEXT_RULE(f);
-                    continue;
+                }
+                else
+                    only = false;
 
-                  case SYM_ANY:
-                    assert(mincount == 1 and maxcount == 1);  // true on entry
-                    mincount = 0;
-                    goto sym_some;
+                REBLEN pos_before = P_POS;
 
-                  case SYM_SOME:
-                    assert(mincount == 1 and maxcount == 1);  // true on entry
-                  sym_some:;
-                    flags |= PF_ANY_OR_SOME;
-                    maxcount = INT32_MAX;
+                rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
+
+                if (IS_GET_BLOCK(rule)) {
+                    //
+                    // !!! Experimental use of GET-BLOCK! to mean ordinary
+                    // evaluation of material that is not matched as
+                    // a PARSE rule.
+                    //
+                    assert(IS_END(P_OUT));  // should be true until finish
+                    if (Do_Any_Array_At_Throws(
+                        P_OUT,
+                        rule,
+                        P_RULE_SPECIFIER
+                    )){
+                        return R_THROWN;
+                    }
+
+                    if (IS_END(P_OUT) or IS_NULLED(P_OUT)) {
+                        // Nothing to add
+                    }
+                    else if (only) {
+                        Move_Value(
+                            Alloc_Tail_Array(P_COLLECTION),
+                            P_OUT
+                        );
+                    }
+                    else
+                        rebElide(
+                            "append", P_COLLECTION_VALUE, rebQ1(P_OUT),
+                        rebEND);
+
+                    SET_END(P_OUT);  // since we didn't throw, put it back
+
+                    // Don't touch P_POS, we didn't consume anything from
+                    // the input series but just fabricated DO material.
+
                     FETCH_NEXT_RULE(f);
-                    continue;
-
-                  case SYM_OPT:
-                    mincount = 0;
-                    FETCH_NEXT_RULE(f);
-                    continue;
-
-                  case SYM_COPY:
-                    flags |= PF_COPY;
-                    goto set_or_copy_pre_rule;
-
-                  case SYM_SET:
-                    flags |= PF_SET;
-                    goto set_or_copy_pre_rule;
-
-                  set_or_copy_pre_rule:;
-
-                    FETCH_NEXT_RULE(f);
-
-                    if (not (IS_WORD(P_RULE) or IS_SET_WORD(P_RULE)))
-                        fail (Error_Parse_Variable(f));
-
-                    if (VAL_CMD(P_RULE))  // set set [...]
-                        fail (Error_Parse_Command(f));
-
-                    FETCH_NEXT_RULE_KEEP_LAST(&set_or_copy_word, f);
-                    continue;
-
-                  case SYM_COLLECT: {
-                    FETCH_NEXT_RULE(f);
-                    if (not (IS_WORD(P_RULE) or IS_SET_WORD(P_RULE)))
-                        fail (Error_Parse_Variable(f));
-
-                    FETCH_NEXT_RULE_KEEP_LAST(&set_or_copy_word, f);
-
-                    REBARR *collection = Make_Array_Core(
-                        10,  // !!! how big?
-                        NODE_FLAG_MANAGED
-                    );
-                    PUSH_GC_GUARD(collection);
+                }
+                else {  // Ordinary rule (may be block, may not be)
 
                     DECLARE_FRAME (subframe, f->feed, EVAL_MASK_DEFAULT);
 
@@ -1688,14 +1812,13 @@ REBNATIVE(subparse)
                     bool threw = Subparse_Throws(
                         &interrupted,
                         P_OUT,
-                        P_INPUT_VALUE, // affected by P_POS assignment above
+                        P_INPUT_VALUE,
                         SPECIFIED,
                         subframe,
-                        collection,
+                        P_COLLECTION,
                         P_FIND_FLAGS | PF_ONE_RULE
                     );
 
-                    DROP_GC_GUARD(collection);
                     UNUSED(interrupted);  // !!! ignore ACCEPT/REJECT (?)
 
                     if (threw)
@@ -1705,409 +1828,315 @@ REBNATIVE(subparse)
                         SET_END(P_OUT);  // restore invariant
                         goto next_alternate;  // backtrack collect, seek |
                     }
-                    P_POS = VAL_INT32(P_OUT);
+                    REBLEN pos_after = VAL_INT32(P_OUT);
                     SET_END(P_OUT);  // restore invariant
 
-                    Init_Block(
-                        Sink_Word_May_Fail(
-                            set_or_copy_word,
-                            P_RULE_SPECIFIER
-                        ),
-                        collection
-                    );
-                    continue; }
+                    assert(pos_after >= pos_before);  // 0 or more matches
 
-                  case SYM_KEEP: {
-                    if (not P_COLLECTION)
-                        fail ("Used PARSE KEEP with no COLLECT in effect");
-
-                    FETCH_NEXT_RULE(f);  // e.g. skip the KEEP word!
-
-                    // !!! We follow the R3-Alpha principle of not using
-                    // PATH! dispatch here, so it's `keep only` instead of
-                    // `keep/only`.  But is that any good?  Review.
-                    //
-                    bool only;
-                    if (IS_WORD(P_RULE) and VAL_WORD_SYM(P_RULE) == SYM_ONLY) {
-                        only = true;
-                        FETCH_NEXT_RULE(f);
+                    REBARR *target;
+                    if (pos_after == pos_before and not only) {
+                        target = nullptr;
+                    }
+                    else if (ANY_STRING(P_INPUT_VALUE)) {
+                        target = nullptr;
+                        Init_Any_String(
+                            Alloc_Tail_Array(P_COLLECTION),
+                            P_TYPE,
+                            Copy_String_At_Limit(
+                                P_INPUT_VALUE,
+                                pos_after - pos_before
+                            )
+                        );
+                    }
+                    else if (not IS_SER_ARRAY(P_INPUT)) {  // BINARY! (?)
+                        target = nullptr;  // not an array, one item
+                        Init_Any_Series(
+                            Alloc_Tail_Array(P_COLLECTION),
+                            P_TYPE,
+                            Copy_Sequence_At_Len(
+                                P_INPUT,
+                                pos_before,
+                                pos_after - pos_before
+                            )
+                        );
+                    }
+                    else if (only) {  // taken to mean "add as one block"
+                        target = Make_Array_Core(
+                            pos_after - pos_before,
+                            NODE_FLAG_MANAGED
+                        );
+                        Init_Block(Alloc_Tail_Array(P_COLLECTION), target);
                     }
                     else
-                        only = false;
+                        target = P_COLLECTION;
 
-                    REBLEN pos_before = P_POS;
-
-                    rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
-
-                    if (IS_GET_BLOCK(rule)) {
-                        //
-                        // !!! Experimental use of GET-BLOCK! to mean ordinary
-                        // evaluation of material that is not matched as
-                        // a PARSE rule.
-                        //
-                        assert(IS_END(P_OUT));  // should be true until finish
-                        if (Do_Any_Array_At_Throws(
-                            P_OUT,
-                            rule,
-                            P_RULE_SPECIFIER
-                        )){
-                            return R_THROWN;
-                        }
-
-                        if (IS_END(P_OUT) or IS_NULLED(P_OUT)) {
-                            // Nothing to add
-                        }
-                        else if (only) {
-                            Move_Value(
-                                Alloc_Tail_Array(P_COLLECTION),
-                                P_OUT
+                    if (target) {
+                        REBLEN n;
+                        for (n = pos_before; n < pos_after; ++n)
+                            Derelativize(
+                                Alloc_Tail_Array(target),
+                                ARR_AT(ARR(P_INPUT), n),
+                                P_INPUT_SPECIFIER
                             );
-                        }
-                        else
-                            rebElide(
-                                "append", P_COLLECTION_VALUE, rebQ1(P_OUT),
-                            rebEND);
-
-                        SET_END(P_OUT);  // since we didn't throw, put it back
-
-                        // Don't touch P_POS, we didn't consume anything from
-                        // the input series but just fabricated DO material.
-
-                        FETCH_NEXT_RULE(f);
-                    }
-                    else {  // Ordinary rule (may be block, may not be)
-
-                        DECLARE_FRAME (subframe, f->feed, EVAL_MASK_DEFAULT);
-
-                        bool interrupted;
-                        assert(IS_END(P_OUT));  // invariant until finished
-                        bool threw = Subparse_Throws(
-                            &interrupted,
-                            P_OUT,
-                            P_INPUT_VALUE,
-                            SPECIFIED,
-                            subframe,
-                            P_COLLECTION,
-                            P_FIND_FLAGS | PF_ONE_RULE
-                        );
-
-                        UNUSED(interrupted);  // !!! ignore ACCEPT/REJECT (?)
-
-                        if (threw)
-                            return R_THROWN;
-
-                        if (IS_NULLED(P_OUT)) {  // match of rule failed
-                            SET_END(P_OUT);  // restore invariant
-                            goto next_alternate;  // backtrack collect, seek |
-                        }
-                        REBLEN pos_after = VAL_INT32(P_OUT);
-                        SET_END(P_OUT);  // restore invariant
-
-                        assert(pos_after >= pos_before);  // 0 or more matches
-
-                        REBARR *target;
-                        if (pos_after == pos_before and not only) {
-                            target = nullptr;
-                        }
-                        else if (ANY_STRING(P_INPUT_VALUE)) {
-                            target = nullptr;
-                            Init_Any_String(
-                                Alloc_Tail_Array(P_COLLECTION),
-                                P_TYPE,
-                                Copy_String_At_Limit(
-                                    P_INPUT_VALUE,
-                                    pos_after - pos_before
-                                )
-                            );
-                        }
-                        else if (not IS_SER_ARRAY(P_INPUT)) {  // BINARY! (?)
-                            target = nullptr;  // not an array, one item
-                            Init_Any_Series(
-                                Alloc_Tail_Array(P_COLLECTION),
-                                P_TYPE,
-                                Copy_Sequence_At_Len(
-                                    P_INPUT,
-                                    pos_before,
-                                    pos_after - pos_before
-                                )
-                            );
-                        }
-                        else if (only) {  // taken to mean "add as one block"
-                            target = Make_Array_Core(
-                                pos_after - pos_before,
-                                NODE_FLAG_MANAGED
-                            );
-                            Init_Block(Alloc_Tail_Array(P_COLLECTION), target);
-                        }
-                        else
-                            target = P_COLLECTION;
-
-                        if (target) {
-                            REBLEN n;
-                            for (n = pos_before; n < pos_after; ++n)
-                                Derelativize(
-                                    Alloc_Tail_Array(target),
-                                    ARR_AT(ARR(P_INPUT), n),
-                                    P_INPUT_SPECIFIER
-                                );
-                        }
-
-                        P_POS = pos_after;  // continue from end of kept data
-                    }
-                    continue; }
-
-                  case SYM_NOT:
-                    flags |= PF_NOT;
-                    flags ^= PF_NOT2;
-                    FETCH_NEXT_RULE(f);
-                    continue;
-
-                  case SYM_AND:
-                  case SYM_AHEAD:
-                    flags |= PF_AHEAD;
-                    FETCH_NEXT_RULE(f);
-                    continue;
-
-                  case SYM_THEN:
-                    flags |= PF_THEN;
-                    FETCH_NEXT_RULE(f);
-                    continue;
-
-                  case SYM_REMOVE:
-                    flags |= PF_REMOVE;
-                    FETCH_NEXT_RULE(f);
-                    continue;
-
-                  case SYM_INSERT:
-                    flags |= PF_INSERT;
-                    FETCH_NEXT_RULE(f);
-                    goto post_match_processing;
-
-                  case SYM_CHANGE:
-                    flags |= PF_CHANGE;
-                    FETCH_NEXT_RULE(f);
-                    continue;
-
-                  // IF is deprecated in favor of `:(<logic!>)`.  But it is
-                  // currently used for bootstrap.  Remove once the bootstrap
-                  // executable is updated to have GET-GROUP!s.  Substitution:
-                  //
-                  //    (go-on?: either condition [[accept]][[reject]])
-                  //    go-on?
-                  //
-                  // !!! Note: PARSE/REDBOL may be a modality it needs to
-                  // support, and Red added IF.  It might be necessary to keep
-                  // it (though Rebol2 did not have IF in PARSE...)
-                  //
-                  case SYM_IF: {
-                    FETCH_NEXT_RULE(f);
-                    if (IS_END(P_RULE))
-                        fail (Error_Parse_End());
-
-                    if (not IS_GROUP(P_RULE))
-                        fail (Error_Parse_Rule());
-
-                    DECLARE_LOCAL (condition);
-                    if (Do_Any_Array_At_Throws(  // note: might GC
-                        condition,
-                        P_RULE,
-                        P_RULE_SPECIFIER
-                    )) {
-                        Move_Value(P_OUT, condition);
-                        return R_THROWN;
                     }
 
-                    FETCH_NEXT_RULE(f);
-
-                    if (IS_TRUTHY(condition))
-                        continue;
-
-                    P_POS = NOT_FOUND;
-                    goto post_match_processing; }
-
-                  case SYM_ACCEPT:
-                  case SYM_BREAK: {
-                    //
-                    // This has to be throw-style, because it's not enough
-                    // to just say the current rule succeeded...it climbs
-                    // up and affects an enclosing parse loop.
-                    //
-                    DECLARE_LOCAL (thrown_arg);
-                    Init_Integer(thrown_arg, P_POS);
-                    thrown_arg->extra.trash = thrown_arg;  // see notes
-
-                    return Init_Thrown_With_Label(
-                        P_OUT,
-                        thrown_arg,
-                        NAT_VALUE(parse_accept)
-                    ); }
-
-                  case SYM_REJECT: {
-                    //
-                    // Similarly, this is a break/continue style "throw"
-                    //
-                    return Init_Thrown_With_Label(
-                        P_OUT,
-                        NULLED_CELL,
-                        NAT_VALUE(parse_reject)
-                    ); }
-
-                  case SYM_FAIL:  // deprecated... use LOGIC! false instead
-                    P_POS = NOT_FOUND;
-                    FETCH_NEXT_RULE(f);
-                    goto post_match_processing;
-
-                  case SYM_LIMIT:
-                    fail (Error_Not_Done_Raw());
-
-                  case SYM__Q_Q:
-                    Print_Parse_Index(f);
-                    FETCH_NEXT_RULE(f);
-                    continue;
-
-                  case SYM_RETURN:
-                    fail ("RETURN removed from PARSE, use (THROW ...)");
-
-                  case SYM_MARK: {
-                    FETCH_NEXT_RULE(f);  // skip the MARK word
-                    // !!! what about `mark @(first [x])` ?
-                    Handle_Mark_Rule(f, P_RULE, P_RULE_SPECIFIER);
-                    FETCH_NEXT_RULE(f);  // e.g. skip the `x` in `mark x`
-                    continue; }
-
-                  case SYM_SEEK: {
-                    FETCH_NEXT_RULE(f);  // skip the SEEK word
-                    // !!! what about `seek @(first x)` ?
-                    HANDLE_SEEK_RULE_UPDATE_BEGIN(f, P_RULE, P_RULE_SPECIFIER);
-                    FETCH_NEXT_RULE(f);  // e.g. skip the `x` in `seek x`
-                    continue; }
-
-                  default:  // the list above should be exhaustive
-                    assert(false);
+                    P_POS = pos_after;  // continue from end of kept data
                 }
+                goto loop; }
 
-              skip_pre_rule:;
+              case SYM_NOT:
+                flags |= PF_NOT;
+                flags ^= PF_NOT2;
+                FETCH_NEXT_RULE(f);
+                goto loop;
 
-                // Any other WORD! with VAL_CMD() is a parse keyword, but is
-                // a "match command", so proceed...
-            }
-            else {
-                // It's not a PARSE command, get or set it
+              case SYM_AND:
+              case SYM_AHEAD:
+                flags |= PF_AHEAD;
+                FETCH_NEXT_RULE(f);
+                goto loop;
 
-                // word: - set a variable to the series at current index
-                if (IS_SET_WORD(rule)) {
-                    //
-                    // !!! Review meaning of marking the parse in a slot that
-                    // is a target of a rule, e.g. `thru pos: xxx`
-                    //
-                    // https://github.com/rebol/rebol-issues/issues/2269
-                    //
-                    // if (flags != 0) fail (Error_Parse_Rule());
+              case SYM_THEN:
+                flags |= PF_THEN;
+                FETCH_NEXT_RULE(f);
+                goto loop;
 
-                    Handle_Mark_Rule(f, rule, P_RULE_SPECIFIER);
-                    FETCH_NEXT_RULE(f);
-                    continue;
-                }
+              case SYM_REMOVE:
+                flags |= PF_REMOVE;
+                FETCH_NEXT_RULE(f);
+                goto loop;
 
-                // :word - change the index for the series to a new position
-                if (IS_GET_WORD(rule)) {
-                    HANDLE_SEEK_RULE_UPDATE_BEGIN(f, rule, P_RULE_SPECIFIER);
-                    FETCH_NEXT_RULE(f);
-                    continue;
-                }
+              case SYM_INSERT:
+                flags |= PF_INSERT;
+                FETCH_NEXT_RULE(f);
+                goto post_match_processing;
 
-                assert(IS_WORD(rule));  // word - some other variable
+              case SYM_CHANGE:
+                flags |= PF_CHANGE;
+                FETCH_NEXT_RULE(f);
+                goto loop;
 
-                if (rule != save) {
-                    Get_Word_May_Fail(save, rule, P_RULE_SPECIFIER);
-                    rule = save;
-                }
-                if (IS_NULLED(rule))
-                    fail (Error_No_Value_Core(P_RULE, P_RULE_SPECIFIER));
-            }
-        }
-        else if (ANY_PATH(rule)) {
-            if (IS_PATH(rule)) {
-                if (Get_Path_Throws_Core(save, rule, P_RULE_SPECIFIER)) {
-                    Move_Value(P_OUT, save);
+              // IF is deprecated in favor of `:(<logic!>)`.  But it is
+              // currently used for bootstrap.  Remove once the bootstrap
+              // executable is updated to have GET-GROUP!s.  Substitution:
+              //
+              //    (go-on?: either condition [[accept]][[reject]])
+              //    go-on?
+              //
+              // !!! Note: PARSE/REDBOL may be a modality it needs to
+              // support, and Red added IF.  It might be necessary to keep
+              // it (though Rebol2 did not have IF in PARSE...)
+              //
+              case SYM_IF: {
+                FETCH_NEXT_RULE(f);
+                if (IS_END(P_RULE))
+                    fail (Error_Parse_End());
+
+                if (not IS_GROUP(P_RULE))
+                    fail (Error_Parse_Rule());
+
+                DECLARE_LOCAL (condition);
+                if (Do_Any_Array_At_Throws(  // note: might GC
+                    condition,
+                    P_RULE,
+                    P_RULE_SPECIFIER
+                )) {
+                    Move_Value(P_OUT, condition);
                     return R_THROWN;
                 }
-                rule = save;
+
+                FETCH_NEXT_RULE(f);
+
+                if (IS_TRUTHY(condition))
+                    goto loop;
+
+                P_POS = NOT_FOUND;
+                goto post_match_processing; }
+
+              case SYM_ACCEPT:
+              case SYM_BREAK: {
+                //
+                // This has to be throw-style, because it's not enough
+                // to just say the current rule succeeded...it climbs
+                // up and affects an enclosing parse loop.
+                //
+                DECLARE_LOCAL (thrown_arg);
+                Init_Integer(thrown_arg, P_POS);
+                thrown_arg->extra.trash = thrown_arg;  // see notes
+
+                return Init_Thrown_With_Label(
+                    P_OUT,
+                    thrown_arg,
+                    NAT_VALUE(parse_accept)
+                ); }
+
+              case SYM_REJECT: {
+                //
+                // Similarly, this is a break/continue style "throw"
+                //
+                return Init_Thrown_With_Label(
+                    P_OUT,
+                    NULLED_CELL,
+                    NAT_VALUE(parse_reject)
+                ); }
+
+              case SYM_FAIL:  // deprecated... use LOGIC! false instead
+                P_POS = NOT_FOUND;
+                FETCH_NEXT_RULE(f);
+                goto post_match_processing;
+
+              case SYM_LIMIT:
+                fail (Error_Not_Done_Raw());
+
+              case SYM__Q_Q:
+                Print_Parse_Index(f);
+                FETCH_NEXT_RULE(f);
+                goto loop;
+
+              case SYM_RETURN:
+                fail ("RETURN removed from PARSE, use (THROW ...)");
+
+              case SYM_MARK: {
+                FETCH_NEXT_RULE(f);  // skip the MARK word
+                // !!! what about `mark @(first [x])` ?
+                Handle_Mark_Rule(f, P_RULE, P_RULE_SPECIFIER);
+                FETCH_NEXT_RULE(f);  // e.g. skip the `x` in `mark x`
+                goto loop; }
+
+              case SYM_SEEK: {
+                FETCH_NEXT_RULE(f);  // skip the SEEK word
+                // !!! what about `seek @(first x)` ?
+                HANDLE_SEEK_RULE_UPDATE_BEGIN(f, P_RULE, P_RULE_SPECIFIER);
+                FETCH_NEXT_RULE(f);  // e.g. skip the `x` in `seek x`
+                goto loop; }
+
+              default:  // the list above should be exhaustive
+                assert(false);
             }
-            else if (IS_SET_PATH(rule)) {
+
+          skip_pre_rule:;
+
+            // Any other WORD! with VAL_CMD() is a parse keyword, but is
+            // a "match command", so proceed...
+        }
+        else {
+            // It's not a PARSE command, get or set it
+
+            // word: - set a variable to the series at current index
+            if (IS_SET_WORD(rule)) {
+                //
+                // !!! Review meaning of marking the parse in a slot that
+                // is a target of a rule, e.g. `thru pos: xxx`
+                //
+                // https://github.com/rebol/rebol-issues/issues/2269
+                //
+                // if (flags != 0) fail (Error_Parse_Rule());
+
                 Handle_Mark_Rule(f, rule, P_RULE_SPECIFIER);
                 FETCH_NEXT_RULE(f);
-                continue;
+                goto loop;
             }
-            else if (IS_GET_PATH(rule)) {
+
+            // :word - change the index for the series to a new position
+            if (IS_GET_WORD(rule)) {
                 HANDLE_SEEK_RULE_UPDATE_BEGIN(f, rule, P_RULE_SPECIFIER);
                 FETCH_NEXT_RULE(f);
-                continue;
+                goto loop;
             }
-        }
-        else if (IS_SET_GROUP(rule)) {
-            //
-            // Don't run the group yet, just hold onto it...will run and set
-            // the contents (or pass found value to function as parameter)
-            // only if a match happens.
-            //
-            FETCH_NEXT_RULE_KEEP_LAST(&set_or_copy_word, f);
-            flags |= PF_SET;
-            continue;
-        }
 
-        assert(not IS_NULLED(rule));
+            assert(IS_WORD(rule));  // word - some other variable
 
-        if (IS_BAR(rule))
-            fail ("BAR! must be source level (else PARSE can't skip it)");
-
-        switch (VAL_TYPE(rule)) {
-          case REB_GROUP:
-            goto process_group; // GROUP! can make WORD! that fetches GROUP!
-
-          case REB_BLANK: // no-op
-            FETCH_NEXT_RULE(f);
-            continue;
-
-          case REB_LOGIC: // true is a no-op, false causes match failure
-            if (VAL_LOGIC(rule)) {
-                FETCH_NEXT_RULE(f);
-                continue;
+            if (rule != save) {
+                Get_Word_May_Fail(save, rule, P_RULE_SPECIFIER);
+                rule = save;
             }
+            if (IS_NULLED(rule))
+                fail (Error_No_Value_Core(P_RULE, P_RULE_SPECIFIER));
+        }
+    }
+    else if (ANY_PATH(rule)) {
+        if (IS_PATH(rule)) {
+            if (Get_Path_Throws_Core(save, rule, P_RULE_SPECIFIER)) {
+                Move_Value(P_OUT, save);
+                return R_THROWN;
+            }
+            rule = save;
+        }
+        else if (IS_SET_PATH(rule)) {
+            Handle_Mark_Rule(f, rule, P_RULE_SPECIFIER);
             FETCH_NEXT_RULE(f);
-            P_POS = NOT_FOUND;
-            goto post_match_processing;
+            goto loop;
+        }
+        else if (IS_GET_PATH(rule)) {
+            HANDLE_SEEK_RULE_UPDATE_BEGIN(f, rule, P_RULE_SPECIFIER);
+            FETCH_NEXT_RULE(f);
+            goto loop;
+        }
+    }
+    else if (IS_SET_GROUP(rule)) {
+        //
+        // Don't run the group yet, just hold onto it...will run and set
+        // the contents (or pass found value to function as parameter)
+        // only if a match happens.
+        //
+        FETCH_NEXT_RULE_KEEP_LAST(&set_or_copy_word, f);
+        flags |= PF_SET;
+        goto loop;
+    }
 
-          case REB_INTEGER: // Specify count or range count, 1 or 2 integers
-            mincount = maxcount = Int32s(rule, 0);
+    assert(not IS_NULLED(rule));
+
+    if (IS_BAR(rule))
+        fail ("BAR! must be source level (else PARSE can't skip it)");
+
+    switch (VAL_TYPE(rule)) {
+      case REB_GROUP:
+        goto process_group; // GROUP! can make WORD! that fetches GROUP!
+
+      case REB_BLANK: // no-op
+        FETCH_NEXT_RULE(f);
+        goto loop;
+
+      case REB_LOGIC: // true is a no-op, false causes match failure
+        if (VAL_LOGIC(rule)) {
+            FETCH_NEXT_RULE(f);
+            goto loop;
+        }
+        FETCH_NEXT_RULE(f);
+        P_POS = NOT_FOUND;
+        goto post_match_processing;
+
+      case REB_INTEGER: // Specify count or range count, 1 or 2 integers
+        Init_Integer(P_MINCOUNT_VALUE, Int32s(rule, 0));
+        Init_Integer(P_MAXCOUNT_VALUE, Int32s(rule, 0));
+
+        FETCH_NEXT_RULE(f);
+        if (IS_END(P_RULE))
+            fail (Error_Parse_End());
+
+        rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
+
+        if (IS_INTEGER(rule)) {
+            Init_Integer(P_MAXCOUNT_VALUE, Int32s(rule, 0));
 
             FETCH_NEXT_RULE(f);
             if (IS_END(P_RULE))
                 fail (Error_Parse_End());
 
             rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
-
-            if (IS_INTEGER(rule)) {
-                maxcount = Int32s(rule, 0);
-
-                FETCH_NEXT_RULE(f);
-                if (IS_END(P_RULE))
-                    fail (Error_Parse_End());
-
-                rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
-            }
-
-            if (IS_INTEGER(rule)) {
-                //
-                // `parse [1 1] [1 3 1]` must be `parse [1 1] [1 3 lit 1]`
-                //
-                fail ("For matching, INTEGER!s must be literal with QUOTE");
-            }
-            break;
-
-          default:;
-            // Fall through to next section
         }
+
+        if (IS_INTEGER(rule)) {
+            //
+            // `parse [1 1] [1 3 1]` must be `parse [1 1] [1 3 lit 1]`
+            //
+            fail ("For matching, INTEGER!s must be literal with QUOTE");
+        }
+        break;
+
+      default:;
+        // Fall through to next section
+    }
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -2115,263 +2144,193 @@ REBNATIVE(subparse)
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        // Repeats the same rule N times or until the rule fails.
-        // The index is advanced and stored in a temp variable i until
-        // the entire rule has been satisfied.
+    // Repeats the same rule N times or until the rule fails.
+    // The index is advanced and stored in a temp variable i until
+    // the entire rule has been satisfied.
 
-        FETCH_NEXT_RULE(f);
+    FETCH_NEXT_RULE(f);
 
-        begin = P_POS;// input at beginning of match section
+    begin = P_POS;// input at beginning of match section
 
-        REBINT count; // gotos would cross initialization
-        count = 0;
-        while (count < maxcount) {
-            assert(
-                not IS_BAR(rule)
-                and not IS_BLANK(rule)
-                and not IS_LOGIC(rule)
-                and not IS_INTEGER(rule)
-                and not IS_GROUP(rule)
-            ); // these should all have been handled before iterated section
+    REBINT count; // gotos would cross initialization
+    count = 0;
+    while (count < P_MAXCOUNT) {
+        assert(
+            not IS_BAR(rule)
+            and not IS_BLANK(rule)
+            and not IS_LOGIC(rule)
+            and not IS_INTEGER(rule)
+            and not IS_GROUP(rule)
+        ); // these should all have been handled before iterated section
 
-            REBIXO i; // temp index point
+        REBIXO i; // temp index point
 
-            if (IS_WORD(rule)) {
-                REBSYM cmd = VAL_CMD(rule);
+        if (IS_WORD(rule)) {
+            REBSYM cmd = VAL_CMD(rule);
 
-                switch (cmd) {
-                case SYM_SKIP:
-                    i = (P_POS < SER_LEN(P_INPUT))
-                        ? P_POS + 1
-                        : END_FLAG;
-                    break;
+            switch (cmd) {
+              case SYM_SKIP:
+                i = (P_POS < SER_LEN(P_INPUT))
+                    ? P_POS + 1
+                    : END_FLAG;
+                break;
 
-                case SYM_END:
-                    i = (P_POS < SER_LEN(P_INPUT))
-                        ? END_FLAG
-                        : SER_LEN(P_INPUT);
-                    break;
+              case SYM_END:
+                i = (P_POS < SER_LEN(P_INPUT))
+                    ? END_FLAG
+                    : SER_LEN(P_INPUT);
+                break;
 
-                case SYM_TO:
-                case SYM_THRU: {
-                    if (IS_END(P_RULE))
-                        fail (Error_Parse_End());
+              case SYM_TO:
+              case SYM_THRU: {
+                if (IS_END(P_RULE))
+                    fail (Error_Parse_End());
 
-                    if (!subrule) { // capture only on iteration #1
-                        subrule = Get_Parse_Value(
-                            save, P_RULE, P_RULE_SPECIFIER
-                        );
-                        FETCH_NEXT_RULE(f);
+                if (!subrule) { // capture only on iteration #1
+                    subrule = Get_Parse_Value(
+                        save, P_RULE, P_RULE_SPECIFIER
+                    );
+                    FETCH_NEXT_RULE(f);
+                }
+
+                bool is_thru = (cmd == SYM_THRU);
+
+                if (IS_BLOCK(subrule))
+                    i = To_Thru_Block_Rule(f, subrule, is_thru);
+                else
+                    i = To_Thru_Non_Block_Rule(f, subrule, is_thru);
+                break; }
+
+              case SYM_QUOTE: // temporarily behaving like LIT for bootstrap
+              case SYM_LITERAL:
+              case SYM_LIT: {
+                if (not IS_SER_ARRAY(P_INPUT))
+                    fail (Error_Parse_Rule()); // see #2253
+
+                if (IS_END(P_RULE))
+                    fail (Error_Parse_End());
+
+                if (not subrule) // capture only on iteration #1
+                    FETCH_NEXT_RULE_KEEP_LAST(&subrule, f);
+
+                RELVAL *cmp = ARR_AT(ARR(P_INPUT), P_POS);
+
+                if (IS_END(cmp))
+                    i = END_FLAG;
+                else if (0 == Cmp_Value(cmp, subrule, P_HAS_CASE))
+                    i = P_POS + 1;
+                else
+                    i = END_FLAG;
+                break;
+            }
+
+            // !!! This is a hack to try and get some semblance of
+            // compatibility in a world where 'X and 'X/Y/Z don't have
+            // unique datatype "kinds", but are both QUOTED! (versions of
+            // WORD! and PATH! respectively).  By making a LIT-WORD! and
+            // LIT-PATH! parse rule keyword, situations can be worked
+            // around, but MATCH should be used in the general case.
+            //
+              case SYM_LIT_WORD_X: // lit-word!
+              case SYM_LIT_PATH_X: // lit-path!
+              case SYM_REFINEMENT_X: {  // refinement!
+                REB_R r = Parse_One_Rule(f, P_POS, rule);
+                assert(r != R_IMMEDIATE);
+                if (r == R_THROWN)
+                    return R_THROWN;
+
+                if (r == R_UNHANDLED)
+                    i = END_FLAG;
+                else {
+                    assert(r == P_OUT);
+                    i = VAL_INT32(P_OUT);
+                }
+                SET_END(P_OUT);  // preserve invariant
+                break; }
+
+            // Because there are no LIT-XXX! datatypes, a special rule
+            // must be used if you want to match quoted types.  MATCH is
+            // brought in to do this duty, bringing along with it the
+            // features of the native.
+            //
+              case SYM_MATCH: {
+                if (not IS_SER_ARRAY(P_INPUT))
+                    fail (Error_Parse_Rule()); // see #2253
+
+                if (IS_END(P_RULE))
+                    fail (Error_Parse_End());
+
+                if (not subrule) // capture only on iteration #1
+                    FETCH_NEXT_RULE_KEEP_LAST(&subrule, f);
+
+                RELVAL *cmp = ARR_AT(ARR(P_INPUT), P_POS);
+
+                if (IS_END(cmp))
+                    i = END_FLAG;
+                else {
+                    DECLARE_LOCAL (temp);
+                    if (Match_Core_Throws(
+                        temp,
+                        subrule, P_RULE_SPECIFIER,
+                        cmp, P_INPUT_SPECIFIER
+                    )){
+                        Move_Value(P_OUT, temp);
+                        return R_THROWN;
                     }
 
-                    bool is_thru = (cmd == SYM_THRU);
-
-                    if (IS_BLOCK(subrule))
-                        i = To_Thru_Block_Rule(f, subrule, is_thru);
-                    else
-                        i = To_Thru_Non_Block_Rule(f, subrule, is_thru);
-                    break; }
-
-                case SYM_QUOTE: // temporarily behaving like LIT for bootstrap
-                case SYM_LITERAL:
-                case SYM_LIT: {
-                    if (not IS_SER_ARRAY(P_INPUT))
-                        fail (Error_Parse_Rule()); // see #2253
-
-                    if (IS_END(P_RULE))
-                        fail (Error_Parse_End());
-
-                    if (not subrule) // capture only on iteration #1
-                        FETCH_NEXT_RULE_KEEP_LAST(&subrule, f);
-
-                    RELVAL *cmp = ARR_AT(ARR(P_INPUT), P_POS);
-
-                    if (IS_END(cmp))
-                        i = END_FLAG;
-                    else if (0 == Cmp_Value(cmp, subrule, P_HAS_CASE))
+                    if (VAL_LOGIC(temp))
                         i = P_POS + 1;
                     else
                         i = END_FLAG;
-                    break;
                 }
+                break; }
 
-                // !!! This is a hack to try and get some semblance of
-                // compatibility in a world where 'X and 'X/Y/Z don't have
-                // unique datatype "kinds", but are both QUOTED! (versions of
-                // WORD! and PATH! respectively).  By making a LIT-WORD! and
-                // LIT-PATH! parse rule keyword, situations can be worked
-                // around, but MATCH should be used in the general case.
-                //
-                case SYM_LIT_WORD_X: // lit-word!
-                case SYM_LIT_PATH_X: // lit-path!
-                case SYM_REFINEMENT_X: {  // refinement!
-                    REB_R r = Parse_One_Rule(f, P_POS, rule);
-                    assert(r != R_IMMEDIATE);
-                    if (r == R_THROWN)
-                        return R_THROWN;
+              case SYM_INTO: {
+                if (IS_END(P_RULE))
+                    fail (Error_Parse_End());
 
-                    if (r == R_UNHANDLED)
-                        i = END_FLAG;
-                    else {
-                        assert(r == P_OUT);
-                        i = VAL_INT32(P_OUT);
-                    }
-                    SET_END(P_OUT);  // preserve invariant
-                    break; }
-
-                // Because there are no LIT-XXX! datatypes, a special rule
-                // must be used if you want to match quoted types.  MATCH is
-                // brought in to do this duty, bringing along with it the
-                // features of the native.
-                //
-                case SYM_MATCH: {
-                    if (not IS_SER_ARRAY(P_INPUT))
-                        fail (Error_Parse_Rule()); // see #2253
-
-                    if (IS_END(P_RULE))
-                        fail (Error_Parse_End());
-
-                    if (not subrule) // capture only on iteration #1
-                        FETCH_NEXT_RULE_KEEP_LAST(&subrule, f);
-
-                    RELVAL *cmp = ARR_AT(ARR(P_INPUT), P_POS);
-
-                    if (IS_END(cmp))
-                        i = END_FLAG;
-                    else {
-                        DECLARE_LOCAL (temp);
-                        if (Match_Core_Throws(
-                            temp,
-                            subrule, P_RULE_SPECIFIER,
-                            cmp, P_INPUT_SPECIFIER
-                        )){
-                            Move_Value(P_OUT, temp);
-                            return R_THROWN;
-                        }
-
-                        if (VAL_LOGIC(temp))
-                            i = P_POS + 1;
-                        else
-                            i = END_FLAG;
-                    }
-                    break; }
-
-                case SYM_INTO: {
-                    if (IS_END(P_RULE))
-                        fail (Error_Parse_End());
-
-                    if (!subrule) {
-                        subrule = Get_Parse_Value(
-                            save, P_RULE, P_RULE_SPECIFIER
-                        );
-                        FETCH_NEXT_RULE(f);
-                    }
-
-                    if (not IS_BLOCK(subrule))
-                        fail (Error_Parse_Rule());
-
-                    // parse ["aa"] [into ["a" "a"]] ; is legal
-                    // parse "aa" [into ["a" "a"]] ; is not...already "into"
-                    //
-                    if (not IS_SER_ARRAY(P_INPUT))
-                        fail (Error_Parse_Rule());
-
-                    RELVAL *into = ARR_AT(ARR(P_INPUT), P_POS);
-                    if (IS_END(into)) {
-                        i = END_FLAG;  // `parse [] [into [...]]`, rejects
-                        break;
-                    }
-                    else if (ANY_PATH_KIND(CELL_KIND(VAL_UNESCAPED(into)))) {
-                        //
-                        // Can't PARSE an ANY-PATH! because it has no position
-                        // But would be inconvenient if INTO did not support.
-                        // Transform implicitly into a BLOCK! form.
-                        //
-                        // !!! Review faster way of sharing the AS transform.
-                        //
-                        Derelativize(P_CELL, into, P_INPUT_SPECIFIER);
-                        into = rebValueQ("as block!", P_CELL, rebEND);
-                    }
-                    else if (
-                        not ANY_SERIES_KIND(CELL_KIND(VAL_UNESCAPED(into)))
-                    ){
-                        i = END_FLAG;  // `parse [1] [into [...]`, rejects
-                        break;
-                    }
-
-                    DECLARE_ARRAY_FEED (subrules_feed,
-                        VAL_ARRAY(subrule),
-                        VAL_INDEX(subrule),
-                        P_RULE_SPECIFIER
+                if (!subrule) {
+                    subrule = Get_Parse_Value(
+                        save, P_RULE, P_RULE_SPECIFIER
                     );
-
-                    DECLARE_FRAME (
-                        subframe,
-                        subrules_feed,
-                        EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
-                    );
-
-                    bool interrupted;
-                    if (Subparse_Throws(
-                        &interrupted,
-                        SET_END(P_OUT),
-                        into,
-                        P_INPUT_SPECIFIER,  // harmless if specified API value
-                        subframe,
-                        P_COLLECTION,
-                        P_FIND_FLAGS
-                    )){
-                        return R_THROWN;
-                    }
-
-                    // !!! ignore interrupted? (e.g. ACCEPT or REJECT ran)
-
-                    if (IS_NULLED(P_OUT)) {
-                        i = END_FLAG;
-                    }
-                    else {
-                        if (VAL_UINT32(P_OUT) != VAL_LEN_HEAD(into))
-                            i = END_FLAG;
-                        else
-                            i = P_POS + 1;
-                    }
-
-                    if (Is_Api_Value(into))
-                        rebRelease(KNOWN(into));  // !!! rethink to use P_CELL
-
-                    SET_END(P_OUT);  // restore invariant
-                    break;
+                    FETCH_NEXT_RULE(f);
                 }
 
-                case SYM_DO: {
-                    if (subrule) {
-                        //
-                        // Not currently set up for iterating DO rules
-                        // since the Do_Eval_Rule routine expects to be
-                        // able to arbitrarily update P_NEXT_RULE
-                        //
-                        fail ("DO rules currently cannot be iterated");
-                    }
-
-                    subrule = VOID_VALUE; // cause an error if iterating
-
-                    i = Do_Eval_Rule(f); // changes P_RULE (should)
-
-                    if (i == THROWN_FLAG)
-                        return R_THROWN;
-
-                    break;
-                }
-
-                default:
+                if (not IS_BLOCK(subrule))
                     fail (Error_Parse_Rule());
+
+                // parse ["aa"] [into ["a" "a"]] ; is legal
+                // parse "aa" [into ["a" "a"]] ; is not...already "into"
+                //
+                if (not IS_SER_ARRAY(P_INPUT))
+                    fail (Error_Parse_Rule());
+
+                RELVAL *into = ARR_AT(ARR(P_INPUT), P_POS);
+                if (IS_END(into)) {
+                    i = END_FLAG;  // `parse [] [into [...]]`, rejects
+                    break;
                 }
-            }
-            else if (IS_BLOCK(rule)) {  // word fetched block, or inline block
+                else if (ANY_PATH_KIND(CELL_KIND(VAL_UNESCAPED(into)))) {
+                    //
+                    // Can't PARSE an ANY-PATH! because it has no position
+                    // But would be inconvenient if INTO did not support.
+                    // Transform implicitly into a BLOCK! form.
+                    //
+                    // !!! Review faster way of sharing the AS transform.
+                    //
+                    Derelativize(P_CELL, into, P_INPUT_SPECIFIER);
+                    into = rebValueQ("as block!", P_CELL, rebEND);
+                }
+                else if (
+                    not ANY_SERIES_KIND(CELL_KIND(VAL_UNESCAPED(into)))
+                ){
+                    i = END_FLAG;  // `parse [1] [into [...]`, rejects
+                    break;
+                }
 
                 DECLARE_ARRAY_FEED (subrules_feed,
-                    VAL_ARRAY(rule),
-                    VAL_INDEX(rule),
+                    VAL_ARRAY(subrule),
+                    VAL_INDEX(subrule),
                     P_RULE_SPECIFIER
                 );
 
@@ -2384,396 +2343,490 @@ REBNATIVE(subparse)
                 bool interrupted;
                 if (Subparse_Throws(
                     &interrupted,
-                    SET_END(P_CELL),
-                    P_INPUT_VALUE,
-                    SPECIFIED,
+                    SET_END(P_OUT),
+                    into,
+                    P_INPUT_SPECIFIER,  // harmless if specified API value
                     subframe,
                     P_COLLECTION,
-                    P_FIND_FLAGS & ~(PF_ONE_RULE)
-                )) {
-                    Move_Value(P_OUT, P_CELL);
+                    P_FIND_FLAGS
+                )){
                     return R_THROWN;
                 }
 
-                // Non-breaking out of loop instances of match or not.
+                // !!! ignore interrupted? (e.g. ACCEPT or REJECT ran)
 
-                if (IS_NULLED(P_CELL))
+                if (IS_NULLED(P_OUT)) {
                     i = END_FLAG;
-                else {
-                    assert(IS_INTEGER(P_CELL));
-                    i = VAL_INT32(P_CELL);
                 }
-
-                if (interrupted) { // ACCEPT or REJECT ran
-                    assert(i != THROWN_FLAG);
-                    if (i == END_FLAG)
-                        P_POS = NOT_FOUND;
+                else {
+                    if (VAL_UINT32(P_OUT) != VAL_LEN_HEAD(into))
+                        i = END_FLAG;
                     else
-                        P_POS = cast(REBLEN, i);
-                    break;
+                        i = P_POS + 1;
                 }
-            }
-            else {
-                // Parse according to datatype
 
-                REB_R r = Parse_One_Rule(f, P_POS, rule);
-                if (r == R_THROWN)
-                    return R_THROWN;
+                if (Is_Api_Value(into))
+                    rebRelease(KNOWN(into));  // !!! rethink to use P_CELL
 
-                if (r == R_UNHANDLED)
-                    i = END_FLAG;
-                else {
-                    assert(r == P_OUT or r == R_IMMEDIATE);
-                    if (r == R_IMMEDIATE) {
-                        assert(DSP == f->dsp_orig + 1);
-                        if (not (flags & PF_SET))  // only SET handles
-                            DS_DROP();
-                    }
-                    i = VAL_INT32(P_OUT);
-                }
-                SET_END(P_OUT);  // preserve invariant
-            }
-
-            assert(i != THROWN_FLAG);
-
-            // i: indicates new index or failure of the *match*, but
-            // that does not mean failure of the *rule*, because optional
-            // matches can still succeed when the last match failed.
-            //
-            if (i == END_FLAG) {  // this match failed
-                if (count < mincount) {
-                    P_POS = NOT_FOUND;  // number of matches was not enough
-                }
-                else {
-                    // just keep index as is.
-                }
+                SET_END(P_OUT);  // restore invariant
                 break;
             }
 
-            count++;  // may overflow to negative
-            if (count < 0)
-                count = INT32_MAX; // the forever case
+            case SYM_DO: {
+                if (subrule) {
+                    //
+                    // Not currently set up for iterating DO rules
+                    // since the Do_Eval_Rule routine expects to be
+                    // able to arbitrarily update P_NEXT_RULE
+                    //
+                    fail ("DO rules currently cannot be iterated");
+                }
 
-            P_POS = cast(REBLEN, i);
+                subrule = VOID_VALUE; // cause an error if iterating
 
-            if (i == SER_LEN(P_INPUT) and (flags & PF_ANY_OR_SOME)) {
-                //
-                // ANY and SOME auto terminate on e.g. `some [... | end]`.
-                // But WHILE is conceptually a synonym for a self-recursive
-                // rule and does not consider it a termination.  See:
-                //
-                // https://github.com/rebol/rebol-issues/issues/1268
-                //
+                i = Do_Eval_Rule(f); // changes P_RULE (should)
+
+                if (i == THROWN_FLAG)
+                    return R_THROWN;
+
+                break;
+            }
+
+            default:
+                fail (Error_Parse_Rule());
+            }
+        }
+        else if (IS_BLOCK(rule)) {  // word fetched block, or inline block
+
+            DECLARE_ARRAY_FEED (subrules_feed,
+                VAL_ARRAY(rule),
+                VAL_INDEX(rule),
+                P_RULE_SPECIFIER
+            );
+
+            DECLARE_FRAME (
+                subframe,
+                subrules_feed,
+                EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
+            );
+
+            bool interrupted;
+            if (Subparse_Throws(
+                &interrupted,
+                SET_END(P_CELL),
+                P_INPUT_VALUE,
+                SPECIFIED,
+                subframe,
+                P_COLLECTION,
+                P_FIND_FLAGS & ~(PF_ONE_RULE)
+            )) {
+                Move_Value(P_OUT, P_CELL);
+                return R_THROWN;
+            }
+
+            // Non-breaking out of loop instances of match or not.
+
+            if (IS_NULLED(P_CELL))
+                i = END_FLAG;
+            else {
+                assert(IS_INTEGER(P_CELL));
+                i = VAL_INT32(P_CELL);
+            }
+
+            if (interrupted) { // ACCEPT or REJECT ran
+                assert(i != THROWN_FLAG);
+                if (i == END_FLAG)
+                    P_POS = NOT_FOUND;
+                else
+                    P_POS = cast(REBLEN, i);
                 break;
             }
         }
+        else {
+            // Parse according to datatype
 
-        if (P_POS > SER_LEN(P_INPUT))
-            P_POS = NOT_FOUND;
+            REB_R r = Parse_One_Rule(f, P_POS, rule);
+            if (r == R_THROWN)
+                return R_THROWN;
 
-    //==////////////////////////////////////////////////////////////////==//
-    //
-    // "POST-MATCH PROCESSING"
-    //
-    //==////////////////////////////////////////////////////////////////==//
-
-        // The comment here says "post match processing", but it may be a
-        // failure signal.  Or it may have been a success and there could be
-        // a NOT to apply.  Note that failure here doesn't mean returning
-        // from SUBPARSE, as there still may be alternate rules to apply
-        // with bar e.g. `[a | b | c]`.
-
-      post_match_processing:;
-
-        if (flags) {
-            if (flags & PF_NOT) {
-                if ((flags & PF_NOT2) and P_POS != NOT_FOUND)
-                    P_POS = NOT_FOUND;
-                else
-                    P_POS = begin;
-            }
-
-            if (P_POS == NOT_FOUND) {
-                if (flags & PF_THEN) {
-                    FETCH_TO_BAR_OR_END(f);
-                    if (NOT_END(P_RULE))
-                        FETCH_NEXT_RULE(f);
+            if (r == R_UNHANDLED)
+                i = END_FLAG;
+            else {
+                assert(r == P_OUT or r == R_IMMEDIATE);
+                if (r == R_IMMEDIATE) {
+                    assert(DSP == f->dsp_orig + 1);
+                    if (not (flags & PF_SET))  // only SET handles
+                        DS_DROP();
                 }
+                i = VAL_INT32(P_OUT);
+            }
+            SET_END(P_OUT);  // preserve invariant
+        }
+
+        assert(i != THROWN_FLAG);
+
+        // i: indicates new index or failure of the *match*, but
+        // that does not mean failure of the *rule*, because optional
+        // matches can still succeed when the last match failed.
+        //
+        if (i == END_FLAG) {  // this match failed
+            if (count < P_MINCOUNT) {
+                P_POS = NOT_FOUND;  // number of matches was not enough
             }
             else {
-                // Set count to how much input was advanced
-                //
-                count = (begin > P_POS) ? 0 : P_POS - begin;
-
-                if (flags & PF_COPY) {
-                    REBVAL *sink = Sink_Word_May_Fail(
-                        set_or_copy_word,
-                        P_RULE_SPECIFIER
-                    );
-                    if (ANY_ARRAY(P_INPUT_VALUE)) {
-                        //
-                        // Act like R3-Alpha in preserving GROUP! vs. BLOCK!
-                        // distinction (which Rebol2 did not).  But don't keep
-                        // SET-XXX! or GET-XXX! (like how quoting is not kept)
-                        //
-                        Init_Any_Array(
-                            sink,
-                            ANY_GROUP_KIND(P_TYPE) ? REB_GROUP : REB_BLOCK,
-                            Copy_Array_At_Max_Shallow(
-                                ARR(P_INPUT),
-                                begin,
-                                P_INPUT_SPECIFIER,
-                                count
-                            )
-                        );
-                    }
-                    else if (IS_BINARY(P_INPUT_VALUE)) {
-                        Init_Binary(  // R3-Alpha behavior (e.g. not AS TEXT!)
-                            sink,
-                            Copy_Sequence_At_Len(P_INPUT, begin, count)
-                        );
-                    }
-                    else {
-                        assert(ANY_STRING(P_INPUT_VALUE));
-
-                        DECLARE_LOCAL (begin_val);
-                        Init_Any_Series_At(begin_val, P_TYPE, P_INPUT, begin);
-
-                        // Rebol2 behavior of always "netural" TEXT!.  Avoids
-                        // creation of things like URL!-typed fragments that
-                        // have no scheme:// at their head, or getting <bc>
-                        // out of <abcd> as if `<b` or `c>` had been found.
-                        //
-                        Init_Text(
-                            sink,
-                            Copy_String_At_Limit(begin_val, count)
-                        );
-                    }
-
-                    // !!! As we are losing the datatype here, it doesn't make
-                    // sense to carry forward the quoting on the input.  It
-                    // is collecting items in a neutral container.  It is less
-                    // obvious what marking a position should do.
-                }
-                else if ((flags & PF_SET) and (count != 0)) { // 0-leave alone
-                    //
-                    // We waited to eval the SET-GROUP! until we knew we had
-                    // something we wanted to set.  Do so, and then go through
-                    // a normal setting procedure.
-                    //
-                    if (IS_SET_GROUP(set_or_copy_word)) {
-                        if (Do_Any_Array_At_Throws(
-                            P_CELL,
-                            set_or_copy_word,
-                            P_RULE_SPECIFIER
-                        )){
-                            Move_Value(P_OUT, P_CELL);
-                            return R_THROWN;
-                        }
-
-                        // !!! What SET-GROUP! can do in PARSE is more
-                        // ambitious than just an indirection for naming
-                        // variables or paths...but for starters it does
-                        // that just to show where more work could be done.
-
-                        if (not (IS_WORD(P_CELL) or IS_SET_WORD(P_CELL)))
-                            fail (Error_Parse_Variable_Raw(P_CELL));
-
-                        set_or_copy_word = P_CELL;
-                    }
-
-                    if (IS_SER_ARRAY(P_INPUT)) {
-                        Derelativize(
-                            Sink_Word_May_Fail(
-                                set_or_copy_word, P_RULE_SPECIFIER
-                            ),
-                            ARR_AT(ARR(P_INPUT), begin),
-                            P_INPUT_SPECIFIER
-                        );
-                    }
-                    else {
-                        REBVAL *var = Sink_Word_May_Fail(
-                            set_or_copy_word, P_RULE_SPECIFIER
-                        );
-
-                        // A Git merge of UTF-8 everywhere put this here,
-                        // with no corresponding use of "captured".  It's not
-                        // clear what happened--leaving it here to investigate
-                        // if a pertinent bug has a smoking gun here.
-
-                        /*
-                        DECLARE_LOCAL (begin_val);
-                        Init_Any_Series_At(begin_val, P_TYPE, P_INPUT, begin);
-                        Init_Any_Series(
-                            captured,
-                            P_TYPE,
-                            Copy_String_At_Limit(begin_val, count)
-                        );
-                        */
-
-                        if (DSP > f->dsp_orig) {
-                            Move_Value(var, DS_TOP);
-                            DS_DROP();
-                            if (DSP != f->dsp_orig)
-                                fail ("SET for datatype only allows 1 value");
-                        }
-                        else if (P_TYPE == REB_BINARY)
-                            Init_Integer(var, *BIN_AT(P_INPUT, begin));
-                        else
-                            Init_Char_Unchecked(
-                                var,
-                                GET_CHAR_AT(STR(P_INPUT), begin)
-                            );
-                    }
-                }
-
-                if (flags & PF_REMOVE) {
-                    FAIL_IF_READ_ONLY(P_INPUT_VALUE);
-                    if (count)
-                        Remove_Series_Len(P_INPUT, begin, count);
-                    P_POS = begin;
-                }
-
-                if (flags & (PF_INSERT | PF_CHANGE)) {
-                    FAIL_IF_READ_ONLY(P_INPUT_VALUE);
-                    count = (flags & PF_INSERT) ? 0 : count;
-                    bool only = false;
-
-                    if (IS_END(P_RULE))
-                        fail (Error_Parse_End());
-
-                    if (IS_WORD(P_RULE)) { // check for ONLY flag
-                        REBSYM cmd = VAL_CMD(P_RULE);
-                        switch (cmd) {
-                        case SYM_ONLY:
-                            only = true;
-                            FETCH_NEXT_RULE(f);
-                            if (IS_END(P_RULE))
-                                fail (Error_Parse_End());
-                            break;
-
-                        case SYM_0: // not a "parse command" word, keep going
-                            break;
-
-                        default: // other commands invalid after INSERT/CHANGE
-                            fail (Error_Parse_Rule());
-                        }
-                    }
-
-                    // new value...comment said "CHECK FOR QUOTE!!"
-                    rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
-                    FETCH_NEXT_RULE(f);
-
-                    // If a GROUP!, then execute it first.  See #1279
-                    //
-                    DECLARE_LOCAL (evaluated);
-                    if (IS_GROUP(rule)) {
-                        REBSPC *derived = Derive_Specifier(
-                            P_RULE_SPECIFIER,
-                            rule
-                        );
-                        if (Do_Any_Array_At_Throws(
-                            evaluated,
-                            rule,
-                            derived
-                        )){
-                            Move_Value(P_OUT, evaluated);
-                            return R_THROWN;
-                        }
-
-                        rule = evaluated;
-                    }
-
-                    if (IS_SER_ARRAY(P_INPUT)) {
-                        DECLARE_LOCAL (specified);
-                        Derelativize(specified, rule, P_RULE_SPECIFIER);
-
-                        REBLEN mod_flags = (flags & PF_INSERT) ? 0 : AM_PART;
-                        if (
-                            not only and
-                            Splices_Into_Type_Without_Only(P_TYPE, specified)
-                        ){
-                            mod_flags |= AM_SPLICE;
-                        }
-                        P_POS = Modify_Array(
-                            (flags & PF_CHANGE)
-                                ? Canon(SYM_CHANGE)
-                                : Canon(SYM_INSERT),
-                            ARR(P_INPUT),
-                            begin,
-                            specified,
-                            mod_flags,
-                            count,
-                            1
-                        );
-
-                        if (IS_QUOTED(rule))
-                            Unquotify(ARR_AT(ARR(P_INPUT), P_POS - 1), 1);
-                    }
-                    else {
-                        DECLARE_LOCAL (specified);
-                        Derelativize(specified, rule, P_RULE_SPECIFIER);
-
-                        P_POS = begin;
-
-                        REBLEN mod_flags = (flags & PF_INSERT) ? 0 : AM_PART;
-
-                        P_POS = Modify_String_Or_Binary(  // checks read-only
-                            P_INPUT_VALUE,
-                            (flags & PF_CHANGE)
-                                ? Canon(SYM_CHANGE)
-                                : Canon(SYM_INSERT),
-                            specified,
-                            mod_flags,
-                            count,
-                            1
-                        );
-                    }
-                }
-
-                if (flags & PF_AHEAD)
-                    P_POS = begin;
+                // just keep index as is.
             }
+            break;
+        }
 
-            flags = 0;
-            set_or_copy_word = NULL;
+        count++;  // may overflow to negative
+        if (count < 0)
+            count = INT32_MAX; // the forever case
+
+        P_POS = cast(REBLEN, i);
+
+        if (i == SER_LEN(P_INPUT) and (flags & PF_ANY_OR_SOME)) {
+            //
+            // ANY and SOME auto terminate on e.g. `some [... | end]`.
+            // But WHILE is conceptually a synonym for a self-recursive
+            // rule and does not consider it a termination.  See:
+            //
+            // https://github.com/rebol/rebol-issues/issues/1268
+            //
+            break;
+        }
+    }
+
+    if (P_POS > SER_LEN(P_INPUT))
+        P_POS = NOT_FOUND;
+
+//==////////////////////////////////////////////////////////////////==//
+//
+// "POST-MATCH PROCESSING"
+//
+//==////////////////////////////////////////////////////////////////==//
+
+    // The comment here says "post match processing", but it may be a
+    // failure signal.  Or it may have been a success and there could be
+    // a NOT to apply.  Note that failure here doesn't mean returning
+    // from SUBPARSE, as there still may be alternate rules to apply
+    // with bar e.g. `[a | b | c]`.
+
+  post_match_processing:;
+
+    if (flags) {
+        if (flags & PF_NOT) {
+            if ((flags & PF_NOT2) and P_POS != NOT_FOUND)
+                P_POS = NOT_FOUND;
+            else
+                P_POS = begin;
         }
 
         if (P_POS == NOT_FOUND) {
-
-          next_alternate:;
-
-            // If this is just one step, e.g.:
+            if (flags & PF_THEN) {
+                FETCH_TO_BAR_OR_END(f);
+                if (NOT_END(P_RULE))
+                    FETCH_NEXT_RULE(f);
+            }
+        }
+        else {
+            // Set count to how much input was advanced
             //
-            //     collect x keep some "a" | keep some "b"
-            //
-            // COLLECT asked for one step, and the first keep asked for one
-            // step.  So that second KEEP applies only to some outer collect.
-            //
-            if (P_FIND_FLAGS & PF_ONE_RULE)
-                return Init_Nulled(D_OUT);
+            count = (begin > P_POS) ? 0 : P_POS - begin;
 
-            if (P_COLLECTION)
-                TERM_ARRAY_LEN(P_COLLECTION, collection_tail);
+            if (flags & PF_COPY) {
+                REBVAL *sink = Sink_Word_May_Fail(
+                    set_or_copy_word,
+                    P_RULE_SPECIFIER
+                );
+                if (ANY_ARRAY(P_INPUT_VALUE)) {
+                    //
+                    // Act like R3-Alpha in preserving GROUP! vs. BLOCK!
+                    // distinction (which Rebol2 did not).  But don't keep
+                    // SET-XXX! or GET-XXX! (like how quoting is not kept)
+                    //
+                    Init_Any_Array(
+                        sink,
+                        ANY_GROUP_KIND(P_TYPE) ? REB_GROUP : REB_BLOCK,
+                        Copy_Array_At_Max_Shallow(
+                            ARR(P_INPUT),
+                            begin,
+                            P_INPUT_SPECIFIER,
+                            count
+                        )
+                    );
+                }
+                else if (IS_BINARY(P_INPUT_VALUE)) {
+                    Init_Binary(  // R3-Alpha behavior (e.g. not AS TEXT!)
+                        sink,
+                        Copy_Sequence_At_Len(P_INPUT, begin, count)
+                    );
+                }
+                else {
+                    assert(ANY_STRING(P_INPUT_VALUE));
 
-            FETCH_TO_BAR_OR_END(f);
-            if (IS_END(P_RULE)) // no alternate rule
-                return Init_Nulled(D_OUT);
+                    DECLARE_LOCAL (begin_val);
+                    Init_Any_Series_At(begin_val, P_TYPE, P_INPUT, begin);
 
-            // Jump to the alternate rule and reset input
-            //
-            FETCH_NEXT_RULE(f);
-            P_POS = begin = start;
+                    // Rebol2 behavior of always "netural" TEXT!.  Avoids
+                    // creation of things like URL!-typed fragments that
+                    // have no scheme:// at their head, or getting <bc>
+                    // out of <abcd> as if `<b` or `c>` had been found.
+                    //
+                    Init_Text(
+                        sink,
+                        Copy_String_At_Limit(begin_val, count)
+                    );
+                }
+
+                // !!! As we are losing the datatype here, it doesn't make
+                // sense to carry forward the quoting on the input.  It
+                // is collecting items in a neutral container.  It is less
+                // obvious what marking a position should do.
+            }
+            else if ((flags & PF_SET) and (count != 0)) { // 0-leave alone
+                //
+                // We waited to eval the SET-GROUP! until we knew we had
+                // something we wanted to set.  Do so, and then go through
+                // a normal setting procedure.
+                //
+                if (IS_SET_GROUP(set_or_copy_word)) {
+                    if (Do_Any_Array_At_Throws(
+                        P_CELL,
+                        set_or_copy_word,
+                        P_RULE_SPECIFIER
+                    )){
+                        Move_Value(P_OUT, P_CELL);
+                        return R_THROWN;
+                    }
+
+                    // !!! What SET-GROUP! can do in PARSE is more
+                    // ambitious than just an indirection for naming
+                    // variables or paths...but for starters it does
+                    // that just to show where more work could be done.
+
+                    if (not (IS_WORD(P_CELL) or IS_SET_WORD(P_CELL)))
+                        fail (Error_Parse_Variable_Raw(P_CELL));
+
+                    set_or_copy_word = P_CELL;
+                }
+
+                if (IS_SER_ARRAY(P_INPUT)) {
+                    Derelativize(
+                        Sink_Word_May_Fail(
+                            set_or_copy_word, P_RULE_SPECIFIER
+                        ),
+                        ARR_AT(ARR(P_INPUT), begin),
+                        P_INPUT_SPECIFIER
+                    );
+                }
+                else {
+                    REBVAL *var = Sink_Word_May_Fail(
+                        set_or_copy_word, P_RULE_SPECIFIER
+                    );
+
+                    // A Git merge of UTF-8 everywhere put this here,
+                    // with no corresponding use of "captured".  It's not
+                    // clear what happened--leaving it here to investigate
+                    // if a pertinent bug has a smoking gun here.
+
+                    /*
+                    DECLARE_LOCAL (begin_val);
+                    Init_Any_Series_At(begin_val, P_TYPE, P_INPUT, begin);
+                    Init_Any_Series(
+                        captured,
+                        P_TYPE,
+                        Copy_String_At_Limit(begin_val, count)
+                    );
+                    */
+
+                    if (DSP > f->dsp_orig) {
+                        Move_Value(var, DS_TOP);
+                        DS_DROP();
+                        if (DSP != f->dsp_orig)
+                            fail ("SET for datatype only allows 1 value");
+                    }
+                    else if (P_TYPE == REB_BINARY)
+                        Init_Integer(var, *BIN_AT(P_INPUT, begin));
+                    else
+                        Init_Char_Unchecked(
+                            var,
+                            GET_CHAR_AT(STR(P_INPUT), begin)
+                        );
+                }
+            }
+
+            if (flags & PF_REMOVE) {
+                FAIL_IF_READ_ONLY(P_INPUT_VALUE);
+                if (count)
+                    Remove_Series_Len(P_INPUT, begin, count);
+                P_POS = begin;
+            }
+
+            if (flags & (PF_INSERT | PF_CHANGE)) {
+                FAIL_IF_READ_ONLY(P_INPUT_VALUE);
+                count = (flags & PF_INSERT) ? 0 : count;
+                bool only = false;
+
+                if (IS_END(P_RULE))
+                    fail (Error_Parse_End());
+
+                if (IS_WORD(P_RULE)) { // check for ONLY flag
+                    REBSYM cmd = VAL_CMD(P_RULE);
+                    switch (cmd) {
+                      case SYM_ONLY:
+                        only = true;
+                        FETCH_NEXT_RULE(f);
+                        if (IS_END(P_RULE))
+                            fail (Error_Parse_End());
+                        break;
+
+                      case SYM_0: // not a "parse command" word, keep going
+                        break;
+
+                      default: // other commands invalid after INSERT/CHANGE
+                        fail (Error_Parse_Rule());
+                    }
+                }
+
+                // new value...comment said "CHECK FOR QUOTE!!"
+                rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
+                FETCH_NEXT_RULE(f);
+
+                // If a GROUP!, then execute it first.  See #1279
+                //
+                DECLARE_LOCAL (evaluated);
+                if (IS_GROUP(rule)) {
+                    REBSPC *derived = Derive_Specifier(
+                        P_RULE_SPECIFIER,
+                        rule
+                    );
+                    if (Do_Any_Array_At_Throws(
+                        evaluated,
+                        rule,
+                        derived
+                    )){
+                        Move_Value(P_OUT, evaluated);
+                        return R_THROWN;
+                    }
+
+                    rule = evaluated;
+                }
+
+                if (IS_SER_ARRAY(P_INPUT)) {
+                    DECLARE_LOCAL (specified);
+                    Derelativize(specified, rule, P_RULE_SPECIFIER);
+
+                    REBLEN mod_flags = (flags & PF_INSERT) ? 0 : AM_PART;
+                    if (
+                        not only and
+                        Splices_Into_Type_Without_Only(P_TYPE, specified)
+                    ){
+                        mod_flags |= AM_SPLICE;
+                    }
+                    P_POS = Modify_Array(
+                        (flags & PF_CHANGE)
+                            ? Canon(SYM_CHANGE)
+                            : Canon(SYM_INSERT),
+                        ARR(P_INPUT),
+                        begin,
+                        specified,
+                        mod_flags,
+                        count,
+                        1
+                    );
+
+                    if (IS_QUOTED(rule))
+                        Unquotify(ARR_AT(ARR(P_INPUT), P_POS - 1), 1);
+                }
+                else {
+                    DECLARE_LOCAL (specified);
+                    Derelativize(specified, rule, P_RULE_SPECIFIER);
+
+                    P_POS = begin;
+
+                    REBLEN mod_flags = (flags & PF_INSERT) ? 0 : AM_PART;
+
+                    P_POS = Modify_String_Or_Binary(  // checks read-only
+                        P_INPUT_VALUE,
+                        (flags & PF_CHANGE)
+                            ? Canon(SYM_CHANGE)
+                            : Canon(SYM_INSERT),
+                        specified,
+                        mod_flags,
+                        count,
+                        1
+                    );
+                }
+            }
+
+            if (flags & PF_AHEAD)
+                P_POS = begin;
         }
 
-        if (P_FIND_FLAGS & PF_ONE_RULE)  // don't loop
-            break;
-
-        begin = P_POS;
-        mincount = maxcount = 1;
+        flags = 0;
+        set_or_copy_word = NULL;
     }
 
+    if (P_POS == NOT_FOUND) {
+
+      next_alternate:;
+
+        // If this is just one step, e.g.:
+        //
+        //     collect x keep some "a" | keep some "b"
+        //
+        // COLLECT asked for one step, and the first keep asked for one
+        // step.  So that second KEEP applies only to some outer collect.
+        //
+        if (P_FIND_FLAGS & PF_ONE_RULE)
+            goto return_null;
+
+        if (P_COLLECTION)
+            TERM_ARRAY_LEN(P_COLLECTION, collection_tail);
+
+        FETCH_TO_BAR_OR_END(f);
+        if (IS_END(P_RULE))  // no alternate rule
+            goto return_null;
+
+        // Jump to the alternate rule and reset input
+        //
+        FETCH_NEXT_RULE(f);
+        P_POS = begin = P_START;
+    }
+
+    if (P_FIND_FLAGS & PF_ONE_RULE)  // don't loop
+        goto return_position;
+
+    // !!! `begin` is a local variable, reset on re-entry but the question is
+    // if it needs to hold state across steps or evaluations.
+    //
+    /* begin = P_POS; */
+    assert(flags == 0);  // local variable, wasn't reset here (should be 0)
+
+    // !!! These apply to things like `parse "aa" [2 ["a" (print "hi")]]`.
+    // Hence they may need to be carried across continuations (though perhaps
+    // not if that's always a subparse).  If this rule needed to be re-entered
+    // then they can't just be reset at the entry.  asserts that they are 1
+    // at the outset are added.
+    //
+    Init_Integer(P_MINCOUNT_VALUE, 1);
+    Init_Integer(P_MAXCOUNT_VALUE, 1);
+
+    // Stick with Parse_Executor...
+    CONTINUE (BLANK_VALUE);  // get called back with a NULL
+
+  return_position:
+    while (NOT_END(F_VALUE(f)))  // hack to avoid Lookback step (for now)
+        Fetch_Next_Forget_Lookback(f);
+
     return Init_Integer(D_OUT, P_POS); // !!! return switched input series??
+
+  return_null:
+    while (NOT_END(F_VALUE(f)))  // hack to avoid Lookback step (for now)
+        Fetch_Next_Forget_Lookback(f);
+
+    return Init_Nulled(D_OUT);
 }
 
 

@@ -338,17 +338,6 @@ REB_R New_Expression_Executor(REBFRM *f)
 
 //=//// START NEW EXPRESSION //////////////////////////////////////////////=//
 
-    assert(Eval_Count >= 0);
-    if (--Eval_Count == 0) {
-        //
-        // Note that Do_Signals_Throws() may do a recycle step of the GC, or
-        // it may spawn an entire interactive debugging session via
-        // breakpoint before it returns.  It may also FAIL and longjmp out.
-        //
-        if (Do_Signals_Throws(f->out))
-            goto return_thrown;
-    }
-
     assert(NOT_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT));
     SET_CELL_FLAG(f->out, OUT_MARKED_STALE);  // internal use flag only
 
@@ -392,9 +381,6 @@ REB_R New_Expression_Executor(REBFRM *f)
     INIT_F_EXECUTOR(f, &Reevaluation_Executor);
     f->u.reval.value = v;
     return R_CONTINUATION;
-
-  return_thrown:
-    return R_THROWN;
 
   finished:
     INIT_F_EXECUTOR(f, &Finished_Executor);

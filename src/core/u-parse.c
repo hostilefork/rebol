@@ -205,12 +205,13 @@ void Pack_Subparse(
 
     Push_Frame(out, f);  // checks for C stack overflow
     Push_Action(f, NAT_ACTION(subparse), UNBOUND);
-
     Begin_Prefix_Action(f, Canon(SYM_SUBPARSE));
+    Drop_Action(f);  // keep frame around.
+    INIT_F_EXECUTOR(f, &Parse_Executor);
 
-    f->param = END_NODE; // informs infix lookahead
+/*   f->param = END_NODE; // informs infix lookahead
     f->arg = m_cast(REBVAL*, END_NODE);
-    f->special = END_NODE;
+    f->special = END_NODE; */
 
     Init_Nulled(Prep_Stack_Cell(P_RETURN_VALUE));  // not used
 
@@ -1451,7 +1452,18 @@ REBNATIVE(subparse)
 // by the RETURN instruction.  This also returns a thrown value, but will
 // be caught by PARSE before returning.
 {
+    UNUSED(frame_);
+    assert(!"SUBPARSE temporarily out of commission.");
+    return nullptr;
+}
+
+
+//
+//  Parse_Executor: C
+//
+REB_R Parse_Executor(REBFRM *frame_) {
     INCLUDE_PARAMS_OF_SUBPARSE;
+    CLEAR_SERIES_INFO(frame_->varlist, HOLD);  // remove bit
 
     UNUSED(ARG(input));  // used via P_INPUT
     UNUSED(ARG(find_flags));  // used via P_FIND_FLAGS
@@ -2808,15 +2820,11 @@ REBNATIVE(subparse)
     CONTINUE (BLANK_VALUE);  // get called back with a NULL
 
   return_position:
-    while (NOT_END(F_VALUE(f)))  // hack to avoid Lookback step (for now)
-        Fetch_Next_Forget_Lookback(f);
-
+    INIT_F_EXECUTOR(f, &Finished_Executor);
     return Init_Integer(D_OUT, P_POS); // !!! return switched input series??
 
   return_null:
-    while (NOT_END(F_VALUE(f)))  // hack to avoid Lookback step (for now)
-        Fetch_Next_Forget_Lookback(f);
-
+    INIT_F_EXECUTOR(f, &Finished_Executor);
     return Init_Nulled(D_OUT);
 }
 
@@ -2878,7 +2886,7 @@ REBNATIVE(parse)
     );
 
     Init_Blank(D_SPARE);  // signal next call that we won't be top of stack
-    assert(f->executor == &Action_Executor);  // was set by Begin_Action()
+//    assert(f->executor == &Action_Executor);  // was set by Begin_Action()
     return R_CONTINUATION;
   }
 

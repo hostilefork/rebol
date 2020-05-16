@@ -501,10 +501,6 @@ inline static void Abort_Frame(REBFRM *f) {
 
 
 inline static void Drop_Frame_Core(REBFRM *f) {
-  #ifdef DEBUG_ENSURE_FRAME_EVALUATES
-    assert(f->was_eval_called);  // must call evaluator--even on empty array
-  #endif
-
   #if defined(DEBUG_EXPIRED_LOOKBACK)
     free(f->stress);
   #endif
@@ -560,10 +556,6 @@ inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
     f->original = nullptr;  // !!! redundant!
     TRASH_POINTER_IF_DEBUG(f->executor);  // not defaulted
     f->varlist = nullptr;
-
-  #ifdef DEBUG_ENSURE_FRAME_EVALUATES
-    f->was_eval_called = false;
-  #endif
 }
 
 #define DECLARE_FRAME(name,feed,flags) \

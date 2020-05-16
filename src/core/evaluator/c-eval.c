@@ -319,10 +319,6 @@ REB_R Brancher_Executor(REBFRM *frame_)
 //
 REB_R New_Expression_Executor(REBFRM *f)
 {
-  #ifdef DEBUG_ENSURE_FRAME_EVALUATES
-    f->was_eval_called = true;  // see definition for why this flag exists
-  #endif
-
     assert(DSP >= f->dsp_orig);  // REDUCE accrues, APPLY adds refinements
     assert(not IS_TRASH_DEBUG(f->out));  // all invisible will preserve output
     assert(f->out != f_spare);  // overwritten by temporary calculations
@@ -362,9 +358,6 @@ REB_R New_Expression_Executor(REBFRM *f)
 
     // If asked to evaluate `[]` then we have now done all the work the
     // evaluator needs to do--including marking the output stale.
-    //
-    // See DEBUG_ENSURE_FRAME_EVALUATES for why an empty array does not
-    // bypass calling into the evaluator.
     //
     if (kind.byte == REB_0_END)
         goto finished;

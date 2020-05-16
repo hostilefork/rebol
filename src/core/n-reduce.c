@@ -261,10 +261,6 @@ REB_R Compose_To_Stack_Core(
 
     Push_Frame(nullptr, f);
 
-  #if defined(DEBUG_ENSURE_FRAME_EVALUATES)
-    f->was_eval_called = true;  // lie since we're using frame for enumeration
-  #endif
-
     for (; NOT_END(*v); Fetch_Next_Forget_Lookback(f)) {
         const REBCEL *cell = VAL_UNESCAPED(*v);
         enum Reb_Kind kind = CELL_KIND(cell); // notice `''(...)`

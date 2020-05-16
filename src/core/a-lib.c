@@ -1367,10 +1367,6 @@ REBVAL *RL_rebRescue(
     DECLARE_END_FRAME (f, EVAL_MASK_DEFAULT);  // not FULLY_SPECIALIZED
     Push_Dummy_Frame(f);
 
-  #ifdef DEBUG_ENSURE_FRAME_EVALUATES
-    f->was_eval_called = true;  // "fake" frame, okay to lie
-  #endif
-
     // The first time through the following code 'error' will be null, but...
     // `fail` can longjmp here, so 'error' won't be null *if* that happens!
     //

@@ -827,15 +827,6 @@ struct Reb_Frame {
     //
     struct Reb_State state;
   #endif
-
-  #if defined(DEBUG_ENSURE_FRAME_EVALUATES)
-    //
-    // Originally in R3-Alpha the evaluator would be skipped for empty arrays.
-    // This meant that `forever []` would never get a chance to run.  Revolt
-    // always runs the evaluator--see DEBUG_ENSURE_FRAME_EVALUATES definition.
-    //
-    bool was_eval_called;
-  #endif
 };
 
 

@@ -1547,16 +1547,7 @@ REBNATIVE(subparse)
     REBFLGS flags = 0;
     const RELVAL *set_or_copy_word = NULL;
 
-  #if defined(DEBUG_ENSURE_FRAME_EVALUATES)
-    //
-    // For the same reasons that the evaluator always wants to run through and
-    // not shortcut, PARSE wants to.  This makes it better for tracing and
-    // hooking, and presents Ctrl-C opportunities.
-    //
-    f->was_eval_called = true;
-  #endif
-
-  loop:  // not `while (NOT_END`, see DEBUG_ENSURE_FRAME_EVALUATES
+  loop:
 
     /* Print_Parse_Index(f); */
     UPDATE_EXPRESSION_START(f);

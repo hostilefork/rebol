@@ -126,10 +126,13 @@ enum {
 #define P_MAXCOUNT_VALUE    (f->rootvar + 7)
 #define P_MAXCOUNT          VAL_INT32(P_MAXCOUNT_VALUE)
 
-#define P_START_VALUE       (f->rootvar + 8)
+#define P_COUNT_VALUE       (f->rootvar + 8)
+#define P_COUNT             VAL_INT32(P_COUNT_VALUE)
+
+#define P_START_VALUE       (f->rootvar + 9)
 #define P_START             cast(REBLEN, VAL_INT32(P_START_VALUE))
 
-#define P_BEGIN_VALUE       (f->rootvar + 9)
+#define P_BEGIN_VALUE       (f->rootvar + 10)
 #define P_BEGIN             cast(REBLEN, VAL_INT32(P_BEGIN_VALUE))
 
 
@@ -259,6 +262,7 @@ void Pack_Subparse(
     Init_Nulled(Prep_Stack_Cell(P_NUM_QUOTES_VALUE));
     Init_Nulled(Prep_Stack_Cell(P_MINCOUNT_VALUE));
     Init_Nulled(Prep_Stack_Cell(P_MAXCOUNT_VALUE));
+    Init_Nulled(Prep_Stack_Cell(P_COUNT_VALUE));
     Init_Nulled(Prep_Stack_Cell(P_START_VALUE));
     Init_Nulled(Prep_Stack_Cell(P_BEGIN_VALUE));
 
@@ -1471,7 +1475,7 @@ static REB_R Handle_Seek_Rule_Dont_Update_Begin(
 //      find-flags [integer!]
 //      collection "Array into which any KEEP values are collected"
 //          [blank! any-series!]
-//      <local> num-quotes mincount maxcount start begin
+//      <local> num-quotes mincount maxcount count start begin
 //  ]
 //
 REBNATIVE(subparse)
@@ -1576,6 +1580,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         //
         Init_Integer(P_MINCOUNT_VALUE, 1);
         Init_Integer(P_MAXCOUNT_VALUE, 1);
+        Init_Unreadable_Blank(P_COUNT_VALUE);  // make sure it's applicable
 
         // Capture the `start` of the subparse where it was at the beginning.
         // (The P_POS is done using feeds, so the error reporting and debug
@@ -2223,9 +2228,9 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
     Init_Integer(P_BEGIN_VALUE, P_POS);  // input at match section beginning
 
-    REBINT count; // gotos would cross initialization
-    count = 0;
-    while (count < P_MAXCOUNT) {
+    assert(IS_UNREADABLE_DEBUG(P_COUNT_VALUE));
+    Init_Integer(P_COUNT_VALUE, 0);
+    while (P_COUNT < P_MAXCOUNT) {
         assert(
             not IS_BAR(rule)
             and not IS_BLANK(rule)
@@ -2541,7 +2546,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         // matches can still succeed when the last match failed.
         //
         if (i == END_FLAG) {  // this match failed
-            if (count < P_MINCOUNT) {
+            if (P_COUNT < P_MINCOUNT) {
                 P_POS = NOT_FOUND;  // number of matches was not enough
             }
             else {
@@ -2550,9 +2555,9 @@ REB_R Parse_Executor(REBFRM *frame_) {
             break;
         }
 
-        count++;  // may overflow to negative
-        if (count < 0)
-            count = INT32_MAX; // the forever case
+        Init_Integer(P_COUNT_VALUE, P_COUNT + 1);  // may overflow to negative
+        if (P_COUNT < 0)
+            Init_Integer(P_COUNT_VALUE, INT32_MAX);  // the forever case
 
         P_POS = cast(REBLEN, i);
 
@@ -2603,7 +2608,10 @@ REB_R Parse_Executor(REBFRM *frame_) {
         else {
             // Set count to how much input was advanced
             //
-            count = (P_BEGIN > P_POS) ? 0 : P_POS - P_BEGIN;
+            if (P_BEGIN > P_POS)
+                Init_Integer(P_COUNT_VALUE, 0);
+            else
+                Init_Integer(P_COUNT_VALUE, P_POS - P_BEGIN);
 
             if (flags & PF_COPY) {
                 REBVAL *sink = Sink_Word_May_Fail(
@@ -2623,14 +2631,14 @@ REB_R Parse_Executor(REBFRM *frame_) {
                             ARR(P_INPUT),
                             P_BEGIN,
                             P_INPUT_SPECIFIER,
-                            count
+                            P_COUNT
                         )
                     );
                 }
                 else if (IS_BINARY(P_INPUT_VALUE)) {
                     Init_Binary(  // R3-Alpha behavior (e.g. not AS TEXT!)
                         sink,
-                        Copy_Sequence_At_Len(P_INPUT, P_BEGIN, count)
+                        Copy_Sequence_At_Len(P_INPUT, P_BEGIN, P_COUNT)
                     );
                 }
                 else {
@@ -2646,7 +2654,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     //
                     Init_Text(
                         sink,
-                        Copy_String_At_Limit(begin_val, count)
+                        Copy_String_At_Limit(begin_val, P_COUNT)
                     );
                 }
 
@@ -2655,7 +2663,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 // is collecting items in a neutral container.  It is less
                 // obvious what marking a position should do.
             }
-            else if ((flags & PF_SET) and (count != 0)) { // 0-leave alone
+            else if ((flags & PF_SET) and (P_COUNT != 0)) { // 0-leave alone
                 //
                 // We waited to eval the SET-GROUP! until we knew we had
                 // something we wanted to set.  Do so, and then go through
@@ -2729,14 +2737,14 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
             if (flags & PF_REMOVE) {
                 FAIL_IF_READ_ONLY(P_INPUT_VALUE);
-                if (count)
-                    Remove_Series_Len(P_INPUT, P_BEGIN, count);
+                if (P_COUNT != 0)
+                    Remove_Series_Len(P_INPUT, P_BEGIN, P_COUNT);
                 P_POS = P_BEGIN;
             }
 
             if (flags & (PF_INSERT | PF_CHANGE)) {
                 FAIL_IF_READ_ONLY(P_INPUT_VALUE);
-                count = (flags & PF_INSERT) ? 0 : count;
+                Init_Integer(P_COUNT_VALUE, (flags & PF_INSERT) ? 0 : P_COUNT);
                 bool only = false;
 
                 if (IS_END(P_RULE))
@@ -2803,7 +2811,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                         P_BEGIN,
                         specified,
                         mod_flags,
-                        count,
+                        P_COUNT,
                         1
                     );
 
@@ -2825,7 +2833,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                             : Canon(SYM_INSERT),
                         specified,
                         mod_flags,
-                        count,
+                        P_COUNT,
                         1
                     );
                 }
@@ -2884,6 +2892,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
     //
     Init_Integer(P_MINCOUNT_VALUE, 1);
     Init_Integer(P_MAXCOUNT_VALUE, 1);
+    Init_Unreadable_Blank(P_COUNT_VALUE);
 
     assert(f->executor == &Parse_Executor);
     D_STATE_BYTE = ST_PARSE_PRE_RULE;

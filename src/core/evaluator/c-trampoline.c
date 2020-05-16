@@ -158,6 +158,7 @@ bool Trampoline_Throws(REBFRM *f_stop)
         // from native dispatchers may be specific to interactions.
 
         assert(r == f->out);
+        assert(IS_SPECIFIC(cast(RELVAL*, f->out)));
 
         // Want to keep this flag between an operation and an ensuing enfix in
         // the same frame, so can't clear in Drop_Action(), e.g. due to:

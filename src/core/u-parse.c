@@ -71,6 +71,19 @@
 #define END_FLAG ((REBLEN)(-2))
 
 
+// States for the Parse_Executor()'s STATE_BYTE().  The executor has to
+// execute a C `return` with a R_CONTINUATION if it ever wants to run an
+// evaluation, in order to be "stackless".  These states tell it where to
+// `goto` in order to pick up where it left off when the "Trampoline" calls
+// it back.  (see %c-trampoline.c)
+//
+enum {
+    ST_PARSE_ENTRY = 0,
+    ST_PARSE_PRE_RULE,
+    ST_PARSE_GROUP_WAS_EVALUATED
+};
+
+
 //
 // These macros are used to address into the frame directly to get the
 // current parse rule, current input series, current parse position in that
@@ -114,7 +127,10 @@
 #define P_MAXCOUNT          VAL_INT32(P_MAXCOUNT_VALUE)
 
 #define P_START_VALUE       (f->rootvar + 8)
-#define P_START             VAL_INT32(P_START_VALUE)
+#define P_START             cast(REBLEN, VAL_INT32(P_START_VALUE))
+
+#define P_BEGIN_VALUE       (f->rootvar + 9)
+#define P_BEGIN             cast(REBLEN, VAL_INT32(P_BEGIN_VALUE))
 
 
 #define P_OUT (f->out)
@@ -244,9 +260,10 @@ void Pack_Subparse(
     Init_Nulled(Prep_Stack_Cell(P_MINCOUNT_VALUE));
     Init_Nulled(Prep_Stack_Cell(P_MAXCOUNT_VALUE));
     Init_Nulled(Prep_Stack_Cell(P_START_VALUE));
+    Init_Nulled(Prep_Stack_Cell(P_BEGIN_VALUE));
 
     assert(
-        f->rootvar + ACT_NUM_PARAMS(NAT_ACTION(subparse)) == P_START_VALUE
+        f->rootvar + ACT_NUM_PARAMS(NAT_ACTION(subparse)) == P_BEGIN_VALUE
     );
 }
 
@@ -503,6 +520,39 @@ REB_R Process_Group_For_Parse(
         return R_INVISIBLE;
 
     return cell;
+}
+
+
+//
+//  Parse_Group_Executor: C
+//
+// Historically a single group in PARSE ran code, discarding the value (with
+// a few exceptions when appearing in an argument position to a rule).  Ren-C
+// adds another behavior for GET-GROUP!, e.g. :(...).  This makes them act
+// like a COMPOSE/ONLY that runs each time they are visited.
+//
+REB_R Parse_Group_Executor(REBFRM *f)
+{
+    // We don't want to over-aggressively Derelativize() values we don't need
+    // to.  So we don't pass in the GROUP! or GET-GROUP! value, just a flag.
+    //
+    bool inject = VAL_LOGIC(FRM_SPARE(f));  // true if it was a GET-GROUP!
+
+    // !!! The input is not locked from modification by agents other than the
+    // PARSE's own REMOVE/etc.  This is a sketchy idea, but as long as it's
+    // allowed, each time arbitrary user code runs, rules have to be adjusted
+    //
+    if (P_POS > SER_LEN(P_INPUT))
+        P_POS = SER_LEN(P_INPUT);
+
+    if (NOT_END(f->out))
+        if (not inject or IS_NULLED(f->out))  // even GET-GROUP! discards null
+            SET_END(f->out);
+
+    INIT_F_EXECUTOR(f, &Parse_Executor);  // return to prior parsing
+    assert(STATE_BYTE(f) == ST_PARSE_GROUP_WAS_EVALUATED);
+    assert(IS_END(f->out) or not IS_NULLED(f->out));
+    return f->out;
 }
 
 
@@ -1408,7 +1458,7 @@ static REB_R Handle_Seek_Rule_Dont_Update_Begin(
 #define HANDLE_SEEK_RULE_UPDATE_BEGIN(f,rule,specifier) \
     Handle_Seek_Rule_Dont_Update_Begin((f), (rule), (specifier)); \
     if (flags == 0) \
-        begin = P_POS;
+        Init_Integer(P_BEGIN_VALUE, P_POS);
 
 
 //
@@ -1421,7 +1471,7 @@ static REB_R Handle_Seek_Rule_Dont_Update_Begin(
 //      find-flags [integer!]
 //      collection "Array into which any KEEP values are collected"
 //          [blank! any-series!]
-//      <local> num-quotes mincount maxcount start
+//      <local> num-quotes mincount maxcount start begin
 //  ]
 //
 REBNATIVE(subparse)
@@ -1471,49 +1521,6 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
     REBFRM *f = frame_; // nice alias of implicit native parameter
 
-  if (D_STATE_BYTE == 0) {
-    //
-    // If the input is quoted, e.g. `parse lit ''''[...] [rules]`, we dequote
-    // it while we are processing the ARG().  This is because we are trying
-    // to update and maintain the value as we work in a way that can be shown
-    // in the debug stack frame.  Calling VAL_UNESCAPED() constantly would be
-    // slower, and also gives back a const value which may be shared with
-    // other quoted instances, so we couldn't update the VAL_INDEX() directly.
-    //
-    // But we save the number of quotes in a local variable.  This way we can
-    // put the quotes back on whenever doing a COPY etc.
-    //
-    Init_Integer(P_NUM_QUOTES_VALUE, VAL_NUM_QUOTES(P_INPUT_VALUE));
-    Dequotify(P_INPUT_VALUE);
-
-    // Mincount and maxcount may need to carry a value across calls.  They are
-    // reset at the main continuation.
-    //
-    Init_Integer(P_MINCOUNT_VALUE, 1);
-    Init_Integer(P_MAXCOUNT_VALUE, 1);
-
-    // Capture the `start` of the subparse wherever it was at the beginning.
-    // (The P_POS is done using feeds, so the error reporting and debug will
-    // report the position in the rules.)  `begin` is currently restarted on
-    // each callback.
-    //
-    Init_Integer(P_START_VALUE, P_POS);
-
-    assert(IS_END(P_OUT)); // invariant provided by evaluator
-
-    D_STATE_BYTE = 1;  // indicate the initialization has been done
-  }
-  else {
-    assert(D_STATE_BYTE == 1);
-    assert(IS_NULLED(P_OUT));  // temporary due to continuation on BLANK!
-    SET_END(P_OUT);
-  }
-
-    // Make sure index position is not past END
-    //
-    if (VAL_INDEX(P_INPUT_VALUE) > VAL_LEN_HEAD(P_INPUT_VALUE))
-        VAL_INDEX(P_INPUT_VALUE) = VAL_LEN_HEAD(P_INPUT_VALUE);
-
     // Every time we hit an alternate rule match (with |), we have to reset
     // any of the collected values.  Remember the tail when we started.
     //
@@ -1539,12 +1546,75 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
     DECLARE_LOCAL (save);
 
-    REBLEN begin = P_POS; // point at beginning of match
+    // start w/rule in block, may eval/fetch
+    const RELVAL *rule;
+    TRASH_POINTER_IF_DEBUG(rule);  // all entry points must set
+
+    // For now assume we do not carry the set or copy word across an eval.
+    // !!! This is likely not true.  :-/
+    //
+    REBFLGS flags = 0;
+    const RELVAL *set_or_copy_word = NULL;
+
+    if (D_STATE_BYTE == ST_PARSE_ENTRY) {
+        //
+        // If input is quoted, e.g. `parse lit ''''[...] [rules]`, we dequote
+        // it while processing the ARG().  This is because we are trying to
+        // update and maintain the value as we work in a way that can be shown
+        // in the debug stack frame.  Calling VAL_UNESCAPED() constantly would
+        // be slower, and gives back a const value which may be shared with
+        // other quoted instances, so we can't update VAL_INDEX() directly.
+        //
+        // But we save the number of quotes in a local variable.  This way we
+        // can put the quotes back on whenever doing a COPY etc.
+        //
+        Init_Integer(P_NUM_QUOTES_VALUE, VAL_NUM_QUOTES(P_INPUT_VALUE));
+        Dequotify(P_INPUT_VALUE);
+
+        // Mincount and maxcount may need to carry a value across calls.
+        // They are reset at the main continuation.
+        //
+        Init_Integer(P_MINCOUNT_VALUE, 1);
+        Init_Integer(P_MAXCOUNT_VALUE, 1);
+
+        // Capture the `start` of the subparse where it was at the beginning.
+        // (The P_POS is done using feeds, so the error reporting and debug
+        // will report the position in the rules.)  `begin` is restarted on
+        // each continuation to the pre_rule (but not gotos).
+        //
+        Init_Integer(P_START_VALUE, P_POS);
+        Init_Integer(P_BEGIN_VALUE, P_POS);
+
+        if (NOT_END(P_OUT)) {  // invariant provided by evaluator
+            assert(IS_NULLED(P_OUT));  // !!! Except screwed up ATM
+            SET_END(D_OUT);
+        }
+
+        // falls through to pre_rule plus new rule boilerplate
+    }
+    else {
+        switch (D_STATE_BYTE) {
+          case ST_PARSE_PRE_RULE:
+            assert(IS_NULLED(P_OUT));  // temporary due to BLANK! continuation
+            SET_END(P_OUT);
+            break;  // sets `rule`
+          case ST_PARSE_GROUP_WAS_EVALUATED:
+            goto group_was_evaluated;  // sets the `rule` or `goto pre_rule;`
+          default: assert(false);
+        }
+    }
+
+    // Make sure index position is not past END
+    //
+    if (VAL_INDEX(P_INPUT_VALUE) > VAL_LEN_HEAD(P_INPUT_VALUE))
+        VAL_INDEX(P_INPUT_VALUE) = VAL_LEN_HEAD(P_INPUT_VALUE);
+
+    Init_Integer(P_BEGIN_VALUE, P_POS);
     assert(P_MINCOUNT == 1);
     assert(P_MAXCOUNT == 1);
 
     // The loop iterates across each REBVAL's worth of "rule" in the rule
-    // block.  Some of these rules just set `flags` and `continue`, so that
+    // block.  Some of these rules just set `flags` and `goto pre_rule`, so
     // the flags will apply to the next rule item.  If the flag is PF_SET
     // or PF_COPY, then the `set_or_copy_word` pointers will be assigned
     // at the same time as the active target of the COPY or SET.
@@ -1555,11 +1625,8 @@ REB_R Parse_Executor(REBFRM *frame_) {
     // a rule it would have otherwise processed just once.  But there are
     // a lot of edge cases like `while |` where this method isn't set up
     // to notice a "grammar error".  It could use review.
-    //
-    REBFLGS flags = 0;
-    const RELVAL *set_or_copy_word = NULL;
 
-  loop:
+  pre_rule:
 
     /* Print_Parse_Index(f); */
     UPDATE_EXPRESSION_START(f);
@@ -1574,64 +1641,65 @@ REB_R Parse_Executor(REBFRM *frame_) {
     // The input index is not advanced here, but may be changed by
     // a GET-WORD variable.
 
-    //=//// HANDLE BAR! FIRST... BEFORE GROUP! ////////////////////////////=//
+    rule = P_RULE;  // starting situation (may get evaluated and repointed)
 
-    // BAR!s cannot be abstracted.  If they could be, then you'd have to
-    // run all GET-GROUP! `:(...)` to find them in alternates lists.
-
-    const RELVAL *rule = P_RULE;  // start w/rule in block, may eval/fetch
+    //=//// FIRST THINGS FIRST: CHECK FOR END /////////////////////////////=//
 
     if (IS_END(rule))
         goto return_position;  // used to `do_signals` (now trampoline does)
 
-    if (IS_BAR(rule)) {  // reached BAR! without a match failure, good!
-        //
-        // Note: First test, so `[| ...anything...]` is a "no-op" match
-        //
+    //=//// HANDLE BAR! (BEFORE GROUP!) ///////////////////////////////////=//
+    //
+    // BAR!s cannot be abstracted.  If they could be, then you'd have to
+    // run all GET-GROUP! `:(...)` to find them in alternates lists.
+    //
+    // Note: First test, so `[| ...anything...]` is a "no-op" match
+
+    if (IS_BAR(rule))  // reached BAR! without a match failure, good!
         goto return_position;  // indicate match @ current pos
-    }
 
     //=//// (GROUP!) AND :(GET-GROUP!) PROCESSING /////////////////////////=//
+    //
+    // Code below may jump here to re-process groups, consider:
+    //
+    //    rule: lit (print "Hi")
+    //    parse "a" [:('rule) "a"]
+    //
+    // First it processes the group to get RULE, then it looks that
+    // up and gets another group.  In theory this could continue
+    // indefinitely, but for now a GET-GROUP! can't return another.
 
     if (IS_GROUP(rule) or IS_GET_GROUP(rule)) {
-        //
-        // Code below may jump here to re-process groups, consider:
-        //
-        //    rule: lit (print "Hi")
-        //    parse "a" [:('rule) "a"]
-        //
-        // First it processes the group to get RULE, then it looks that
-        // up and gets another group.  In theory this could continue
-        // indefinitely, but for now a GET-GROUP! can't return another.
+      process_group: blockscope {
+        DECLARE_FEED_AT_CORE (subfeed, rule, P_RULE_SPECIFIER);
+        DECLARE_FRAME (subframe, subfeed,
+            EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END | EVAL_FLAG_ALLOCATED_FEED);
+        INIT_F_EXECUTOR(f, &Parse_Group_Executor);
+        Init_Logic(FRM_SPARE(f), IS_GET_GROUP(rule));
+        INIT_F_EXECUTOR(subframe, &New_Expression_Executor);
+        assert(IS_END(P_OUT));
+        Push_Frame(P_OUT, subframe);
+        D_STATE_BYTE = ST_PARSE_GROUP_WAS_EVALUATED;
+        return R_CONTINUATION;
+      }
 
-      process_group:
+      group_was_evaluated: blockscope {
+        if (IS_END(P_OUT)) {  // was a (...), or null-bearing :(...)
+            FETCH_NEXT_RULE(f);  // ignore result and go on to next rule
+            goto pre_rule;
+        }
 
-        rule = Process_Group_For_Parse(f, save, rule);
-        if (rule == R_THROWN) {
-            Move_Value(P_OUT, save);
-            return R_THROWN;
-        }
-        if (rule == R_INVISIBLE) { // was a (...), or null-bearing :(...)
-            FETCH_NEXT_RULE(f); // ignore result and go on to next rule
-            goto loop;
-        }
         // was a GET-GROUP!, e.g. :(...), fall through so its result will
         // act as a rule in its own right.
         //
-        assert(IS_SPECIFIC(rule)); // can use w/P_RULE_SPECIFIER, harmless
-
-        if (IS_END(rule)) {
-            assert("END was checked twice; was this second case possible?");
-            goto return_position;
-        }
+        assert(not IS_NULLED(P_OUT));
+        Move_Value(save, P_OUT);
+        rule = save;
+        SET_END(P_OUT);
+      }
     }
-    else {
-        // If we ran the GROUP! then that invokes the evaluator, and so
-        // we already gave the GC and cancellation a chance to run.  But
-        // if not, we might want to do it here... (?)
 
-        // !!! Moved due to stackless to trampoline !!!
-    }
+    assert(not IS_POINTER_TRASH_DEBUG(rule));  // should be assigned by here
 
     //=//// ANY-WORD!/ANY-PATH! PROCESSING ////////////////////////////////=//
 
@@ -1658,7 +1726,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 Init_Integer(P_MINCOUNT_VALUE, 0);
                 Init_Integer(P_MAXCOUNT_VALUE, INT32_MAX);
                 FETCH_NEXT_RULE(f);
-                goto loop;
+                goto pre_rule;
 
               case SYM_ANY:
                 assert(P_MINCOUNT == 1 and P_MAXCOUNT == 1);  // true on entry
@@ -1671,12 +1739,12 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 flags |= PF_ANY_OR_SOME;
                 Init_Integer(P_MAXCOUNT_VALUE, INT32_MAX);
                 FETCH_NEXT_RULE(f);
-                goto loop;
+                goto pre_rule;
 
               case SYM_OPT:
                 Init_Integer(P_MINCOUNT_VALUE, 0);
                 FETCH_NEXT_RULE(f);
-                goto loop;
+                goto pre_rule;
 
               case SYM_COPY:
                 flags |= PF_COPY;
@@ -1697,7 +1765,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     fail (Error_Parse_Command(f));
 
                 FETCH_NEXT_RULE_KEEP_LAST(&set_or_copy_word, f);
-                goto loop;
+                goto pre_rule;
 
               case SYM_COLLECT: {
                 FETCH_NEXT_RULE(f);
@@ -1746,7 +1814,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     ),
                     collection
                 );
-                goto loop; }
+                goto pre_rule; }
 
               case SYM_KEEP: {
                 if (not P_COLLECTION)
@@ -1885,29 +1953,29 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
                     P_POS = pos_after;  // continue from end of kept data
                 }
-                goto loop; }
+                goto pre_rule; }
 
               case SYM_NOT:
                 flags |= PF_NOT;
                 flags ^= PF_NOT2;
                 FETCH_NEXT_RULE(f);
-                goto loop;
+                goto pre_rule;
 
               case SYM_AND:
               case SYM_AHEAD:
                 flags |= PF_AHEAD;
                 FETCH_NEXT_RULE(f);
-                goto loop;
+                goto pre_rule;
 
               case SYM_THEN:
                 flags |= PF_THEN;
                 FETCH_NEXT_RULE(f);
-                goto loop;
+                goto pre_rule;
 
               case SYM_REMOVE:
                 flags |= PF_REMOVE;
                 FETCH_NEXT_RULE(f);
-                goto loop;
+                goto pre_rule;
 
               case SYM_INSERT:
                 flags |= PF_INSERT;
@@ -1917,7 +1985,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
               case SYM_CHANGE:
                 flags |= PF_CHANGE;
                 FETCH_NEXT_RULE(f);
-                goto loop;
+                goto pre_rule;
 
               // IF is deprecated in favor of `:(<logic!>)`.  But it is
               // currently used for bootstrap.  Remove once the bootstrap
@@ -1951,7 +2019,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 FETCH_NEXT_RULE(f);
 
                 if (IS_TRUTHY(condition))
-                    goto loop;
+                    goto pre_rule;
 
                 P_POS = NOT_FOUND;
                 goto post_match_processing; }
@@ -1994,7 +2062,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
               case SYM__Q_Q:
                 Print_Parse_Index(f);
                 FETCH_NEXT_RULE(f);
-                goto loop;
+                goto pre_rule;
 
               case SYM_RETURN:
                 fail ("RETURN removed from PARSE, use (THROW ...)");
@@ -2004,14 +2072,14 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 // !!! what about `mark @(first [x])` ?
                 Handle_Mark_Rule(f, P_RULE, P_RULE_SPECIFIER);
                 FETCH_NEXT_RULE(f);  // e.g. skip the `x` in `mark x`
-                goto loop; }
+                goto pre_rule; }
 
               case SYM_SEEK: {
                 FETCH_NEXT_RULE(f);  // skip the SEEK word
                 // !!! what about `seek @(first x)` ?
                 HANDLE_SEEK_RULE_UPDATE_BEGIN(f, P_RULE, P_RULE_SPECIFIER);
                 FETCH_NEXT_RULE(f);  // e.g. skip the `x` in `seek x`
-                goto loop; }
+                goto pre_rule; }
 
               default:  // the list above should be exhaustive
                 assert(false);
@@ -2037,14 +2105,14 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
                 Handle_Mark_Rule(f, rule, P_RULE_SPECIFIER);
                 FETCH_NEXT_RULE(f);
-                goto loop;
+                goto pre_rule;
             }
 
             // :word - change the index for the series to a new position
             if (IS_GET_WORD(rule)) {
                 HANDLE_SEEK_RULE_UPDATE_BEGIN(f, rule, P_RULE_SPECIFIER);
                 FETCH_NEXT_RULE(f);
-                goto loop;
+                goto pre_rule;
             }
 
             assert(IS_WORD(rule));  // word - some other variable
@@ -2068,12 +2136,12 @@ REB_R Parse_Executor(REBFRM *frame_) {
         else if (IS_SET_PATH(rule)) {
             Handle_Mark_Rule(f, rule, P_RULE_SPECIFIER);
             FETCH_NEXT_RULE(f);
-            goto loop;
+            goto pre_rule;
         }
         else if (IS_GET_PATH(rule)) {
             HANDLE_SEEK_RULE_UPDATE_BEGIN(f, rule, P_RULE_SPECIFIER);
             FETCH_NEXT_RULE(f);
-            goto loop;
+            goto pre_rule;
         }
     }
     else if (IS_SET_GROUP(rule)) {
@@ -2084,7 +2152,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         //
         FETCH_NEXT_RULE_KEEP_LAST(&set_or_copy_word, f);
         flags |= PF_SET;
-        goto loop;
+        goto pre_rule;
     }
 
     assert(not IS_NULLED(rule));
@@ -2098,12 +2166,12 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
       case REB_BLANK: // no-op
         FETCH_NEXT_RULE(f);
-        goto loop;
+        goto pre_rule;
 
       case REB_LOGIC: // true is a no-op, false causes match failure
         if (VAL_LOGIC(rule)) {
             FETCH_NEXT_RULE(f);
-            goto loop;
+            goto pre_rule;
         }
         FETCH_NEXT_RULE(f);
         P_POS = NOT_FOUND;
@@ -2153,7 +2221,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
     FETCH_NEXT_RULE(f);
 
-    begin = P_POS;// input at beginning of match section
+    Init_Integer(P_BEGIN_VALUE, P_POS);  // input at match section beginning
 
     REBINT count; // gotos would cross initialization
     count = 0;
@@ -2522,7 +2590,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
             if ((flags & PF_NOT2) and P_POS != NOT_FOUND)
                 P_POS = NOT_FOUND;
             else
-                P_POS = begin;
+                P_POS = P_BEGIN;
         }
 
         if (P_POS == NOT_FOUND) {
@@ -2535,7 +2603,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         else {
             // Set count to how much input was advanced
             //
-            count = (begin > P_POS) ? 0 : P_POS - begin;
+            count = (P_BEGIN > P_POS) ? 0 : P_POS - P_BEGIN;
 
             if (flags & PF_COPY) {
                 REBVAL *sink = Sink_Word_May_Fail(
@@ -2553,7 +2621,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                         ANY_GROUP_KIND(P_TYPE) ? REB_GROUP : REB_BLOCK,
                         Copy_Array_At_Max_Shallow(
                             ARR(P_INPUT),
-                            begin,
+                            P_BEGIN,
                             P_INPUT_SPECIFIER,
                             count
                         )
@@ -2562,14 +2630,14 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 else if (IS_BINARY(P_INPUT_VALUE)) {
                     Init_Binary(  // R3-Alpha behavior (e.g. not AS TEXT!)
                         sink,
-                        Copy_Sequence_At_Len(P_INPUT, begin, count)
+                        Copy_Sequence_At_Len(P_INPUT, P_BEGIN, count)
                     );
                 }
                 else {
                     assert(ANY_STRING(P_INPUT_VALUE));
 
                     DECLARE_LOCAL (begin_val);
-                    Init_Any_Series_At(begin_val, P_TYPE, P_INPUT, begin);
+                    Init_Any_Series_At(begin_val, P_TYPE, P_INPUT, P_BEGIN);
 
                     // Rebol2 behavior of always "netural" TEXT!.  Avoids
                     // creation of things like URL!-typed fragments that
@@ -2619,7 +2687,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                         Sink_Word_May_Fail(
                             set_or_copy_word, P_RULE_SPECIFIER
                         ),
-                        ARR_AT(ARR(P_INPUT), begin),
+                        ARR_AT(ARR(P_INPUT), P_BEGIN),
                         P_INPUT_SPECIFIER
                     );
                 }
@@ -2650,11 +2718,11 @@ REB_R Parse_Executor(REBFRM *frame_) {
                             fail ("SET for datatype only allows 1 value");
                     }
                     else if (P_TYPE == REB_BINARY)
-                        Init_Integer(var, *BIN_AT(P_INPUT, begin));
+                        Init_Integer(var, *BIN_AT(P_INPUT, P_BEGIN));
                     else
                         Init_Char_Unchecked(
                             var,
-                            GET_CHAR_AT(STR(P_INPUT), begin)
+                            GET_CHAR_AT(STR(P_INPUT), P_BEGIN)
                         );
                 }
             }
@@ -2662,8 +2730,8 @@ REB_R Parse_Executor(REBFRM *frame_) {
             if (flags & PF_REMOVE) {
                 FAIL_IF_READ_ONLY(P_INPUT_VALUE);
                 if (count)
-                    Remove_Series_Len(P_INPUT, begin, count);
-                P_POS = begin;
+                    Remove_Series_Len(P_INPUT, P_BEGIN, count);
+                P_POS = P_BEGIN;
             }
 
             if (flags & (PF_INSERT | PF_CHANGE)) {
@@ -2732,7 +2800,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                             ? Canon(SYM_CHANGE)
                             : Canon(SYM_INSERT),
                         ARR(P_INPUT),
-                        begin,
+                        P_BEGIN,
                         specified,
                         mod_flags,
                         count,
@@ -2746,7 +2814,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     DECLARE_LOCAL (specified);
                     Derelativize(specified, rule, P_RULE_SPECIFIER);
 
-                    P_POS = begin;
+                    P_POS = P_BEGIN;
 
                     REBLEN mod_flags = (flags & PF_INSERT) ? 0 : AM_PART;
 
@@ -2764,7 +2832,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
             }
 
             if (flags & PF_AHEAD)
-                P_POS = begin;
+                P_POS = P_BEGIN;
         }
 
         flags = 0;
@@ -2795,7 +2863,8 @@ REB_R Parse_Executor(REBFRM *frame_) {
         // Jump to the alternate rule and reset input
         //
         FETCH_NEXT_RULE(f);
-        P_POS = begin = P_START;
+        P_POS = P_START;
+        Init_Integer(P_BEGIN_VALUE, P_START);
     }
 
     if (P_FIND_FLAGS & PF_ONE_RULE)  // don't loop
@@ -2816,7 +2885,8 @@ REB_R Parse_Executor(REBFRM *frame_) {
     Init_Integer(P_MINCOUNT_VALUE, 1);
     Init_Integer(P_MAXCOUNT_VALUE, 1);
 
-    // Stick with Parse_Executor...
+    assert(f->executor == &Parse_Executor);
+    D_STATE_BYTE = ST_PARSE_PRE_RULE;
     CONTINUE (BLANK_VALUE);  // get called back with a NULL
 
   return_position:
@@ -2887,6 +2957,8 @@ REBNATIVE(parse)
 
     Init_Blank(D_SPARE);  // signal next call that we won't be top of stack
 //    assert(f->executor == &Action_Executor);  // was set by Begin_Action()
+
+    D_STATE_BYTE = ST_PARSE_PRE_RULE;
     return R_CONTINUATION;
   }
 

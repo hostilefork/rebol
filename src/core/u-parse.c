@@ -117,24 +117,27 @@ enum {
 #define P_COLLECTION \
     (IS_BLANK(P_COLLECTION_VALUE) ? nullptr : VAL_ARRAY(P_COLLECTION_VALUE))
 
-#define P_NUM_QUOTES_VALUE  (f->rootvar + 5)
+#define P_SAVE              (f->rootvar + 5)
+
+#define P_NUM_QUOTES_VALUE  (f->rootvar + 6)
 #define P_NUM_QUOTES        VAL_INT32(P_NUM_QUOTES_VALUE)
 
-#define P_MINCOUNT_VALUE    (f->rootvar + 6)
+#define P_MINCOUNT_VALUE    (f->rootvar + 7)
 #define P_MINCOUNT          VAL_INT32(P_MINCOUNT_VALUE)
 
-#define P_MAXCOUNT_VALUE    (f->rootvar + 7)
+#define P_MAXCOUNT_VALUE    (f->rootvar + 8)
 #define P_MAXCOUNT          VAL_INT32(P_MAXCOUNT_VALUE)
 
-#define P_COUNT_VALUE       (f->rootvar + 8)
+#define P_COUNT_VALUE       (f->rootvar + 9)
 #define P_COUNT             VAL_INT32(P_COUNT_VALUE)
 
-#define P_START_VALUE       (f->rootvar + 9)
+#define P_START_VALUE       (f->rootvar + 10)
 #define P_START             cast(REBLEN, VAL_INT32(P_START_VALUE))
 
-#define P_BEGIN_VALUE       (f->rootvar + 10)
+#define P_BEGIN_VALUE       (f->rootvar + 11)
 #define P_BEGIN             cast(REBLEN, VAL_INT32(P_BEGIN_VALUE))
 
+#define P_SUBRULE           (f->param)  // can be P_SAVE or read-only rule
 
 #define P_OUT (f->out)
 
@@ -259,6 +262,7 @@ void Pack_Subparse(
     // These are <local>, which means they're not things you can pass in to
     // subparse.  They are calculated from the parameters on the first entry.
     //
+    Init_Nulled(Prep_Stack_Cell(P_SAVE));
     Init_Nulled(Prep_Stack_Cell(P_NUM_QUOTES_VALUE));
     Init_Nulled(Prep_Stack_Cell(P_MINCOUNT_VALUE));
     Init_Nulled(Prep_Stack_Cell(P_MAXCOUNT_VALUE));
@@ -1475,7 +1479,7 @@ static REB_R Handle_Seek_Rule_Dont_Update_Begin(
 //      find-flags [integer!]
 //      collection "Array into which any KEEP values are collected"
 //          [blank! any-series!]
-//      <local> num-quotes mincount maxcount count start begin
+//      <local> save num-quotes mincount maxcount count start begin
 //  ]
 //
 REBNATIVE(subparse)
@@ -1548,8 +1552,6 @@ REB_R Parse_Executor(REBFRM *frame_) {
     (void)pos_debug; // UNUSED() forces corruption in C++11 debug builds
   #endif
 
-    DECLARE_LOCAL (save);
-
     // start w/rule in block, may eval/fetch
     const RELVAL *rule;
     TRASH_POINTER_IF_DEBUG(rule);  // all entry points must set
@@ -1595,6 +1597,14 @@ REB_R Parse_Executor(REBFRM *frame_) {
             SET_END(D_OUT);
         }
 
+        // !!! For now we are using f->param to hold the subrule pointer.
+        // That would be illegal if this were a frame used in an action.
+        // Since subparse is its own Executor, it's okay, as the subparse
+        // rule does not need to be seen by GC (it's either P_SAVE or it is
+        // valid from the input rules that are locked).
+        //
+        assert(f->original == nullptr);
+        TRASH_POINTER_IF_DEBUG(P_SUBRULE);
         // falls through to pre_rule plus new rule boilerplate
     }
     else {
@@ -1698,8 +1708,8 @@ REB_R Parse_Executor(REBFRM *frame_) {
         // act as a rule in its own right.
         //
         assert(not IS_NULLED(P_OUT));
-        Move_Value(save, P_OUT);
-        rule = save;
+        Move_Value(P_SAVE, P_OUT);
+        rule = P_SAVE;
         SET_END(P_OUT);
       }
     }
@@ -1707,13 +1717,6 @@ REB_R Parse_Executor(REBFRM *frame_) {
     assert(not IS_POINTER_TRASH_DEBUG(rule));  // should be assigned by here
 
     //=//// ANY-WORD!/ANY-PATH! PROCESSING ////////////////////////////////=//
-
-    // Some iterated rules have a parameter.  `3 into [some "a"]` will
-    // actually run the INTO `rule` 3 times with the `subrule` of
-    // `[some "a"]`.  Because it is iterated it is only captured the first
-    // time through, nullptr indicates it's not been captured yet.
-    //
-    const RELVAL *subrule = nullptr;
 
     if (ANY_PLAIN_GET_SET_WORD(rule)) { // word!, set-word!, or get-word!
 
@@ -1841,7 +1844,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
                 REBLEN pos_before = P_POS;
 
-                rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
+                rule = Get_Parse_Value(P_SAVE, P_RULE, P_RULE_SPECIFIER);
 
                 if (IS_GET_BLOCK(rule)) {
                     //
@@ -2122,9 +2125,9 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
             assert(IS_WORD(rule));  // word - some other variable
 
-            if (rule != save) {
-                Get_Word_May_Fail(save, rule, P_RULE_SPECIFIER);
-                rule = save;
+            if (rule != P_SAVE) {
+                Get_Word_May_Fail(P_SAVE, rule, P_RULE_SPECIFIER);
+                rule = P_SAVE;
             }
             if (IS_NULLED(rule))
                 fail (Error_No_Value_Core(P_RULE, P_RULE_SPECIFIER));
@@ -2132,11 +2135,11 @@ REB_R Parse_Executor(REBFRM *frame_) {
     }
     else if (ANY_PATH(rule)) {
         if (IS_PATH(rule)) {
-            if (Get_Path_Throws_Core(save, rule, P_RULE_SPECIFIER)) {
-                Move_Value(P_OUT, save);
+            if (Get_Path_Throws_Core(P_SAVE, rule, P_RULE_SPECIFIER)) {
+                Move_Value(P_OUT, P_SAVE);
                 return R_THROWN;
             }
-            rule = save;
+            rule = P_SAVE;
         }
         else if (IS_SET_PATH(rule)) {
             Handle_Mark_Rule(f, rule, P_RULE_SPECIFIER);
@@ -2190,7 +2193,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         if (IS_END(P_RULE))
             fail (Error_Parse_End());
 
-        rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
+        rule = Get_Parse_Value(P_SAVE, P_RULE, P_RULE_SPECIFIER);
 
         if (IS_INTEGER(rule)) {
             Init_Integer(P_MAXCOUNT_VALUE, Int32s(rule, 0));
@@ -2199,7 +2202,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
             if (IS_END(P_RULE))
                 fail (Error_Parse_End());
 
-            rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
+            rule = Get_Parse_Value(P_SAVE, P_RULE, P_RULE_SPECIFIER);
         }
 
         if (IS_INTEGER(rule)) {
@@ -2225,6 +2228,19 @@ REB_R Parse_Executor(REBFRM *frame_) {
     // the entire rule has been satisfied.
 
     FETCH_NEXT_RULE(f);
+
+    // Some iterated rules have a parameter.  `3 into [some "a"]` will
+    // actually run the INTO `rule` 3 times with the `subrule` of
+    // `[some "a"]`.  Because it is iterated it is only captured the first
+    // time through.
+    //
+    // !!! Capturing this into a local variable cannot be preserved across
+    // continuations.  So P_SUBRULE was changed to use the frame's f->param,
+    // which is permitted to point to either the frame's cell or a persistent
+    // location, and hence not needed to be GC protected.
+    //
+    assert(IS_POINTER_TRASH_DEBUG(P_SUBRULE));
+    P_SUBRULE = nullptr;
 
     Init_Integer(P_BEGIN_VALUE, P_POS);  // input at match section beginning
 
@@ -2262,19 +2278,19 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 if (IS_END(P_RULE))
                     fail (Error_Parse_End());
 
-                if (!subrule) { // capture only on iteration #1
-                    subrule = Get_Parse_Value(
-                        save, P_RULE, P_RULE_SPECIFIER
+                if (P_SUBRULE == nullptr) { // capture only on iteration #1
+                    P_SUBRULE = Get_Parse_Value(
+                        P_SAVE, P_RULE, P_RULE_SPECIFIER
                     );
                     FETCH_NEXT_RULE(f);
                 }
 
                 bool is_thru = (cmd == SYM_THRU);
 
-                if (IS_BLOCK(subrule))
-                    i = To_Thru_Block_Rule(f, subrule, is_thru);
+                if (IS_BLOCK(P_SUBRULE))
+                    i = To_Thru_Block_Rule(f, P_SUBRULE, is_thru);
                 else
-                    i = To_Thru_Non_Block_Rule(f, subrule, is_thru);
+                    i = To_Thru_Non_Block_Rule(f, P_SUBRULE, is_thru);
                 break; }
 
               case SYM_QUOTE: // temporarily behaving like LIT for bootstrap
@@ -2286,14 +2302,14 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 if (IS_END(P_RULE))
                     fail (Error_Parse_End());
 
-                if (not subrule) // capture only on iteration #1
-                    FETCH_NEXT_RULE_KEEP_LAST(&subrule, f);
+                if (P_SUBRULE == nullptr)  // capture only on iteration #1
+                    FETCH_NEXT_RULE_KEEP_LAST(&P_SUBRULE, f);
 
                 RELVAL *cmp = ARR_AT(ARR(P_INPUT), P_POS);
 
                 if (IS_END(cmp))
                     i = END_FLAG;
-                else if (0 == Cmp_Value(cmp, subrule, P_HAS_CASE))
+                else if (0 == Cmp_Value(cmp, P_SUBRULE, P_HAS_CASE))
                     i = P_POS + 1;
                 else
                     i = END_FLAG;
@@ -2336,8 +2352,8 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 if (IS_END(P_RULE))
                     fail (Error_Parse_End());
 
-                if (not subrule) // capture only on iteration #1
-                    FETCH_NEXT_RULE_KEEP_LAST(&subrule, f);
+                if (P_SUBRULE == nullptr)  // capture only on iteration #1
+                    FETCH_NEXT_RULE_KEEP_LAST(&P_SUBRULE, f);
 
                 RELVAL *cmp = ARR_AT(ARR(P_INPUT), P_POS);
 
@@ -2347,7 +2363,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     DECLARE_LOCAL (temp);
                     if (Match_Core_Throws(
                         temp,
-                        subrule, P_RULE_SPECIFIER,
+                        P_SUBRULE, P_RULE_SPECIFIER,
                         cmp, P_INPUT_SPECIFIER
                     )){
                         Move_Value(P_OUT, temp);
@@ -2365,14 +2381,14 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 if (IS_END(P_RULE))
                     fail (Error_Parse_End());
 
-                if (!subrule) {
-                    subrule = Get_Parse_Value(
-                        save, P_RULE, P_RULE_SPECIFIER
+                if (P_SUBRULE == nullptr) {
+                    P_SUBRULE = Get_Parse_Value(
+                        P_SAVE, P_RULE, P_RULE_SPECIFIER
                     );
                     FETCH_NEXT_RULE(f);
                 }
 
-                if (not IS_BLOCK(subrule))
+                if (not IS_BLOCK(P_SUBRULE))
                     fail (Error_Parse_Rule());
 
                 // parse ["aa"] [into ["a" "a"]] ; is legal
@@ -2405,8 +2421,8 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 }
 
                 DECLARE_ARRAY_FEED (subrules_feed,
-                    VAL_ARRAY(subrule),
-                    VAL_INDEX(subrule),
+                    VAL_ARRAY(P_SUBRULE),
+                    VAL_INDEX(P_SUBRULE),
                     P_RULE_SPECIFIER
                 );
 
@@ -2449,7 +2465,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
             }
 
             case SYM_DO: {
-                if (subrule) {
+                if (P_SUBRULE != nullptr) {
                     //
                     // Not currently set up for iterating DO rules
                     // since the Do_Eval_Rule routine expects to be
@@ -2458,7 +2474,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     fail ("DO rules currently cannot be iterated");
                 }
 
-                subrule = VOID_VALUE; // cause an error if iterating
+                P_SUBRULE = VOID_VALUE; // cause an error if iterating
 
                 i = Do_Eval_Rule(f); // changes P_RULE (should)
 
@@ -2769,7 +2785,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 }
 
                 // new value...comment said "CHECK FOR QUOTE!!"
-                rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
+                rule = Get_Parse_Value(P_SAVE, P_RULE, P_RULE_SPECIFIER);
                 FETCH_NEXT_RULE(f);
 
                 // If a GROUP!, then execute it first.  See #1279
@@ -2893,6 +2909,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
     Init_Integer(P_MINCOUNT_VALUE, 1);
     Init_Integer(P_MAXCOUNT_VALUE, 1);
     Init_Unreadable_Blank(P_COUNT_VALUE);
+    TRASH_POINTER_IF_DEBUG(P_SUBRULE);
 
     assert(f->executor == &Parse_Executor);
     D_STATE_BYTE = ST_PARSE_PRE_RULE;

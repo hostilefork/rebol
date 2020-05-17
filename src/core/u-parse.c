@@ -109,9 +109,9 @@ enum {
 #define P_INPUT_SPECIFIER   VAL_SPECIFIER(P_INPUT_VALUE)
 #define P_POS               VAL_INDEX(P_INPUT_VALUE)
 
-#define P_FIND_FLAGS_VALUE  (f->rootvar + 3)
-#define P_FIND_FLAGS        VAL_INT64(P_FIND_FLAGS_VALUE)
-#define P_HAS_CASE          (did (P_FIND_FLAGS & AM_FIND_CASE))
+#define P_FLAGS_VALUE       (f->rootvar + 3)
+#define P_FLAGS             VAL_INT64(P_FLAGS_VALUE)
+#define P_HAS_CASE          (did (P_FLAGS & PF_FIND_CASE))
 
 #define P_COLLECTION_VALUE  (f->rootvar + 4)
 #define P_COLLECTION \
@@ -195,23 +195,43 @@ inline static bool IS_BAR(const RELVAL *v)
 
 // See the notes on `flags` in the main parse loop for how these work.
 //
-// !!! Review if all the parse state flags can be merged into the frame
-// flags...there may be few enough of them that they can, as they do not
-// compete with EVAL_FLAG_XXX for the most part.  Some may also become
-// not necessary with new methods of implementation.
-//
 enum parse_flags {
-    PF_SET = 1 << 0,
-    PF_COPY = 1 << 1,
-    PF_NOT = 1 << 2,
-    PF_NOT2 = 1 << 3,
-    PF_THEN = 1 << 4,
-    PF_AHEAD = 1 << 5,
-    PF_REMOVE = 1 << 6,
-    PF_INSERT = 1 << 7,
-    PF_CHANGE = 1 << 8,
-    PF_ANY_OR_SOME = 1 << 9
+    //
+    // In R3-Alpha, the "parse->flags" (persistent across an iteration) were
+    // distinct from the "flags" (per recursion, zeroed on each loop).  The
+    // former had undocumented overlap with the values of AM_FIND_XXX flags.
+    //
+    // They are unified in Ren-C, with the overlap asserted.
+    //
+    PF_FIND_ONLY = 1 << 0,
+    PF_FIND_CASE = 1 << 1,
+    PF_FIND_MATCH = 1 << 2,
+
+    PF_SET = 1 << 3,
+    PF_COPY = 1 << 4,
+    PF_NOT = 1 << 5,
+    PF_NOT2 = 1 << 6,
+    PF_THEN = 1 << 7,
+    PF_AHEAD = 1 << 8,
+    PF_REMOVE = 1 << 9,
+    PF_INSERT = 1 << 10,
+    PF_CHANGE = 1 << 11,
+    PF_ANY_OR_SOME = 1 << 12,
+
+    PF_MAX = PF_ANY_OR_SOME
 };
+
+STATIC_ASSERT(PF_MAX <= INT32_MAX);  // needs to fit in VAL_INTEGER()
+
+// Note: clang complains if `cast(int, ...)` used here, though gcc doesn't
+STATIC_ASSERT((int)AM_FIND_ONLY == (int)PF_FIND_ONLY);
+STATIC_ASSERT((int)AM_FIND_CASE == (int)PF_FIND_CASE);
+STATIC_ASSERT((int)AM_FIND_MATCH == (int)PF_FIND_MATCH);
+
+#define PF_FIND_MASK \
+    (PF_FIND_ONLY | PF_FIND_CASE | PF_FIND_MATCH)
+
+#define PF_STATE_MASK (~PF_FIND_MASK)
 
 
 // In %words.r, the parse words are lined up in order so they can be quickly
@@ -253,10 +273,13 @@ void Pack_Subparse(
 
     Derelativize(Prep_Stack_Cell(P_INPUT_VALUE), input, input_specifier);
 
-    // We always want "case-sensitivity" on binary bytes, vs. treating as
-    // case-insensitive bytes for ASCII characters.
+    // !!! Note: R3-Alpha BINARY! assumed all searches were case-sensitive.
+    // But with UTF-8 everywhere, strings can be matched against bytes and
+    // case-insensitive forms are allowed.  Review the relevance of /CASE
+    // to binary parses in light of this.
     //
-    Init_Integer(Prep_Stack_Cell(P_FIND_FLAGS_VALUE), flags);
+    assert((flags & PF_STATE_MASK) == 0);  // no "parse state" flags allowed
+    Init_Integer(Prep_Stack_Cell(P_FLAGS_VALUE), flags);
 
     // If there's an array for collecting into, there has to be some way of
     // passing it between frames.  We need to track the state to roll back
@@ -675,7 +698,7 @@ static REB_R Parse_One_Rule(
             SPECIFIED,
             subframe,
             P_COLLECTION,
-            P_FIND_FLAGS
+            (P_FLAGS & PF_FIND_MASK)
         )){
             Move_Value(P_OUT, subresult);
             return R_THROWN;
@@ -776,7 +799,7 @@ static REB_R Parse_One_Rule(
                 &len,
                 P_INPUT_VALUE,
                 rule_cell,
-                P_FIND_FLAGS | AM_FIND_MATCH
+                (P_FLAGS & PF_FIND_MASK) | AM_FIND_MATCH
             );
             if (index == NOT_FOUND)
                 return R_UNHANDLED;
@@ -1102,7 +1125,7 @@ static REBIXO To_Thru_Block_Rule(
                             formed,
                             0,
                             len,
-                            AM_FIND_MATCH | P_FIND_FLAGS
+                            (P_FLAGS & PF_FIND_MASK) | AM_FIND_MATCH
                         );
                         Free_Unmanaged_Series(SER(formed));
                         if (i != NOT_FOUND) {
@@ -1123,7 +1146,7 @@ static REBIXO To_Thru_Block_Rule(
                         VAL_STRING(rule),
                         VAL_INDEX(rule),
                         len,
-                        AM_FIND_MATCH | P_FIND_FLAGS
+                        (P_FLAGS & PF_FIND_MASK) | AM_FIND_MATCH
                     );
 
                     if (i != NOT_FOUND) {
@@ -1192,12 +1215,12 @@ static REBIXO To_Thru_Non_Block_Rule(
         // !!! This adjusts it to search for non-literal words, but are there
         // other considerations for how non-block rules act with array input?
         //
-        REBFLGS flags = P_HAS_CASE ? AM_FIND_CASE : 0;
+        REBFLGS find_flags = P_HAS_CASE ? AM_FIND_CASE : 0;
         DECLARE_LOCAL (temp);
         if (IS_QUOTED(rule)) { // make `'[foo bar]` match `[foo bar]`
             Derelativize(temp, rule, P_RULE_SPECIFIER);
             rule = Unquotify(temp, 1);
-            flags |= AM_FIND_ONLY; // !!! Is this implied?
+            find_flags |= AM_FIND_ONLY; // !!! Is this implied?
         }
 
         REBLEN i = Find_In_Array(
@@ -1206,7 +1229,7 @@ static REBIXO To_Thru_Non_Block_Rule(
             SER_LEN(P_INPUT),
             rule,
             1,
-            flags,
+            find_flags,
             1
         );
 
@@ -1226,7 +1249,7 @@ static REBIXO To_Thru_Non_Block_Rule(
         &len,
         P_INPUT_VALUE,
         rule,
-        P_FIND_FLAGS
+        (P_FLAGS & PF_FIND_MASK)
     );
 
     if (i == NOT_FOUND)
@@ -1481,7 +1504,7 @@ static REB_R Handle_Seek_Rule_Dont_Update_Begin(
 //
 #define HANDLE_SEEK_RULE_UPDATE_BEGIN(f,rule,specifier) \
     Handle_Seek_Rule_Dont_Update_Begin((f), (rule), (specifier)); \
-    if (flags == 0) \
+    if (not (P_FLAGS & PF_STATE_MASK)) \
         Init_Integer(P_BEGIN_VALUE, P_POS);
 
 
@@ -1536,14 +1559,7 @@ REBNATIVE(subparse)
 //  Parse_Executor: C
 //
 REB_R Parse_Executor(REBFRM *frame_) {
-    INCLUDE_PARAMS_OF_SUBPARSE;
-    CLEAR_SERIES_INFO(frame_->varlist, HOLD);  // remove bit
-
-    UNUSED(ARG(input));  // used via P_INPUT
-    UNUSED(ARG(find_flags));  // used via P_FIND_FLAGS
-    UNUSED(ARG(num_quotes));  // used via P_NUM_QUOTES_VALUE
-
-    REBFRM *f = frame_; // nice alias of implicit native parameter
+    REBFRM *f = frame_;  // nice alias of implicit native parameter
 
     // Every time we hit an alternate rule match (with |), we have to reset
     // any of the collected values.  Remember the tail when we started.
@@ -1556,7 +1572,6 @@ REB_R Parse_Executor(REBFRM *frame_) {
     // no real resolution exists...see the UNUSED(interrupted) cases.)
     //
     REBLEN collection_tail = P_COLLECTION ? VAL_INDEX(P_COLLECTION_VALUE) : 0;
-    UNUSED(ARG(collection)); // implicitly accessed as P_COLLECTION
 
   #if !defined(NDEBUG)
     //
@@ -1571,7 +1586,6 @@ REB_R Parse_Executor(REBFRM *frame_) {
     // For now assume we do not carry the set or copy word across an eval.
     // !!! This is likely not true.  :-/
     //
-    REBFLGS flags = 0;
     const RELVAL *set_or_copy_word = NULL;
 
     if (D_STATE_BYTE == ST_PARSE_ENTRY) {
@@ -1641,6 +1655,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
     Init_Integer(P_BEGIN_VALUE, P_POS);
     assert(P_MINCOUNT == 1);
     assert(P_MAXCOUNT == 1);
+    assert((P_FLAGS & PF_STATE_MASK) == 0);
 
     // The loop iterates across each REBVAL's worth of "rule" in the rule
     // block.  Some of these rules just set `flags` and `goto pre_rule`, so
@@ -1756,7 +1771,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
               case SYM_SOME:
                 assert(P_MINCOUNT == 1 and P_MAXCOUNT == 1);  // true on entry
               sym_some:;
-                flags |= PF_ANY_OR_SOME;
+                P_FLAGS |= PF_ANY_OR_SOME;
                 Init_Integer(P_MAXCOUNT_VALUE, INT32_MAX);
                 FETCH_NEXT_RAW_RULE(f);
                 goto pre_rule;
@@ -1767,11 +1782,11 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 goto pre_rule;
 
               case SYM_COPY:
-                flags |= PF_COPY;
+                P_FLAGS |= PF_COPY;
                 goto set_or_copy_pre_rule;
 
               case SYM_SET:
-                flags |= PF_SET;
+                P_FLAGS |= PF_SET;
                 goto set_or_copy_pre_rule;
 
               set_or_copy_pre_rule:;
@@ -1816,7 +1831,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     SPECIFIED,
                     subframe,
                     collection,
-                    P_FIND_FLAGS
+                    (P_FLAGS & PF_FIND_MASK)
                 );
 
                 DROP_GC_GUARD(collection);
@@ -1920,7 +1935,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                         SPECIFIED,
                         subframe,
                         P_COLLECTION,
-                        P_FIND_FLAGS
+                        (P_FLAGS & PF_FIND_MASK)
                     );
 
                     UNUSED(interrupted);  // !!! ignore ACCEPT/REJECT (?)
@@ -1989,34 +2004,34 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 goto pre_rule; }
 
               case SYM_NOT:
-                flags |= PF_NOT;
-                flags ^= PF_NOT2;
+                P_FLAGS |= PF_NOT;
+                P_FLAGS ^= PF_NOT2;
                 FETCH_NEXT_RAW_RULE(f);
                 goto pre_rule;
 
               case SYM_AND:
               case SYM_AHEAD:
-                flags |= PF_AHEAD;
+                P_FLAGS |= PF_AHEAD;
                 FETCH_NEXT_RAW_RULE(f);
                 goto pre_rule;
 
               case SYM_THEN:
-                flags |= PF_THEN;
+                P_FLAGS |= PF_THEN;
                 FETCH_NEXT_RAW_RULE(f);
                 goto pre_rule;
 
               case SYM_REMOVE:
-                flags |= PF_REMOVE;
+                P_FLAGS |= PF_REMOVE;
                 FETCH_NEXT_RAW_RULE(f);
                 goto pre_rule;
 
               case SYM_INSERT:
-                flags |= PF_INSERT;
+                P_FLAGS |= PF_INSERT;
                 FETCH_NEXT_RAW_RULE(f);
                 goto post_match_processing;
 
               case SYM_CHANGE:
-                flags |= PF_CHANGE;
+                P_FLAGS |= PF_CHANGE;
                 FETCH_NEXT_RAW_RULE(f);
                 goto pre_rule;
 
@@ -2184,7 +2199,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         // only if a match happens.
         //
         FETCH_NEXT_RULE_KEEP_LAST(&set_or_copy_word, f);
-        flags |= PF_SET;
+        P_FLAGS |= PF_SET;
         goto pre_rule;
     }
 
@@ -2467,7 +2482,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     P_INPUT_SPECIFIER,  // harmless if specified API value
                     subframe,
                     P_COLLECTION,
-                    P_FIND_FLAGS
+                    (P_FLAGS & PF_FIND_MASK)
                 )){
                     return R_THROWN;
                 }
@@ -2538,7 +2553,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 SPECIFIED,
                 subframe,
                 P_COLLECTION,
-                P_FIND_FLAGS
+                (P_FLAGS & PF_FIND_MASK)
             )) {
                 Move_Value(P_OUT, P_CELL);
                 return R_THROWN;
@@ -2575,7 +2590,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 assert(r == P_OUT or r == R_IMMEDIATE);
                 if (r == R_IMMEDIATE) {
                     assert(DSP == f->dsp_orig + 1);
-                    if (not (flags & PF_SET))  // only SET handles
+                    if (not (P_FLAGS & PF_SET))  // only SET handles
                         DS_DROP();
                 }
                 i = VAL_INT32(P_OUT);
@@ -2605,7 +2620,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
         P_POS = cast(REBLEN, i);
 
-        if (i == SER_LEN(P_INPUT) and (flags & PF_ANY_OR_SOME)) {
+        if (i == SER_LEN(P_INPUT) and (P_FLAGS & PF_ANY_OR_SOME)) {
             //
             // ANY and SOME auto terminate on e.g. `some [... | end]`.
             // But WHILE is conceptually a synonym for a self-recursive
@@ -2634,16 +2649,16 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
   post_match_processing:;
 
-    if (flags) {
-        if (flags & PF_NOT) {
-            if ((flags & PF_NOT2) and P_POS != NOT_FOUND)
+    if (P_FLAGS & PF_STATE_MASK) {
+        if (P_FLAGS & PF_NOT) {
+            if ((P_FLAGS & PF_NOT2) and P_POS != NOT_FOUND)
                 P_POS = NOT_FOUND;
             else
                 P_POS = P_BEGIN;
         }
 
         if (P_POS == NOT_FOUND) {
-            if (flags & PF_THEN) {
+            if (P_FLAGS & PF_THEN) {
                 FETCH_TO_BAR_OR_END(f);
                 if (NOT_END(P_RAW_RULE))
                     FETCH_NEXT_RAW_RULE(f);
@@ -2657,7 +2672,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
             else
                 Init_Integer(P_COUNT_VALUE, P_POS - P_BEGIN);
 
-            if (flags & PF_COPY) {
+            if (P_FLAGS & PF_COPY) {
                 REBVAL *sink = Sink_Word_May_Fail(
                     set_or_copy_word,
                     P_RULE_SPECIFIER
@@ -2707,7 +2722,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 // is collecting items in a neutral container.  It is less
                 // obvious what marking a position should do.
             }
-            else if ((flags & PF_SET) and (P_COUNT != 0)) { // 0-leave alone
+            else if ((P_FLAGS & PF_SET) and (P_COUNT != 0)) { // 0-leave alone
                 //
                 // We waited to eval the SET-GROUP! until we knew we had
                 // something we wanted to set.  Do so, and then go through
@@ -2779,16 +2794,19 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 }
             }
 
-            if (flags & PF_REMOVE) {
+            if (P_FLAGS & PF_REMOVE) {
                 FAIL_IF_READ_ONLY(P_INPUT_VALUE);
                 if (P_COUNT != 0)
                     Remove_Series_Len(P_INPUT, P_BEGIN, P_COUNT);
                 P_POS = P_BEGIN;
             }
 
-            if (flags & (PF_INSERT | PF_CHANGE)) {
+            if (P_FLAGS & (PF_INSERT | PF_CHANGE)) {
                 FAIL_IF_READ_ONLY(P_INPUT_VALUE);
-                Init_Integer(P_COUNT_VALUE, (flags & PF_INSERT) ? 0 : P_COUNT);
+                Init_Integer(
+                    P_COUNT_VALUE,
+                    (P_FLAGS & PF_INSERT) ? 0 : P_COUNT
+                );
                 bool only = false;
 
                 if (IS_END(P_RAW_RULE))
@@ -2840,7 +2858,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     DECLARE_LOCAL (specified);
                     Derelativize(specified, P_RULE, P_RULE_SPECIFIER);
 
-                    REBLEN mod_flags = (flags & PF_INSERT) ? 0 : AM_PART;
+                    REBFLGS mod_flags = (P_FLAGS & PF_INSERT) ? 0 : AM_PART;
                     if (
                         not only and
                         Splices_Into_Type_Without_Only(P_TYPE, specified)
@@ -2848,7 +2866,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                         mod_flags |= AM_SPLICE;
                     }
                     P_POS = Modify_Array(
-                        (flags & PF_CHANGE)
+                        (P_FLAGS & PF_CHANGE)
                             ? Canon(SYM_CHANGE)
                             : Canon(SYM_INSERT),
                         ARR(P_INPUT),
@@ -2868,11 +2886,11 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
                     P_POS = P_BEGIN;
 
-                    REBLEN mod_flags = (flags & PF_INSERT) ? 0 : AM_PART;
+                    REBFLGS mod_flags = (P_FLAGS & PF_INSERT) ? 0 : AM_PART;
 
                     P_POS = Modify_String_Or_Binary(  // checks read-only
                         P_INPUT_VALUE,
-                        (flags & PF_CHANGE)
+                        (P_FLAGS & PF_CHANGE)
                             ? Canon(SYM_CHANGE)
                             : Canon(SYM_INSERT),
                         specified,
@@ -2883,11 +2901,11 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 }
             }
 
-            if (flags & PF_AHEAD)
+            if (P_FLAGS & PF_AHEAD)
                 P_POS = P_BEGIN;
         }
 
-        flags = 0;
+        P_FLAGS &= ~PF_STATE_MASK;  // reset any state-oriented flags
         set_or_copy_word = NULL;
     }
 
@@ -2926,7 +2944,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
     // if it needs to hold state across steps or evaluations.
     //
     /* begin = P_POS; */
-    assert(flags == 0);  // local variable, wasn't reset here (should be 0)
+    assert((P_FLAGS & PF_STATE_MASK) == 0);
 
     // !!! These apply to things like `parse "aa" [2 ["a" (print "hi")]]`.
     // Hence they may need to be carried across continuations (though perhaps

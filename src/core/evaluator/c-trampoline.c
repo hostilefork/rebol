@@ -148,8 +148,16 @@ bool Trampoline_Throws(REBFRM *f_stop)
             }
             Drop_Frame(f);
             f = FS_TOP;  // refresh
-            if (f->original)  // function is running, assume only catchers ATM
+
+            // We assume the action and parse executors want to catch throws
+            // for now...but this needs to be done in a more general way.
+            //
+            if (
+                f->executor == &Action_Executor
+                or f->executor == &Parse_Executor
+            ){
                 goto loop;
+            }
         }
     }
     else {

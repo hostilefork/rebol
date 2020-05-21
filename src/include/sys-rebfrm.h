@@ -773,12 +773,19 @@ struct Reb_Frame {
         const RELVAL *value;
     } reval;
 
-    // Used to hold on to the PARSE rule, which may point into the actual
-    // rule block (and be thus specified by the rule specifier) or it may
-    // point to the spare cell (in which case it would be SPECIFIED)
-    //
     struct {
+        // Used to hold on to the PARSE rule, which may point into the actual
+        // rule block (and be thus specified by the rule specifier) or it may
+        // point to the spare cell (in which case it would be SPECIFIED)
+        //
         const RELVAL *rule;
+
+        // An subparse (and arbitrary evaluation via GROUP!) can be performed
+        // while a SET or COPY rule is pending, with the result coming back to
+        // be used to set the variable.  Similar to the `rule`, the specifier
+        // should either be SPECIFIED or P_RULE_SPECIFIER.
+        //
+        const RELVAL *set_or_copy_word;
     } parse;
   } u;
 

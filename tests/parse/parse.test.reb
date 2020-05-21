@@ -142,10 +142,13 @@
 ]
 
 ; self-invoking rule
-
+; Note: This can get very deep in Ren-C and recursion may be particularly slow
+; in a debug build.  Keep the number low (2000) so the tests aren't excessive.
+;
 [#1672 (
-    a: [a end]
-    error? trap [parse [] a]
+    n: 0
+    a: [(if 2000 = n: n + 1 [throw <interrupt>]) a end]
+    <interrupt> = catch [parse [] a]
 )]
 
 ; repetition

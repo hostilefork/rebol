@@ -80,7 +80,8 @@
 enum {
     ST_PARSE_ENTRY = 0,
     ST_PARSE_PRE_RULE,
-    ST_PARSE_GROUP_WAS_EVALUATED
+    ST_PARSE_GROUP_WAS_EVALUATED,
+    ST_PARSE_SUBRULES_COMPLETED
 };
 
 
@@ -153,6 +154,7 @@ enum {
 //
 #define P_RULE              (f->u.parse.rule)
 #define P_SUBRULE           (f->param)
+#define P_SET_OR_COPY_WORD  (f->u.parse.set_or_copy_word)
 
 #define P_OUT (f->out)
 
@@ -312,67 +314,55 @@ void Pack_Subparse(
     );
 }
 
-
+// Small shared routine for converting ACCEPT and REJECT into "interrupted"
+// or just a plain throw.
+//
+// !!! This routine used to do more "unpacking" by virtue of expecting to have
+// access to the throwing frame, so it would unwind the COLLECT if needed.
+// Now that recursions go through the actual trampoline and not a raw function
+// call to the SUBPARSE dispatcher, there's no access to the frame when a
+// throw happens (unless something changes).  So that unwinding has to be
+// done in the `return_thrown` and `return_null` cases.
+//
 bool Unpack_Subparse_Throws(
     bool *interrupted_out,
-    REBVAL *out,
-    REBFRM *f,
-    const REBVAL *r
+    REBVAL *out,  // may not be f->out (e.g. could be spare cell eval'd into)
+    REBFRM *f
 ){
-    REBARR *opt_collection;
-    REBLEN collect_tail;
-    if (IS_BLANK(P_COLLECTION_VALUE)) {
-        collect_tail = 0;
-        opt_collection = nullptr;
-    }
-    else {
-        collect_tail = VAL_INDEX(P_COLLECTION_VALUE);
-        opt_collection = VAL_ARRAY(P_COLLECTION_VALUE);
+    if (not Is_Throwing(f)) {
+        *interrupted_out = false;
+        return false;
     }
 
-    /* Drop_Action(f); */  // now done automatically if dispatched
-    Drop_Frame(f);
-
-    if ((r == R_THROWN or IS_NULLED(out)) and opt_collection)
-        TERM_ARRAY_LEN(opt_collection, collect_tail);  // roll back on abort
-
-    if (r == R_THROWN) {
-        //
-        // ACCEPT and REJECT are special cases that can happen at nested parse
-        // levels and bubble up through the throw mechanism to break a looping
-        // construct.
-        //
-        // !!! R3-Alpha didn't react to these instructions in general, only in
-        // the particular case where subparsing was called inside an iterated
-        // construct.  Even then, it could only break through one level of
-        // depth.  Most places would treat them the same as a normal match
-        // or not found.  This returns the interrupted flag which is still
-        // ignored by most callers, but makes that fact more apparent.
-        //
-        const REBVAL *label = VAL_THROWN_LABEL(out);
-        if (IS_ACTION(label)) {
-            if (VAL_ACTION(label) == NAT_ACTION(parse_reject)) {
-                CATCH_THROWN(out, out);
-                assert(IS_NULLED(out));
-                *interrupted_out = true;
-                return false;
-            }
-
-            if (VAL_ACTION(label) == NAT_ACTION(parse_accept)) {
-                CATCH_THROWN(out, out);
-                assert(IS_INTEGER(out));
-                *interrupted_out = true;
-                return false;
-            }
+    // ACCEPT and REJECT are special cases that can happen at nested parse
+    // levels and bubble up through the throw mechanism to break a looping
+    // construct.
+    //
+    // !!! R3-Alpha didn't react to these instructions in general, only in
+    // the particular case where subparsing was called inside an iterated
+    // construct.  Even then, it could only break through one level of
+    // depth.  Most places would treat them the same as a normal match
+    // or not found.  This returns the interrupted flag which is still
+    // ignored by most callers, but makes that fact more apparent.
+    //
+    const REBVAL *label = VAL_THROWN_LABEL(f->out);
+    if (IS_ACTION(label)) {
+        if (VAL_ACTION(label) == NAT_ACTION(parse_reject)) {
+            CATCH_THROWN(out, out);
+            assert(IS_NULLED(out));
+            *interrupted_out = true;
+            return false;
         }
 
-        return true;
+        if (VAL_ACTION(label) == NAT_ACTION(parse_accept)) {
+            CATCH_THROWN(out, out);
+            assert(IS_INTEGER(out));
+            *interrupted_out = true;
+            return false;
+        }
     }
 
-    assert(r == out);
-
-    *interrupted_out = false;
-    return false;
+    return true;
 }
 
 
@@ -409,16 +399,14 @@ static bool Subparse_Throws(
     // !!! When all calls are converted to stackless, this will never do a
     // C-style recursion.
     //
-    bool threw = Eval_Throws(f);
+    assert(FS_TOP->prior != f);  // should have pushed a frame
+    bool threw = Eval_Throws(f);  // starts running FS_TOP, stops back at `f`
+    if (threw != Unpack_Subparse_Throws(interrupted_out, out, f))
+        assert(!"This might be true today due to Is_Throwing() mechanic");
 
-    const REBVAL *r = threw ? R_THROWN : out;
+    Drop_Frame(f);  // current convention you have to drop the frame you pushed
 
-    return Unpack_Subparse_Throws(
-        interrupted_out,
-        out,
-        f,
-        r
-    );
+    return threw;
 }
 
 
@@ -1583,11 +1571,6 @@ REB_R Parse_Executor(REBFRM *frame_) {
     (void)pos_debug; // UNUSED() forces corruption in C++11 debug builds
   #endif
 
-    // For now assume we do not carry the set or copy word across an eval.
-    // !!! This is likely not true.  :-/
-    //
-    const RELVAL *set_or_copy_word = NULL;
-
     if (D_STATE_BYTE == ST_PARSE_ENTRY) {
         //
         // If input is quoted, e.g. `parse lit ''''[...] [rules]`, we dequote
@@ -1632,6 +1615,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         assert(f->original == nullptr);
         TRASH_POINTER_IF_DEBUG(P_RULE);
         TRASH_POINTER_IF_DEBUG(P_SUBRULE);
+        TRASH_POINTER_IF_DEBUG(P_SET_OR_COPY_WORD);
 
         // falls through to pre_rule plus new rule boilerplate
     }
@@ -1643,6 +1627,8 @@ REB_R Parse_Executor(REBFRM *frame_) {
             break;  // sets `rule`
           case ST_PARSE_GROUP_WAS_EVALUATED:
             goto group_was_evaluated;  // sets the `rule` or `goto pre_rule;`
+          case ST_PARSE_SUBRULES_COMPLETED:
+            goto subrules_completed;
           default: assert(false);
         }
     }
@@ -1728,6 +1714,9 @@ REB_R Parse_Executor(REBFRM *frame_) {
       }
 
       group_was_evaluated: blockscope {
+        if (Is_Throwing(f))
+            goto return_thrown;
+
         if (IS_END(P_OUT)) {  // was a (...), or null-bearing :(...)
             FETCH_NEXT_RAW_RULE(f);  // ignore result and go on to next rule
             goto pre_rule;
@@ -1799,7 +1788,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 if (VAL_CMD(P_RAW_RULE))  // set set [...]
                     fail (Error_Parse_Command(f));
 
-                FETCH_NEXT_RULE_KEEP_LAST(&set_or_copy_word, f);
+                FETCH_NEXT_RULE_KEEP_LAST(&P_SET_OR_COPY_WORD, f);
                 goto pre_rule;
 
               case SYM_COLLECT: {
@@ -1807,7 +1796,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 if (not (IS_WORD(P_RAW_RULE) or IS_SET_WORD(P_RAW_RULE)))
                     fail (Error_Parse_Variable(f));
 
-                FETCH_NEXT_RULE_KEEP_LAST(&set_or_copy_word, f);
+                FETCH_NEXT_RULE_KEEP_LAST(&P_SET_OR_COPY_WORD, f);
 
                 REBARR *collection = Make_Array_Core(
                     10,  // !!! how big?
@@ -1849,7 +1838,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
                 Init_Block(
                     Sink_Word_May_Fail(
-                        set_or_copy_word,
+                        P_SET_OR_COPY_WORD,
                         P_RULE_SPECIFIER
                     ),
                     collection
@@ -2083,21 +2072,23 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 Init_Integer(thrown_arg, P_POS);
                 thrown_arg->extra.trash = thrown_arg;  // see notes
 
-                return Init_Thrown_With_Label(
+                Init_Thrown_With_Label(
                     P_OUT,
                     thrown_arg,
                     NAT_VALUE(parse_accept)
-                ); }
+                );
+                goto return_thrown; }
 
               case SYM_REJECT: {
                 //
                 // Similarly, this is a break/continue style "throw"
                 //
-                return Init_Thrown_With_Label(
+                Init_Thrown_With_Label(
                     P_OUT,
                     NULLED_CELL,
                     NAT_VALUE(parse_reject)
-                ); }
+                );
+                goto return_thrown; }
 
               case SYM_FAIL:  // deprecated... use LOGIC! false instead
                 P_POS = NOT_FOUND;
@@ -2177,7 +2168,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         if (IS_PATH(P_RULE)) {
             if (Get_Path_Throws_Core(P_SAVE, P_RULE, P_RULE_SPECIFIER)) {
                 Move_Value(P_OUT, P_SAVE);
-                return R_THROWN;
+                goto return_thrown;
             }
             P_RULE = P_SAVE;
         }
@@ -2198,7 +2189,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         // the contents (or pass found value to function as parameter)
         // only if a match happens.
         //
-        FETCH_NEXT_RULE_KEEP_LAST(&set_or_copy_word, f);
+        FETCH_NEXT_RULE_KEEP_LAST(&P_SET_OR_COPY_WORD, f);
         P_FLAGS |= PF_SET;
         goto pre_rule;
     }
@@ -2369,7 +2360,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 REB_R r = Parse_One_Rule(f, P_POS, P_RULE);
                 assert(r != R_IMMEDIATE);
                 if (r == R_THROWN)
-                    return R_THROWN;
+                    goto return_thrown;
 
                 if (r == R_UNHANDLED)
                     i = END_FLAG;
@@ -2484,7 +2475,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     P_COLLECTION,
                     (P_FLAGS & PF_FIND_MASK)
                 )){
-                    return R_THROWN;
+                    goto return_thrown;
                 }
 
                 // !!! ignore interrupted? (e.g. ACCEPT or REJECT ran)
@@ -2531,6 +2522,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
             }
         }
         else if (IS_BLOCK(P_RULE)) {  // word fetched block, or inline block
+          blockscope {
             DECLARE_ARRAY_FEED (subrules_feed,
                 VAL_ARRAY(P_RULE),
                 VAL_INDEX(P_RULE),
@@ -2545,18 +2537,23 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     | EVAL_FLAG_TO_END  // do more than just one rule
             );
 
-            bool interrupted;
-            if (Subparse_Throws(
-                &interrupted,
+            Pack_Subparse(
                 SET_END(P_CELL),
-                P_INPUT_VALUE,
-                SPECIFIED,
+                P_INPUT_VALUE, SPECIFIED,
                 subframe,
                 P_COLLECTION,
                 (P_FLAGS & PF_FIND_MASK)
-            )) {
+            );
+            D_STATE_BYTE = ST_PARSE_SUBRULES_COMPLETED;
+            return R_CONTINUATION;
+          }
+
+          subrules_completed: blockscope {
+
+            bool interrupted;
+            if (Unpack_Subparse_Throws(&interrupted, P_CELL, f)) {
                 Move_Value(P_OUT, P_CELL);
-                return R_THROWN;
+                goto return_thrown;
             }
 
             // Non-breaking out of loop instances of match or not.
@@ -2576,13 +2573,14 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     P_POS = cast(REBLEN, i);
                 break;
             }
+          }
         }
         else {
             // Parse according to datatype
 
             REB_R r = Parse_One_Rule(f, P_POS, P_RULE);
             if (r == R_THROWN)
-                return R_THROWN;
+                goto return_thrown;
 
             if (r == R_UNHANDLED)
                 i = END_FLAG;
@@ -2674,7 +2672,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
             if (P_FLAGS & PF_COPY) {
                 REBVAL *sink = Sink_Word_May_Fail(
-                    set_or_copy_word,
+                    P_SET_OR_COPY_WORD,
                     P_RULE_SPECIFIER
                 );
                 if (ANY_ARRAY(P_INPUT_VALUE)) {
@@ -2728,10 +2726,10 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 // something we wanted to set.  Do so, and then go through
                 // a normal setting procedure.
                 //
-                if (IS_SET_GROUP(set_or_copy_word)) {
+                if (IS_SET_GROUP(P_SET_OR_COPY_WORD)) {
                     if (Do_Any_Array_At_Throws(
                         P_CELL,
-                        set_or_copy_word,
+                        P_SET_OR_COPY_WORD,
                         P_RULE_SPECIFIER
                     )){
                         Move_Value(P_OUT, P_CELL);
@@ -2746,13 +2744,13 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     if (not (IS_WORD(P_CELL) or IS_SET_WORD(P_CELL)))
                         fail (Error_Parse_Variable_Raw(P_CELL));
 
-                    set_or_copy_word = P_CELL;
+                    P_SET_OR_COPY_WORD = P_CELL;
                 }
 
                 if (IS_SER_ARRAY(P_INPUT)) {
                     Derelativize(
                         Sink_Word_May_Fail(
-                            set_or_copy_word, P_RULE_SPECIFIER
+                            P_SET_OR_COPY_WORD, P_RULE_SPECIFIER
                         ),
                         ARR_AT(ARR(P_INPUT), P_BEGIN),
                         P_INPUT_SPECIFIER
@@ -2760,7 +2758,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 }
                 else {
                     REBVAL *var = Sink_Word_May_Fail(
-                        set_or_copy_word, P_RULE_SPECIFIER
+                        P_SET_OR_COPY_WORD, P_RULE_SPECIFIER
                     );
 
                     // A Git merge of UTF-8 everywhere put this here,
@@ -2906,7 +2904,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         }
 
         P_FLAGS &= ~PF_STATE_MASK;  // reset any state-oriented flags
-        set_or_copy_word = NULL;
+        TRASH_POINTER_IF_DEBUG(P_SET_OR_COPY_WORD);
     }
 
     if (P_POS == NOT_FOUND) {
@@ -2967,11 +2965,21 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
   return_position:
     INIT_F_EXECUTOR(f, nullptr);
-    return Init_Integer(D_OUT, P_POS); // !!! return switched input series??
+    return Init_Integer(P_OUT, P_POS); // !!! return switched input series??
 
   return_null:
+    if (not IS_BLANK(P_COLLECTION_VALUE))  // failed so drop COLLECT additions
+      TERM_ARRAY_LEN(VAL_ARRAY(P_COLLECTION_VALUE), collection_tail);
+
     INIT_F_EXECUTOR(f, nullptr);
-    return Init_Nulled(D_OUT);
+    return Init_Nulled(P_OUT);
+
+  return_thrown:
+    if (not IS_BLANK(P_COLLECTION_VALUE))  // thrown so drop COLLECT additions
+        if (VAL_THROWN_LABEL(P_OUT) != NAT_VALUE(parse_accept))  // ...unless!
+            TERM_ARRAY_LEN(VAL_ARRAY(P_COLLECTION_VALUE), collection_tail);
+
+    return R_THROWN;
 }
 
 
@@ -3018,7 +3026,6 @@ REBNATIVE(parse)
         rules_feed,
         EVAL_MASK_DEFAULT
             | EVAL_FLAG_ALLOCATED_FEED
-            | EVAL_FLAG_TRAMPOLINE_KEEPALIVE
             | EVAL_FLAG_TO_END
     );
 
@@ -3037,17 +3044,14 @@ REBNATIVE(parse)
 //    assert(f->executor == &Action_Executor);  // was set by Begin_Action()
 
     D_STATE_BYTE = ST_PARSE_PRE_RULE;
+    SET_EVAL_FLAG(frame_, DISPATCHER_CATCHES);
     return R_CONTINUATION;
   }
 
   subparse_finished:
   blockscope {
-    REBFRM *f = FS_TOP;
-    assert(f->prior == frame_);  // !!! Review this guarantee generically
-
-    const REBVAL *r = D_OUT;
     bool interrupted;
-    bool threw = Unpack_Subparse_Throws(&interrupted, D_OUT, f, r);
+    bool threw = Unpack_Subparse_Throws(&interrupted, D_OUT, frame_);
 
     // Any PARSE-specific THROWs (where a PARSE directive jumped the
     // stack) should be handled here.  However, RETURN was eliminated,
@@ -3057,7 +3061,7 @@ REBNATIVE(parse)
         return R_THROWN;
 
     if (IS_NULLED(D_OUT))
-        return nullptr;
+        return D_OUT;
 
     REBLEN progress = VAL_UINT32(D_OUT);
     assert(progress <= VAL_LEN_HEAD(ARG(input)));

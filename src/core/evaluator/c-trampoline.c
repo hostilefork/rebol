@@ -82,25 +82,30 @@ bool Trampoline_Throws(REBFRM *f_stop)
     if (r != R_THROWN)
         assert((f->executor == &Action_Executor) == (f->original != nullptr));
 
+    assert(Eval_Count >= 0);
+    if (--Eval_Count == 0) {
+        //
+        // Note that Do_Signals_Throws() may do a recycle step of the GC,
+        // or may spawn an entire interactive debugging session via
+        // breakpoint before it returns.  May also FAIL and longjmp out.
+        //
+        // We can't just test on the `nullptr` case of finishing an executor
+        // result, because that would not provide termination in something
+        // that was deeply tunneling with no resolution.
+        //
+        // The FRM_SPARE() is passed in to be used for the location to write
+        // a throw, but shouldn't be written unless a throw happens...because
+        // the spare cell is in use by the executor.
+        //
+        if (Do_Signals_Throws(FRM_SPARE(f))) {  // see note on FRM_SPARE()
+            Move_Value(f->out, FRM_SPARE(f));
+            r = R_THROWN;
+            goto thrown;
+        }
+    }
+
     if (f->executor == nullptr) {  // no further execution for frame, drop it
         assert(r == f->out);
-
-        assert(Eval_Count >= 0);
-        if (--Eval_Count == 0) {
-            SET_END(FRM_SPARE(f));
-
-            // Note that Do_Signals_Throws() may do a recycle step of the GC,
-            // or may spawn an entire interactive debugging session via
-            // breakpoint before it returns.  May also FAIL and longjmp out.
-            //
-            if (Do_Signals_Throws(FRM_SPARE(f))) {
-                Move_Value(f->out, FRM_SPARE(f));
-                r = R_THROWN;
-                goto thrown;
-            }
-
-            assert(FRM_SPARE(f));
-        }
 
         // !!! Currently we do not drop the topmost frame, because some code
         // (e.g. MATCH) would ask for a frame to be filled, and then steal

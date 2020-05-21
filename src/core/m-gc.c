@@ -855,11 +855,10 @@ static void Queue_Mark_Frame_And_Priors(REBFRM *f) {
 
     REBVAL *arg;
     for (arg = FRM_ARGS_HEAD(f); NOT_END(param); ++param, ++arg) {
-        //
-        // At time of writing, all frame storage is in stack cells...not
-        // varlists.
-        //
-        assert(arg->header.bits & CELL_FLAG_STACK_LIFETIME);
+
+        // !!! We should be able to test for CELL_FLAG_STACK_LIFETIME here,
+        // but the way argument fulfillment phases are set up we can only
+        // check that bit if we're past the parameter (see below).  Review.
 
         if (param == f->param) {
             //
@@ -880,6 +879,11 @@ static void Queue_Mark_Frame_And_Priors(REBFRM *f) {
             //
             continue;
         }
+
+        // At time of writing, all frame storage is in stack cells...not
+        // varlists.
+        //
+        assert(arg->header.bits & CELL_FLAG_STACK_LIFETIME);
 
         Queue_Mark_Opt_Value_Deep(arg);
     }

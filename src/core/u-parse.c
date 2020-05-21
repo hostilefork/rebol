@@ -210,8 +210,7 @@ enum parse_flags {
     PF_REMOVE = 1 << 6,
     PF_INSERT = 1 << 7,
     PF_CHANGE = 1 << 8,
-    PF_ANY_OR_SOME = 1 << 9,
-    PF_ONE_RULE = 1 << 10  // signal to only run one step of the parse
+    PF_ANY_OR_SOME = 1 << 9
 };
 
 
@@ -662,7 +661,9 @@ static REB_R Parse_One_Rule(
         DECLARE_FRAME (
             subframe,
             subfeed,
-            EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
+            EVAL_MASK_DEFAULT
+                | EVAL_FLAG_ALLOCATED_FEED
+                | EVAL_FLAG_TO_END  // not just one rule
         );
 
         DECLARE_LOCAL (subresult);
@@ -674,7 +675,7 @@ static REB_R Parse_One_Rule(
             SPECIFIED,
             subframe,
             P_COLLECTION,
-            P_FIND_FLAGS & ~PF_ONE_RULE
+            P_FIND_FLAGS
         )){
             Move_Value(P_OUT, subresult);
             return R_THROWN;
@@ -1799,7 +1800,12 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 );
                 PUSH_GC_GUARD(collection);
 
-                DECLARE_FRAME (subframe, f->feed, EVAL_MASK_DEFAULT);
+                DECLARE_FRAME (
+                    subframe,
+                    f->feed,
+                    EVAL_MASK_DEFAULT
+                        // no EVAL_FLAG_TO_END, so just one rule (maybe block)
+                );
 
                 bool interrupted;
                 assert(IS_END(P_OUT));  // invariant until finished
@@ -1810,7 +1816,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     SPECIFIED,
                     subframe,
                     collection,
-                    P_FIND_FLAGS | PF_ONE_RULE
+                    P_FIND_FLAGS
                 );
 
                 DROP_GC_GUARD(collection);
@@ -1898,7 +1904,12 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 }
                 else {  // Ordinary rule (may be block, may not be)
 
-                    DECLARE_FRAME (subframe, f->feed, EVAL_MASK_DEFAULT);
+                    DECLARE_FRAME (
+                        subframe,
+                        f->feed,
+                        EVAL_MASK_DEFAULT
+                        // no EVAL_FLAG_TO_END, don't run all rules (just one)
+                    );
 
                     bool interrupted;
                     assert(IS_END(P_OUT));  // invariant until finished
@@ -1909,7 +1920,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                         SPECIFIED,
                         subframe,
                         P_COLLECTION,
-                        P_FIND_FLAGS | PF_ONE_RULE
+                        P_FIND_FLAGS
                     );
 
                     UNUSED(interrupted);  // !!! ignore ACCEPT/REJECT (?)
@@ -2443,7 +2454,9 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 DECLARE_FRAME (
                     subframe,
                     subrules_feed,
-                    EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
+                    EVAL_MASK_DEFAULT
+                        | EVAL_FLAG_ALLOCATED_FEED
+                        | EVAL_FLAG_TO_END  // not just one rule
                 );
 
                 bool interrupted;
@@ -2512,7 +2525,9 @@ REB_R Parse_Executor(REBFRM *frame_) {
             DECLARE_FRAME (
                 subframe,
                 subrules_feed,
-                EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
+                EVAL_MASK_DEFAULT
+                    | EVAL_FLAG_ALLOCATED_FEED
+                    | EVAL_FLAG_TO_END  // do more than just one rule
             );
 
             bool interrupted;
@@ -2523,7 +2538,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 SPECIFIED,
                 subframe,
                 P_COLLECTION,
-                P_FIND_FLAGS & ~(PF_ONE_RULE)
+                P_FIND_FLAGS
             )) {
                 Move_Value(P_OUT, P_CELL);
                 return R_THROWN;
@@ -2605,11 +2620,11 @@ REB_R Parse_Executor(REBFRM *frame_) {
     if (P_POS > SER_LEN(P_INPUT))
         P_POS = NOT_FOUND;
 
-//==////////////////////////////////////////////////////////////////==//
-//
-// "POST-MATCH PROCESSING"
-//
-//==////////////////////////////////////////////////////////////////==//
+    //==////////////////////////////////////////////////////////////////==//
+    //
+    // "POST-MATCH PROCESSING"
+    //
+    //==////////////////////////////////////////////////////////////////==//
 
     // The comment here says "post match processing", but it may be a
     // failure signal.  Or it may have been a success and there could be
@@ -2887,7 +2902,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         // COLLECT asked for one step, and the first keep asked for one
         // step.  So that second KEEP applies only to some outer collect.
         //
-        if (P_FIND_FLAGS & PF_ONE_RULE)
+        if (NOT_EVAL_FLAG(f, TO_END))
             goto return_null;
 
         if (P_COLLECTION)
@@ -2904,7 +2919,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         Init_Integer(P_BEGIN_VALUE, P_START);
     }
 
-    if (P_FIND_FLAGS & PF_ONE_RULE)  // don't loop
+    if (NOT_EVAL_FLAG(f, TO_END))  // don't loop
         goto return_position;
 
     // !!! `begin` is a local variable, reset on re-entry but the question is
@@ -2924,16 +2939,20 @@ REB_R Parse_Executor(REBFRM *frame_) {
     Init_Unreadable_Blank(P_COUNT_VALUE);
     TRASH_POINTER_IF_DEBUG(P_SUBRULE);
 
+    // Note we can't use Finished_Executor() here as written, because if we
+    // are in the TO_END mode that goes back to New_Expression_Evaluator().
+    //
     assert(f->executor == &Parse_Executor);
     D_STATE_BYTE = ST_PARSE_PRE_RULE;
-    CONTINUE (BLANK_VALUE);  // get called back with a NULL
+    Init_Nulled(P_OUT);  // get called back with NULL (!!! should it be null?)
+    return R_CONTINUATION;
 
   return_position:
-    INIT_F_EXECUTOR(f, &Finished_Executor);
+    INIT_F_EXECUTOR(f, nullptr);
     return Init_Integer(D_OUT, P_POS); // !!! return switched input series??
 
   return_null:
-    INIT_F_EXECUTOR(f, &Finished_Executor);
+    INIT_F_EXECUTOR(f, nullptr);
     return Init_Nulled(D_OUT);
 }
 
@@ -2979,8 +2998,10 @@ REBNATIVE(parse)
     DECLARE_FRAME (
         f,
         rules_feed,
-        EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
+        EVAL_MASK_DEFAULT
+            | EVAL_FLAG_ALLOCATED_FEED
             | EVAL_FLAG_TRAMPOLINE_KEEPALIVE
+            | EVAL_FLAG_TO_END
     );
 
     Pack_Subparse(

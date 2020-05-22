@@ -786,27 +786,45 @@ REBNATIVE(all)
 {
     INCLUDE_PARAMS_OF_ALL;
 
-    DECLARE_FRAME_AT (f, ARG(block), EVAL_MASK_DEFAULT);
-    Push_Frame(nullptr, f);
+    enum {
+        ST_ALL_INITIAL_ENTRY = 0,
+        ST_ALL_EVAL_STEP_FINISHED
+    };
 
+    switch (D_STATE_BYTE) {
+      case ST_ALL_INITIAL_ENTRY: goto initial_entry;
+      case ST_ALL_EVAL_STEP_FINISHED: goto eval_step_finished;
+      default: assert(false);
+    }
+
+  initial_entry: {
+    REBFRM *f = Push_Continuation_At(D_OUT, ARG(block));
+    assert(f == FS_TOP);  // recovered via FS_TOP on eval_step_finished
+    UNUSED(f);
     Init_Nulled(D_OUT);  // so `all []` sees stale falsey value, returns null
+    D_STATE_BYTE = ST_ALL_EVAL_STEP_FINISHED;
+    return R_CONTINUATION;
+  }
 
-    do {
-        if (Eval_Step_Maybe_Stale_Throws(D_OUT, f)) {
-            Abort_Frame(f);
-            return R_THROWN;
-        }
+  eval_step_finished: {
+    REBFRM *f = FS_TOP;
+    assert(f->prior == D_FRAME);
 
-        if (IS_FALSEY(D_OUT)) {  // any false/blank/null will trigger failure
-            Abort_Frame(f);
-            return nullptr;
-        }
-    } while (NOT_END(f->feed->value));
+    if (IS_FALSEY(D_OUT)) {  // any false/blank/null will trigger failure
+        Abort_Frame(f);
+        return nullptr;
+    }
 
-    Drop_Frame(f);
+    if (IS_END(f->feed->value)) {
+        Drop_Frame(f);
+        return D_OUT;  // ALL success when the last D_OUT assignment is truthy
+        // ^-- Note: might be "stale", as in `all [true elide 1 + 2]`
+    }
 
-    CLEAR_CELL_FLAG(D_OUT, OUT_MARKED_STALE);  // `all [true elide 1 + 2]`
-    return D_OUT;  // successful ALL when the last D_OUT assignment is truthy
+    INIT_F_EXECUTOR(f, &New_Expression_Executor);
+    assert(D_STATE_BYTE == ST_ALL_EVAL_STEP_FINISHED);
+    return R_CONTINUATION;
+  }
 }
 
 
@@ -825,25 +843,44 @@ REBNATIVE(any)
 {
     INCLUDE_PARAMS_OF_ANY;
 
-    DECLARE_FRAME_AT (f, ARG(block), EVAL_MASK_DEFAULT);
-    Push_Frame(nullptr, f);
+    enum {
+        ST_ANY_INITIAL_ENTRY = 0,
+        ST_ANY_EVAL_STEP_FINISHED
+    };
 
+    switch (D_STATE_BYTE) {
+      case ST_ANY_INITIAL_ENTRY: goto initial_entry;
+      case ST_ANY_EVAL_STEP_FINISHED: goto eval_step_finished;
+      default: assert(false);
+    }
+
+  initial_entry: {
+    REBFRM *f = Push_Continuation_At(D_OUT, ARG(block));
+    assert(f == FS_TOP);  // recovered via FS_TOP on eval_step_finished
+    UNUSED(f);
     Init_Nulled(D_OUT);  // preload output with falsey value
+    D_STATE_BYTE = ST_ANY_EVAL_STEP_FINISHED;
+    return R_CONTINUATION;
+  }
 
-    do {
-        if (Eval_Step_Maybe_Stale_Throws(D_OUT, f)) {
-            Abort_Frame(f);
-            return R_THROWN;
-        }
+  eval_step_finished: {
+    REBFRM *f = FS_TOP;
+    assert(f->prior == D_FRAME);
 
-        if (IS_TRUTHY(D_OUT)) { // successful ANY returns the value
-            Abort_Frame(f);
-            return D_OUT;
-        }
-    } while (NOT_END(f->feed->value));
+    if (IS_TRUTHY(D_OUT)) {  // successful ANY returns the value
+        Abort_Frame(f);
+        return D_OUT;
+    }
 
-    Drop_Frame(f);
-    return nullptr;
+    if (IS_END(f->feed->value)) {
+        Drop_Frame(f);
+        return nullptr;
+    }
+
+    INIT_F_EXECUTOR(f, &New_Expression_Executor);
+    assert(D_STATE_BYTE == ST_ANY_EVAL_STEP_FINISHED);
+    return R_CONTINUATION;
+  }
 }
 
 
@@ -865,25 +902,44 @@ REBNATIVE(none)
 {
     INCLUDE_PARAMS_OF_NONE;
 
-    DECLARE_FRAME_AT (f, ARG(block), EVAL_MASK_DEFAULT);
-    Push_Frame(nullptr, f);
+    enum {
+        ST_NONE_INITIAL_ENTRY = 0,
+        ST_NONE_EVAL_STEP_FINISHED
+    };
 
+    switch (D_STATE_BYTE) {
+      case ST_NONE_INITIAL_ENTRY: goto initial_entry;
+      case ST_NONE_EVAL_STEP_FINISHED: goto eval_step_finished;
+      default: assert(false);
+    }
+
+  initial_entry: {
+    REBFRM *f = Push_Continuation_At(D_OUT, ARG(block));
+    assert(f == FS_TOP);  // recovered via FS_TOP on eval_step_finished
+    UNUSED(f);
     Init_Nulled(D_OUT);  // preload output with falsey value
+    D_STATE_BYTE = ST_NONE_EVAL_STEP_FINISHED;
+    return R_CONTINUATION;
+  }
 
-    do {
-        if (Eval_Step_Maybe_Stale_Throws(D_OUT, f)) {
-            Abort_Frame(f);
-            return R_THROWN;
-        }
+  eval_step_finished: {
+    REBFRM *f = FS_TOP;
+    assert(f->prior == D_FRAME);
 
-        if (IS_TRUTHY(D_OUT)) {  // any true results mean failure
-            Abort_Frame(f);
-            return nullptr;
-        }
-    } while (NOT_END(f->feed->value));
+    if (IS_TRUTHY(D_OUT)) {  // any true results mean failure
+        Abort_Frame(f);
+        return nullptr;
+    }
 
-    Drop_Frame(f);
-    return Init_True(D_OUT);  // !!! suggests LOGIC! on failure, bad?
+    if (IS_END(f->feed->value)) {
+        Drop_Frame(f);
+        return Init_True(D_OUT);  // !!! suggests LOGIC! on failure, bad?
+    }
+
+    INIT_F_EXECUTOR(f, &New_Expression_Executor);
+    assert(D_STATE_BYTE == ST_NONE_EVAL_STEP_FINISHED);
+    return R_CONTINUATION;
+  }
 }
 
 

@@ -562,6 +562,28 @@ inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
     REBFRM * name = cast(REBFRM*, Make_Node(FRM_POOL)); \
     Prep_Frame_Core(name, (feed), (flags));
 
+// !!! Initially, frames and feeds were C stack allocated and did not come
+// from memory pools.  That meant special macros were used to declare the
+// structure variables and initializations together (DECLARE_XXX).  This
+// This could no longer be used with "stackless" code in the C sense, so
+// more conventional inline functions can be used.  This routine tries to
+// start folding together common patterns to simplify callsites.
+//
+inline static REBFRM *Push_Continuation_At(REBVAL *out, REBVAL *any_array) {
+    REBFRM *f = cast(REBFRM*, Make_Node(FRM_POOL));
+    DECLARE_FEED_AT (feed, any_array);
+    Prep_Frame_Core(
+        f,
+        feed,
+        EVAL_MASK_DEFAULT
+            | EVAL_FLAG_ALLOCATED_FEED
+            | EVAL_FLAG_TRAMPOLINE_KEEPALIVE
+    );
+    INIT_F_EXECUTOR(f, &New_Expression_Executor);
+    Push_Frame(out, f);
+    return f;
+}
+
 #define DECLARE_FRAME_AT(name,any_array,flags) \
     DECLARE_FEED_AT (name##feed, (any_array)); \
     DECLARE_FRAME (name, name##feed, (flags) | EVAL_FLAG_ALLOCATED_FEED)

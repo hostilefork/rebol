@@ -340,8 +340,11 @@
 ; recursivity
 (all [true all [true]])
 (not all [true all [false]])
+
 ; infinite recursion
 (
-    blk: [all blk]
-    error? trap blk
+    n: 0
+    blk: [all [either 10000 = n: n + 1 [throw <finished>] [true]]]
+    append blk/2 as group! blk
+    <finished> = catch blk
 )

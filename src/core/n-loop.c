@@ -871,10 +871,33 @@ REBNATIVE(for_skip)
     INCLUDE_PARAMS_OF_FOR_SKIP;
 
     REBVAL *series = ARG(series);
+    REBINT skip = Int32(ARG(skip));
 
+    REBVAL *pseudo_var;
+    REBVAL *var;
+    TRASH_POINTER_IF_DEBUG(pseudo_var);
+    TRASH_POINTER_IF_DEBUG(var);
+
+    enum {
+        ST_FOR_SKIP_INITIAL_ENTRY = 0,
+        ST_FOR_SKIP_BODY_WAS_EVALUATED
+    };
+
+    switch (D_STATE_BYTE) {
+      case ST_FOR_SKIP_INITIAL_ENTRY:
+        goto initial_entry;
+
+      case ST_FOR_SKIP_BODY_WAS_EVALUATED:
+        pseudo_var = CTX_VAR(VAL_CONTEXT(D_SPARE), 1);  // not movable, #2274
+        var = Real_Var_From_Pseudo(pseudo_var);
+        goto body_was_evaluated;
+
+      default: assert(false);
+    }
+
+  initial_entry: {
     Init_Blank(D_OUT);  // result if body never runs, `while [null] [...]`
 
-    REBINT skip = Int32(ARG(skip));
     if (skip == 0) {
         //
         // !!! https://forum.rebol.info/t/infinite-loops-vs-errors/936
@@ -888,10 +911,9 @@ REBNATIVE(for_skip)
         &context,
         ARG(word)
     );
-    Init_Object(ARG(word), context);  // keep GC safe
 
-    REBVAL *pseudo_var = CTX_VAR(context, 1); // not movable, see #2274
-    REBVAL *var = Real_Var_From_Pseudo(pseudo_var);
+    pseudo_var = CTX_VAR(context, 1);  // not movable, see #2274
+    var = Real_Var_From_Pseudo(pseudo_var);
     Move_Value(var, series);
 
     // Starting location when past end with negative skip:
@@ -899,47 +921,56 @@ REBNATIVE(for_skip)
     if (skip < 0 and VAL_INDEX(var) >= VAL_LEN_HEAD(var))
         VAL_INDEX(var) = VAL_LEN_HEAD(var) + skip;
 
-    while (true) {
-        REBINT len = VAL_LEN_HEAD(var);  // VAL_LEN_HEAD() always >= 0
-        REBINT index = VAL_INDEX(var);  // (may have been set to < 0 below)
+    Init_Object(D_SPARE, context);  // GC protect and perist context
 
+    D_STATE_BYTE = ST_FOR_SKIP_BODY_WAS_EVALUATED;
+    goto next_step;
+  }
+
+  next_step: {
+    REBINT len = VAL_LEN_HEAD(var);  // VAL_LEN_HEAD() always >= 0
+    REBINT index = VAL_INDEX(var);  // (may have been set to < 0 below)
+
+    if (index < 0)
+        return D_OUT;
+    if (index >= len) {
+        if (skip >= 0)
+            return D_OUT;
+        index = len + skip;  // negative
         if (index < 0)
-            break;
-        if (index >= len) {
-            if (skip >= 0)
-                break;
-            index = len + skip;  // negative
-            if (index < 0)
-                break;
-            VAL_INDEX(var) = index;
-        }
-
-        if (Do_Branch_Throws(D_OUT, ARG(body))) {
-            bool broke;
-            if (not Catching_Break_Or_Continue(D_OUT, &broke))
-                return R_THROWN;
-            if (broke)
-                return nullptr;
-        }
-        Voidify_If_Nulled_Or_Blank(D_OUT);  // null->BREAK, blank->empty
-
-        // Modifications to var are allowed, to another ANY-SERIES! value.
-        //
-        // If `var` is movable (e.g. specified via LIT-WORD!) it must be
-        // refreshed each time arbitrary code runs, since the context may
-        // expand and move the address, may get PROTECTed, etc.
-        //
-        var = Real_Var_From_Pseudo(pseudo_var);
-
-        if (IS_NULLED(var))
-            fail (PAR(word));
-        if (not ANY_SERIES(var))
-            fail (var);
-
-        VAL_INDEX(var) += skip;
+            return D_OUT;
+        VAL_INDEX(var) = index;
     }
 
-    return D_OUT;
+    CONTINUE_CATCHABLE (ARG(body));
+  }
+
+  body_was_evaluated: {
+    if (Is_Throwing(D_FRAME)) {
+        bool broke;
+        if (not Catching_Break_Or_Continue(D_OUT, &broke))
+            return R_THROWN;
+        if (broke)
+            return nullptr;
+    }
+    Voidify_If_Nulled_Or_Blank(D_OUT);  // null->BREAK, blank->empty
+
+    // Modifications to var are allowed, to another ANY-SERIES! value.
+    //
+    // If `var` is movable (e.g. specified via LIT-WORD!) it must be
+    // refreshed each time arbitrary code runs, since the context may
+    // expand and move the address, may get PROTECTed, etc.
+    //
+    var = Real_Var_From_Pseudo(pseudo_var);
+
+    if (IS_NULLED(var))
+        fail (PAR(word));
+    if (not ANY_SERIES(var))
+        fail (var);
+
+    VAL_INDEX(var) += skip;
+    goto next_step;
+  }
 }
 
 
@@ -994,31 +1025,46 @@ REBNATIVE(cycle)
 {
     INCLUDE_PARAMS_OF_CYCLE;
 
-    do {
-        if (Do_Branch_Throws(D_OUT, ARG(body))) {
-            bool broke;
-            if (not Catching_Break_Or_Continue(D_OUT, &broke)) {
-                const REBVAL *label = VAL_THROWN_LABEL(D_OUT);
-                if (
-                    IS_ACTION(label)
-                    and VAL_ACT_DISPATCHER(label) == &N_stop
-                ){
-                    // See notes on STOP for why CYCLE is unique among loop
-                    // constructs, with a BREAK variant that returns a value.
-                    //
-                    CATCH_THROWN(D_OUT, D_OUT);
-                    return D_OUT;  // special case: null allowed (like break)
-                }
+    enum {
+        ST_CYCLE_INITIAL_ENTRY = 0,
+        ST_CYCLE_BODY_WAS_EVALUATED
+    };
 
-                return R_THROWN;
+    switch (D_STATE_BYTE) {
+      case ST_CYCLE_INITIAL_ENTRY: goto initial_entry;
+      case ST_CYCLE_BODY_WAS_EVALUATED: goto body_was_evaluated;
+      default: assert(false);
+    }
+
+  initial_entry: {
+    D_STATE_BYTE = ST_CYCLE_BODY_WAS_EVALUATED;
+    CONTINUE_CATCHABLE (ARG(body));
+  }
+
+  body_was_evaluated: {
+    if (Is_Throwing(D_FRAME)) {
+        bool broke;
+        if (not Catching_Break_Or_Continue(D_OUT, &broke)) {
+            const REBVAL *label = VAL_THROWN_LABEL(D_OUT);
+            if (
+                IS_ACTION(label)
+                and VAL_ACT_DISPATCHER(label) == &N_stop
+            ){
+                // See notes on STOP for why CYCLE is unique among loop
+                // constructs, with a BREAK variant that returns a value.
+                //
+                CATCH_THROWN(D_OUT, D_OUT);
+                return D_OUT;  // special case: null allowed (like break)
             }
-            if (broke)
-                return nullptr;
-        }
-        // No need to voidify result, it doesn't escape...
-    } while (true);
 
-    DEAD_END;
+            return R_THROWN;
+        }
+        if (broke)
+            return nullptr;
+    }
+
+    CONTINUE_CATCHABLE (ARG(body));  // no break or stop, so keep going
+  }
 }
 
 
@@ -1522,43 +1568,68 @@ REBNATIVE(loop)
 {
     INCLUDE_PARAMS_OF_LOOP;
 
-    Init_Blank(D_OUT);  // result if body never runs, `while [null] [...]`
+    // The original count is left as-is in the frame for debugging clarity,
+    // and the D_SPARE cell is used as the decrementing index (if needed).
+    //
+    const REBVAL *count = ARG(count);
 
-    if (IS_FALSEY(ARG(count))) {
-        assert(IS_LOGIC(ARG(count)));  // is false (opposite of infinite loop)
-        return D_OUT;
+    enum {
+        ST_LOOP_INITIAL_ENTRY = 0,
+        ST_LOOP_BODY_WAS_EVALUATED
+    };
+
+    switch (D_STATE_BYTE) {
+      case ST_LOOP_INITIAL_ENTRY: goto initial_entry;
+      case ST_LOOP_BODY_WAS_EVALUATED: goto body_was_evaluated;
+      default: assert(false);
     }
 
-    REBI64 count;
+  initial_entry: {
+    //
+    // Current loop protocol is that a loop index of blank passed in will
+    // bypass calling the native dispatcher (blank-in-null-out).  Other
+    // cases that are decided to never run the body return blank.
+    //
+    // !!! Rethink ramifications in usages.  Should this be VOID!?
+    //
+    Init_Blank(D_OUT);
 
-    if (IS_LOGIC(ARG(count))) {
-        assert(VAL_LOGIC(ARG(count)) == true);
+    if (IS_LOGIC(count)) {
+        if (VAL_LOGIC(count) == false)
+            return D_OUT;  // treat false as "don't run"
 
-        // Run forever, and as a micro-optimization don't handle specially
-        // in the loop, just seed with a very large integer.  In the off
-        // chance that we exhaust it, jump here to re-seed and loop again.
-        //
-      restart:
-        count = INT64_MAX;
+        // treat #[true] as "infinite loop"
     }
-    else
-        count = Int64(ARG(count));
+    else {
+        if (VAL_INT64(count) <= 0)
+            return D_OUT;  // assume negative means "don't run" (vs. error)
 
-    for (; count > 0; count--) {
-        if (Do_Branch_Throws(D_OUT, ARG(body))) {
-            bool broke;
-            if (not Catching_Break_Or_Continue(D_OUT, &broke))
-                return R_THROWN;
-            if (broke)
-                return nullptr;
-        }
-        Voidify_If_Nulled_Or_Blank(D_OUT);  // null->BREAK, blank->empty
+        Move_Value(D_SPARE, count);
     }
 
-    if (IS_LOGIC(ARG(count)))
-        goto restart;  // "infinite" loop exhausted MAX_I64 steps (rare case)
+    D_STATE_BYTE = ST_LOOP_BODY_WAS_EVALUATED;
+    CONTINUE_CATCHABLE (ARG(body));
+  }
 
-    return D_OUT;
+  body_was_evaluated: {
+    if (Is_Throwing(D_FRAME)) {
+        bool broke;
+        if (not Catching_Break_Or_Continue(D_OUT, &broke))
+            return R_THROWN;
+        if (broke)
+            return nullptr;
+    }
+
+    if (IS_LOGIC(count)) {
+        assert(VAL_LOGIC(count) == true);  // #[false] already returned
+        CONTINUE_CATCHABLE (ARG(body));  // #[true] is infinite loop
+    }
+
+    if (0 != --VAL_INT64(D_SPARE))  // decrement by one, seen by next call
+        CONTINUE_CATCHABLE (ARG(body));
+
+    return Voidify_If_Nulled_Or_Blank(D_OUT);  // null: BREAK, blank: empty
+  }
 }
 
 
@@ -1626,27 +1697,44 @@ REBNATIVE(until)
 {
     INCLUDE_PARAMS_OF_UNTIL;
 
-    do {
-        if (Do_Branch_Throws(D_OUT, ARG(body))) {
-            bool broke;
-            if (not Catching_Break_Or_Continue(D_OUT, &broke))
-                return R_THROWN;
-            if (broke)
-                return Init_Nulled(D_OUT);
+    enum {
+        ST_UNTIL_INITIAL_ENTRY = 0,
+        ST_UNTIL_BODY_WAS_EVALUATED
+    };
 
-            // The way a CONTINUE with a value works is to act as if the loop
-            // body evaluated to the value.  Since the condition and body are
-            // the same in this case.  CONTINUE TRUE will stop the UNTIL and
-            // return TRUE, CONTINUE 10 will stop and return 10, etc.
-            //
-            // Plain CONTINUE is interpreted as CONTINUE NULL, and hence will
-            // continue to run the loop.
-        }
+  switch (D_STATE_BYTE) {
+    case ST_UNTIL_INITIAL_ENTRY: goto initial_entry;
+    case ST_UNTIL_BODY_WAS_EVALUATED: goto body_was_evaluated;
+    default: assert(false);
+  }
 
-        if (IS_TRUTHY(D_OUT))  // will fail on voids (neither true nor false)
-            return D_OUT;  // body evaluated conditionally true, return value
+  initial_entry: {
+    D_STATE_BYTE = ST_UNTIL_BODY_WAS_EVALUATED;
+    CONTINUE_CATCHABLE (ARG(body));
+  }
 
-    } while (true);
+  body_was_evaluated: {
+    if (Is_Throwing(D_FRAME)) {
+        bool broke;
+        if (not Catching_Break_Or_Continue(D_OUT, &broke))
+            return R_THROWN;
+        if (broke)
+            return Init_Nulled(D_OUT);
+
+        // The way a CONTINUE with a value works is to act as if the loop
+        // body evaluated to the value.  Since the condition and body are
+        // the same in this case.  CONTINUE TRUE will stop the UNTIL and
+        // return TRUE, CONTINUE 10 will stop and return 10, etc.
+        //
+        // Plain CONTINUE is interpreted as CONTINUE NULL, and hence will
+        // continue to run the loop.
+    }
+
+    if (IS_TRUTHY(D_OUT))  // will fail on voids (neither true nor false)
+        return D_OUT;  // body evaluated conditionally true, return value
+
+    CONTINUE_CATCHABLE (ARG(body));
+  }
 }
 
 
@@ -1678,13 +1766,13 @@ REBNATIVE(while)
       default: assert(false);
     }
 
-  initial_entry: blockscope {
+  initial_entry: {
     Init_Blank(ARG(return));  // result if body never runs
     D_STATE_BYTE = ST_WHILE_CONDITION_WAS_EVALUATED;  // next entry
     CONTINUE (ARG(condition));
   }
 
-  condition_was_evaluated: blockscope {
+  condition_was_evaluated: {
     if (IS_FALSEY(D_OUT)) {  // will error if void, neither true nor false
         Move_Value(D_OUT, ARG(return));  // restore last body run
         Voidify_If_Nulled_Or_Blank(D_OUT);  // null->BREAK, blank->not run
@@ -1694,7 +1782,7 @@ REBNATIVE(while)
     CONTINUE_CATCHABLE (ARG(body));
   }
 
-  body_was_evaluated: blockscope {
+  body_was_evaluated: {
     if (D_THROWING) {
         bool broke;
         if (not Catching_Break_Or_Continue(D_OUT, &broke))

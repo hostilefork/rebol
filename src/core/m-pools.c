@@ -1173,9 +1173,11 @@ void GC_Kill_Series(REBSER *s)
   #if !defined(NDEBUG)
     PG_Reb_Stats->Series_Freed++;
 
-    #if defined(DEBUG_COUNT_TICKS)
-        s->tick = TG_Tick; // update to be tick on which series was freed
-    #endif
+    // By default the series is touched so its tick reflects the tick that
+    // freed it.  If you need to know the tick where it was allocated, then
+    // comment this out so it remains that way.
+    //
+    TOUCH_SERIES_IF_DEBUG(s);
   #endif
 }
 

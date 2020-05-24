@@ -179,7 +179,26 @@ void Unplug_Stack(
     // values in it alive during GC.  But for simplicity, we keep it in a
     // value cell, and manage it.
     //
-    Init_Block(plug, Pop_Stack_Values(base->baseline.dsp));
+    REBFLGS flags = ARRAY_FLAG_NULLEDS_LEGAL;  // be agnostic, to be generic!
+    if (DSP > base->baseline.dsp)  // do this first (since other flags push)
+        flags |= ARRAY_FLAG_PLUG_HAS_DATA_STACK;
+
+    if (STR_SIZE(STR(MOLD_BUF)) > base->baseline.mold_buf_size) {
+        flags |= ARRAY_FLAG_PLUG_HAS_MOLD;
+        Init_Text(
+            DS_PUSH(),
+            Pop_Molded_String_Core(
+                STR(MOLD_BUF),
+                base->baseline.mold_buf_size,
+                base->baseline.mold_buf_len
+            )
+        );
+    }
+
+    if (flags == 0)
+        Init_Block(plug, EMPTY_ARRAY);
+    else
+        Init_Block(plug, Pop_Stack_Values_Core(base->baseline.dsp, flags));
 
     TG_Top_Frame = base;
 }
@@ -235,12 +254,27 @@ void Replug_Stack(REBFRM *f, REBFRM *base, REBVAL *plug) {
     assert(temp->out == base->out);  // frame under base was TRUE_VALUE
     temp->prior = base;
 
-    // Now add in all the data stack elements.
+    // Now add in all the residual elements from the plug to global buffers
+    // like the mold buffer and data stack.
     //
+    // !!! This could be more efficient by not pushing and then popping
+    // non-data-stack elements, but directly adding from the array and not
+    // pushing.  But focusing on correctness first.
+    //
+    assert(IS_BLOCK(plug));
     assert(VAL_INDEX(plug) == 0);  // could store some number (?)
-    REBVAL *stack_item = KNOWN(VAL_ARRAY_HEAD(plug));
-    for (; NOT_END(stack_item); ++stack_item)
-        Move_Value(DS_PUSH(), stack_item);
+    REBARR *array = VAL_ARRAY(plug);
+    REBVAL *item = KNOWN(ARR_HEAD(array));
+    for (; NOT_END(item); ++item)
+        Move_Value(DS_PUSH(), item);
+
+    if (GET_ARRAY_FLAG(array, PLUG_HAS_MOLD)) {
+        assert(IS_TEXT(DS_TOP));
+        assert(VAL_INDEX(DS_TOP) == 0);
+        Append_String(STR(MOLD_BUF), DS_TOP, VAL_LEN_HEAD(DS_TOP));
+        DS_DROP();
+    };
+
     Init_Blank(plug);  // no longer needed, let it be GC'd
 
     TG_Top_Frame = f;  // make the jump deeper into the stack official...

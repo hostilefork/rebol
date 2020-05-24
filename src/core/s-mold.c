@@ -478,99 +478,6 @@ REBSTR *Copy_Mold_Or_Form_Cell(const REBCEL *cell, REBFLGS opts, bool form)
 
 
 //
-//  Form_Reduce_Throws: C
-//
-// Evaluates each item in a block and forms it, with an optional delimiter.
-// If all the items in the block are null, or no items are found, this will
-// return a nulled value.
-//
-// CHAR! suppresses the delimiter logic.  Hence:
-//
-//    >> delimit ":" ["a" space "b" | () "c" newline "d" "e"]
-//    == `"a b^/c^/d:e"
-//
-// Note only the last interstitial is considered a candidate for delimiting.
-//
-bool Form_Reduce_Throws(
-    REBVAL *out,
-    REBARR *array,
-    REBLEN index,
-    REBSPC *specifier,
-    const REBVAL *delimiter
-){
-    assert(
-        IS_NULLED(delimiter) or IS_BLANK(delimiter)
-        or IS_CHAR(delimiter) or IS_TEXT(delimiter)
-    );
-
-    // Initially Revolt advocated treating blank the same as null, to be the
-    // "less noisy" null since it was legal to fetch with plain WORD!.  Now
-    // that plain words fetch nulls without error, it's more interesting for
-    // dialects to leverage blanks for unique meaning.  Space is particularly
-    // nice when used in DELIMIT scenarios.
-    //
-    if (IS_BLANK(delimiter))
-        delimiter = SPACE_VALUE;
-
-    DECLARE_MOLD (mo);
-    Push_Mold(mo);
-
-    DECLARE_ARRAY_FEED (feed, array, index, specifier);
-
-    DECLARE_FRAME (f, feed, EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED);
-    Push_Frame(nullptr, f);
-
-    bool pending = false;  // pending delimiter output, *if* more non-nulls
-    bool nothing = true;  // any elements seen so far have been null or blank
-
-    do {
-        if (Eval_Step_Throws(out, f)) {
-            Drop_Mold(mo);
-            Abort_Frame(f);
-            return true;
-        }
-
-        if (IS_END(out)) {  // e.g. forming `[]`, `[()]`, `[comment "hi"]`
-            assert(nothing);
-            break;
-        }
-
-        if (IS_NULLED(out))
-            continue;  // opt-out and maybe keep option open to return NULL
-
-        nothing = false;
-
-        if (IS_CHAR(out)) {  // don't delimit CHAR! (e.g. space, newline)
-            Append_Codepoint(mo->series, VAL_CHAR(out));
-            pending = false;
-        }
-        else if (IS_BLANK(out)) {
-            Append_Codepoint(mo->series, ' ');
-            pending = false;
-        }
-        else if (IS_NULLED(delimiter))
-            Form_Value(mo, out);
-        else {
-            if (pending)
-                Form_Value(mo, delimiter);
-
-            Form_Value(mo, out);
-            pending = true;
-        }
-    } while (NOT_END(f->feed->value));
-
-    if (nothing)
-        Init_Nulled(out);
-    else
-        Init_Text(out, Pop_Molded_String(mo));
-
-    Drop_Frame(f);
-
-    return false;
-}
-
-
-//
 //  Push_Mold: C
 //
 // Much like the data stack, a single contiguous series is used for the mold
@@ -692,6 +599,30 @@ void Throttle_Mold(REB_MOLD *mo) {
 
 
 //
+//  Pop_Molded_String_Core: C
+//
+REBSTR *Pop_Molded_String_Core(REBSTR *buf, REBSIZ offset, REBLEN index)
+{
+    REBSIZ size = STR_SIZE(buf) - offset;
+    REBLEN len = STR_LEN(buf) - index;
+
+    REBSTR *popped = Make_String(size);
+    memcpy(BIN_HEAD(SER(popped)), BIN_AT(SER(buf), offset), size);
+    TERM_STR_LEN_SIZE(popped, len, size);
+
+    // Though the protocol of Mold_Value does terminate, it only does so if
+    // it adds content to the buffer.  If we did not terminate when we
+    // reset the size, then these no-op molds (e.g. mold of "") would leave
+    // whatever value in the terminator spot was there.  This could be
+    // addressed by making no-op molds terminate.
+    //
+    TERM_STR_LEN_SIZE(buf, index, offset);
+
+    return popped;
+}
+
+
+//
 //  Pop_Molded_String: C
 //
 // When a Push_Mold is started, then string data for the mold is accumulated
@@ -710,20 +641,7 @@ REBSTR *Pop_Molded_String(REB_MOLD *mo)
     //
     Throttle_Mold(mo);
 
-    REBSIZ size = STR_SIZE(mo->series) - mo->offset;
-    REBLEN len = STR_LEN(mo->series) - mo->index;
-
-    REBSTR *popped = Make_String(size);
-    memcpy(BIN_HEAD(SER(popped)), BIN_AT(SER(mo->series), mo->offset), size);
-    TERM_STR_LEN_SIZE(popped, len, size);
-
-    // Though the protocol of Mold_Value does terminate, it only does so if
-    // it adds content to the buffer.  If we did not terminate when we
-    // reset the size, then these no-op molds (e.g. mold of "") would leave
-    // whatever value in the terminator spot was there.  This could be
-    // addressed by making no-op molds terminate.
-    //
-    TERM_STR_LEN_SIZE(STR(mo->series), mo->index, mo->offset);
+    REBSTR *popped = Pop_Molded_String_Core(mo->series, mo->offset, mo->index);
 
     mo->series = nullptr;  // indicates mold is not currently pushed
     return popped;

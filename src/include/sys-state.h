@@ -99,6 +99,17 @@ struct Reb_State {
     Snap_State_Core(s)
 
 
+// When a stack is "unplugged", global state might need to be rolled back
+// and saved into a value for later re-plugging.  Notably the data stack
+// can be captured as an array easily with Pop_Stack_Values().  Rather than
+// create a generic object to encompass other things (like mold buffer
+// "residue"), they are just added to the array and popped off before the
+// data stack gets popped off.
+//
+#define ARRAY_FLAG_PLUG_HAS_MOLD            ARRAY_FLAG_23
+#define ARRAY_FLAG_PLUG_HAS_DATA_STACK      ARRAY_FLAG_24
+
+
 // Check that the current global state lines up with the passed-in state.
 //
 #ifdef NDEBUG

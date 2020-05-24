@@ -40,26 +40,122 @@
 //  ]
 //
 REBNATIVE(delimit)
+//
+// Evaluates each item in a block and forms it, with an optional delimiter.
+// If all the items in the block are null, or no items are found, this will
+// return a nulled value.
+//
+// CHAR! suppresses the delimiter logic.  Hence:
+//
+//    >> delimit ":" ["a" space "b" | () "c" newline "d" "e"]
+//    == `"a b^/c^/d:e"
+//
+// Note only the last interstitial is considered a candidate for delimiting.
 {
     INCLUDE_PARAMS_OF_DELIMIT;
 
+    REBVAL *delimiter = ARG(delimiter);
+    REBVAL *pending = D_SPARE;  // BLANK! if no output yet, else LOGIC!
+
+    enum {
+        ST_DELIMIT_INITIAL_ENTRY = 0,
+        ST_DELIMIT_EVAL_STEP_FINISHED
+    };
+
+    switch (D_STATE_BYTE) {
+      case ST_DELIMIT_INITIAL_ENTRY: goto initial_entry;
+      case ST_DELIMIT_EVAL_STEP_FINISHED: goto eval_step_finished;
+      default: assert(false);
+    }
+
+  initial_entry: {
     REBVAL *line = ARG(line);
     if (IS_TEXT(line))
-        return rebValueQ("copy", line, rebEND); // !!! Review performance
+        return rebValueQ("copy", line, rebEND);   // !!! Review performance
 
     assert(IS_BLOCK(line));
 
-    if (Form_Reduce_Throws(
-        D_OUT,
-        VAL_ARRAY(line),
-        VAL_INDEX(line),
-        VAL_SPECIFIER(line),
-        ARG(delimiter)
-    )){
-        return R_THROWN;
+    // Initially Ren-C advocated treating blank the same as null, to be the
+    // "less noisy" null since it was legal to fetch with plain WORD!.  Now
+    // that plain words fetch nulls without error, it's more interesting for
+    // dialects to leverage blanks for unique meaning.  Space is particularly
+    // nice when used in DELIMIT scenarios.
+    //
+    if (IS_BLANK(delimiter))
+        Init_Char_Unchecked(delimiter, ' ');
+
+    assert(
+        IS_NULLED(delimiter) or IS_BLANK(delimiter)
+        or IS_CHAR(delimiter) or IS_TEXT(delimiter)
+    );
+
+    Init_Blank(pending);  // no output yet, also IS_FALSEY() so not pending
+
+    Push_Continuation_At(D_OUT, line);
+    D_STATE_BYTE = ST_DELIMIT_EVAL_STEP_FINISHED;
+    return R_CONTINUATION;
+  }
+
+  eval_step_finished: {
+    REBFRM *f = FS_TOP;
+    assert(f->prior == D_FRAME);
+
+    if (IS_END(D_OUT)) {  // e.g. forming `[]`, `[()]`, `[comment "hi"]`
+        assert(IS_BLANK(pending));  // nothing should have been added
+        goto finished;
     }
 
+    if (IS_NULLED(D_OUT))
+        goto next_step;  // opt-out and maybe keep option open to return NULL
+
+    if (IS_CHAR(D_OUT)) {  // don't delimit CHAR! (e.g. space, newline)
+        Append_Codepoint(STR(MOLD_BUF), VAL_CHAR(D_OUT));
+        Init_False(pending);
+    }
+    else if (IS_BLANK(D_OUT)) {
+        Append_Codepoint(STR(MOLD_BUF), ' ');
+        Init_False(pending);
+    }
+    else {
+        DECLARE_MOLD (mo);
+        Push_Mold(mo);
+
+        if (IS_NULLED(delimiter)) {
+            Form_Value(mo, D_OUT);
+            Init_False(pending);
+        }
+        else {
+            if (IS_TRUTHY(pending))
+                Form_Value(mo, delimiter);
+
+            Form_Value(mo, D_OUT);
+            Init_True(pending);
+        }
+        
+    }
+
+  next_step:
+    if (NOT_END(f->feed->value)) {
+        INIT_F_EXECUTOR(f, &New_Expression_Executor);
+        return R_CONTINUATION;
+    }
+
+  finished:
+    if (IS_BLANK(pending))
+        Init_Nulled(D_OUT);
+    else
+        Init_Text(D_OUT,
+            Pop_Molded_String_Core(
+                STR(MOLD_BUF),
+                D_FRAME->baseline.mold_buf_size,
+                D_FRAME->baseline.mold_buf_len
+            )
+        );
+
+    Drop_Frame(f);
+
     return D_OUT;
+  }
 }
 
 

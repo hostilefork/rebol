@@ -2587,7 +2587,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
             else {
                 assert(r == P_OUT or r == R_IMMEDIATE);
                 if (r == R_IMMEDIATE) {
-                    assert(DSP == f->dsp_orig + 1);
+                    assert(DSP == f->baseline.dsp + 1);
                     if (not (P_FLAGS & PF_SET))  // only SET handles
                         DS_DROP();
                 }
@@ -2776,10 +2776,10 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     );
                     */
 
-                    if (DSP > f->dsp_orig) {
+                    if (DSP > f->baseline.dsp) {
                         Move_Value(var, DS_TOP);
                         DS_DROP();
-                        if (DSP != f->dsp_orig)
+                        if (DSP != f->baseline.dsp)
                             fail ("SET for datatype only allows 1 value");
                     }
                     else if (P_TYPE == REB_BINARY)

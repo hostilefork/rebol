@@ -363,7 +363,7 @@ REB_R Arg_Executor(REBFRM *f)
         REBVAL *ordered = DS_TOP;
         REBSTR *param_canon = VAL_PARAM_CANON(f->param);  // #2258
 
-        for (; ordered != DS_AT(f->dsp_orig); --ordered) {
+        for (; ordered != DS_AT(f->baseline.dsp); --ordered) {
             if (VAL_STORED_CANON(ordered) != param_canon)
                 continue;
 
@@ -1006,7 +1006,7 @@ REB_R Action_Executor(REBFRM *f)
     Do_Process_Action_Checks_Debug(f);
   #endif
 
-    assert(DSP >= f->dsp_orig);  // path processing may push REFINEMENT!s
+    assert(DSP >= f->baseline.dsp);  // path processing may push REFINEMENT!s
 
     assert(NOT_EVAL_FLAG(f, DOING_PICKUPS));
 
@@ -1057,7 +1057,7 @@ REB_R Action_Executor(REBFRM *f)
         assert(GET_CELL_FLAG(f->arg, ARG_MARKED_CHECKED));
 
         if (GET_EVAL_FLAG(f, DOING_PICKUPS)) {
-            if (DSP != f->dsp_orig)
+            if (DSP != f->baseline.dsp)
                 goto next_pickup;
 
             f->param = END_NODE;  // don't need f->param in paramlist
@@ -1101,7 +1101,7 @@ REB_R Action_Executor(REBFRM *f)
     // second time through, and we were just jumping up to check the
     // parameters in response to a R_REDO_CHECKED; if so, skip this.
     //
-    if (DSP != f->dsp_orig and IS_SYM_WORD(DS_TOP)) {
+    if (DSP != f->baseline.dsp and IS_SYM_WORD(DS_TOP)) {
 
       next_pickup:
 
@@ -1127,7 +1127,7 @@ REB_R Action_Executor(REBFRM *f)
         DS_DROP();
 
         if (Is_Typeset_Invisible(f->param)) {  // no callsite arg, drop
-            if (DSP != f->dsp_orig)
+            if (DSP != f->baseline.dsp)
                 goto next_pickup;
 
             f->param = END_NODE;  // don't need f->param in paramlist
@@ -1391,7 +1391,7 @@ REB_R Action_Executor(REBFRM *f)
     // the result of a CHAIN) we can run those chained functions in the
     // same REBFRM, for efficiency.
     //
-    while (DSP != f->dsp_orig) {
+    while (DSP != f->baseline.dsp) {
         //
         // We want to keep the label that the function was invoked with,
         // because the other phases in the chain are implementation
@@ -1541,7 +1541,7 @@ REB_R Action_Executor(REBFRM *f)
   abort_action:
 
     Drop_Action(f);
-    DS_DROP_TO(f->dsp_orig);  // any unprocessed refinements / chains on stack
+    DS_DROP_TO(f->baseline.dsp);  // unprocessed refinements / chains on stack
 
     return R_THROWN;
 

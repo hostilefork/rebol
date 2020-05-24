@@ -131,7 +131,7 @@ static void Eval_Core_Shared_Checks_Debug(REBFRM *f) {
     }
 
     assert(f == FS_TOP);
-    assert(DSP == f->dsp_orig);
+    assert(DSP == f->baseline.dsp);
 
     if (f->feed->array) {
         assert(not IS_POINTER_TRASH_DEBUG(f->feed->array));
@@ -196,7 +196,7 @@ static void Eval_Core_Shared_Checks_Debug(REBFRM *f) {
 //     it is a WORD!, and other information is stored here through a level of
 //     indirection so it may be shared and updated between recursions.
 //
-//     f->dsp_orig
+//     (also uses) f->baseline.dsp
 //     Must be set to the base stack location of the operation (this may be
 //     a deeper stack level than current DSP if this is an apply, and
 //     refinements were preloaded onto the stack)

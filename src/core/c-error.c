@@ -22,120 +22,7 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 
-
 #include "sys-core.h"
-
-
-//
-//  Snap_State_Core: C
-//
-// Used by SNAP_STATE and PUSH_TRAP.
-//
-// **Note:** Modifying this routine likely means a necessary modification to
-// both `Assert_State_Balanced_Debug()` and `Trapped_Helper_Halted()`.
-//
-void Snap_State_Core(struct Reb_State *s)
-{
-    s->dsp = DSP;
-
-    // There should not be a Collect_Keys in progress.  (We use a non-zero
-    // length of the collect buffer to tell if a later fail() happens in
-    // the middle of a Collect_Keys.)
-    //
-    assert(ARR_LEN(BUF_COLLECT) == 0);
-
-    s->guarded_len = SER_LEN(GC_Guarded);
-    s->frame = FS_TOP;
-
-    s->manuals_len = SER_LEN(GC_Manuals);
-    s->mold_buf_len = STR_LEN(STR(MOLD_BUF));
-    s->mold_buf_size = STR_SIZE(STR(MOLD_BUF));
-    s->mold_loop_tail = ARR_LEN(TG_Mold_Stack);
-
-    s->saved_sigmask = Eval_Sigmask;
-
-    // !!! Is this initialization necessary?
-    s->error = NULL;
-}
-
-
-#if !defined(NDEBUG)
-
-//
-//  Assert_State_Balanced_Debug: C
-//
-// Check that all variables in `state` have returned to what they were at
-// the time of snapshot.
-//
-void Assert_State_Balanced_Debug(
-    struct Reb_State *s,
-    const char *file,
-    int line
-){
-    if (s->dsp != DSP) {
-        printf(
-            "DS_PUSH()x%d without DS_DROP()\n",
-            cast(int, DSP - s->dsp)
-        );
-        panic_at (nullptr, file, line);
-    }
-
-    assert(s->frame == FS_TOP);
-
-    assert(ARR_LEN(BUF_COLLECT) == 0);
-
-    if (s->guarded_len != SER_LEN(GC_Guarded)) {
-        printf(
-            "PUSH_GC_GUARD()x%d without DROP_GC_GUARD()\n",
-            cast(int, SER_LEN(GC_Guarded) - s->guarded_len)
-        );
-        REBNOD *guarded = *SER_AT(
-            REBNOD*,
-            GC_Guarded,
-            SER_LEN(GC_Guarded) - 1
-        );
-        panic_at (guarded, file, line);
-    }
-
-    // !!! Note that this inherits a test that uses GC_Manuals->content.xxx
-    // instead of SER_LEN().  The idea being that although some series
-    // are able to fit in the series node, the GC_Manuals wouldn't ever
-    // pay for that check because it would always be known not to.  Review
-    // this in general for things that may not need "series" overhead,
-    // e.g. a contiguous pointer stack.
-    //
-    if (s->manuals_len > SER_LEN(GC_Manuals)) {
-        //
-        // Note: Should this ever actually happen, panic() on the series won't
-        // do any real good in helping debug it.  You'll probably need
-        // additional checks in Manage_Series() and Free_Unmanaged_Series()
-        // that check against the caller's manuals_len.
-        //
-        panic_at ("manual series freed outside checkpoint", file, line);
-    }
-    else if (s->manuals_len < SER_LEN(GC_Manuals)) {
-        printf(
-            "Make_Series()x%d w/o Free_Unmanaged_Series or Manage_Series\n",
-            cast(int, SER_LEN(GC_Manuals) - s->manuals_len)
-        );
-        REBSER *manual = *(SER_AT(
-            REBSER*,
-            GC_Manuals,
-            SER_LEN(GC_Manuals) - 1
-        ));
-        panic_at (manual, file, line);
-    }
-
-    assert(s->mold_buf_len == STR_LEN(STR(MOLD_BUF)));
-    assert(s->mold_buf_size == STR_SIZE(STR(MOLD_BUF)));
-    assert(s->mold_loop_tail == ARR_LEN(TG_Mold_Stack));
-
-    assert(s->saved_sigmask == Eval_Sigmask);  // !!! is this always true?
-
-    assert(s->error == NULL); // !!! necessary?
-}
-
-#endif
 
 
 //
@@ -154,14 +41,10 @@ void Assert_State_Balanced_Debug(
 // without cost.  Revolt's greater concern is not so much the cost of setup
 // for stack unwinding, but being buildable without requiring a C++ compiler.
 //
-void Trapped_Helper(struct Reb_State *s)
+void Trapped_Helper(struct Reb_Jump *j)
 {
-    ASSERT_CONTEXT(s->error);
-    assert(CTX_TYPE(s->error) == REB_ERROR);
-
-    // Restore Revolt data stack pointer at time of Push_Trap
-    //
-    DS_DROP_TO(s->dsp);
+    ASSERT_CONTEXT(j->error);
+    assert(CTX_TYPE(j->error) == REB_ERROR);
 
     // If we were in the middle of a Collect_Keys and an error occurs, then
     // the binding lookup table has entries in it that need to be zeroed out.
@@ -171,38 +54,7 @@ void Trapped_Helper(struct Reb_State *s)
     if (ARR_LEN(BUF_COLLECT) != 0)
         Collect_End(NULL); // !!! No binder, review implications
 
-    // Free any manual series that were extant at the time of the error
-    // (that were created since this PUSH_TRAP started).  This includes
-    // any arglist series in call frames that have been wiped off the stack.
-    // (Closure series will be managed.)
-    //
-    assert(SER_LEN(GC_Manuals) >= s->manuals_len);
-    while (SER_LEN(GC_Manuals) != s->manuals_len) {
-        // Freeing the series will update the tail...
-        Free_Unmanaged_Series(
-            *SER_AT(REBSER*, GC_Manuals, SER_LEN(GC_Manuals) - 1)
-        );
-    }
-
-    SET_SERIES_LEN(GC_Guarded, s->guarded_len);
-    TG_Top_Frame = s->frame;
-    TERM_STR_LEN_SIZE(STR(MOLD_BUF), s->mold_buf_len, s->mold_buf_size);
-
-  #if !defined(NDEBUG)
-    //
-    // Because reporting errors in the actual Push_Mold process leads to
-    // recursion, this debug flag helps make it clearer what happens if
-    // that does happen... and can land on the right comment.  But if there's
-    // a fail of some kind, the flag for the warning needs to be cleared.
-    //
-    TG_Pushing_Mold = false;
-  #endif
-
-    SET_SERIES_LEN(TG_Mold_Stack, s->mold_loop_tail);
-
-    Eval_Sigmask = s->saved_sigmask;
-
-    Saved_State = s->last_state;
+    TG_Jump_List = j->last_jump;
 }
 
 
@@ -317,7 +169,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
     // There should be a PUSH_TRAP of some kind in effect if a `fail` can
     // ever be run.
     //
-    if (Saved_State == NULL)
+    if (TG_Jump_List == nullptr)
         panic (error);
 
     // If the error doesn't have a where/near set, set it from stack
@@ -334,8 +186,17 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
     // the way R3-Alpha handles stack overflows, and alternative plans.)
     //
     REBFRM *f = FS_TOP;
-    while (f != Saved_State->frame) {
+    while (f != TG_Jump_List->frame) {
         if (Is_Action_Frame(f)) {
+            //
+            // !!! Experiment for stackless trap: it doesn't actually use
+            // rebRescue() or PUSH_TRAP().  We break and re-enter the
+            // trampoline.
+            //
+            if (FRM_PHASE(f) == NAT_ACTION(trap))
+                if (not Is_Action_Frame_Fulfilling(f))  // wouldn't TRAP yet
+                    break;
+
             assert(f->varlist); // action must be running
             REBARR *stub = f->varlist; // will be stubbed, info bits reset
             bool stub_was_managed = GET_SERIES_FLAG(stub, MANAGED);
@@ -345,13 +206,13 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
         }
 
         REBFRM *prior = f->prior;
-        Abort_Frame(f); // will call va_end() if variadic frame
+        Abort_Frame(f);  // will call va_end() if variadic frame
         f = prior;
     }
 
-    TG_Top_Frame = f; // TG_Top_Frame is writable FS_TOP
+    TG_Top_Frame = f;  // TG_Top_Frame is writable FS_TOP
 
-    Saved_State->error = error;
+    TG_Jump_List->error = error;
 
     // If a throw was being processed up the stack when the error was raised,
     // then it had the thrown argument set.  Trash it in debug builds.  (The
@@ -361,7 +222,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
     SET_END(&TG_Thrown_Arg);
   #endif
 
-    LONG_JUMP(Saved_State->cpu_state, 1);
+    LONG_JUMP(TG_Jump_List->cpu_state, 1);
 }
 
 

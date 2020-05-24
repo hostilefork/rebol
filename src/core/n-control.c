@@ -811,7 +811,7 @@ REBNATIVE(all)
     assert(f->prior == D_FRAME);
 
     if (IS_FALSEY(D_OUT)) {  // any false/blank/null will trigger failure
-        Abort_Frame(f);
+        Drop_Frame(f);
         return nullptr;
     }
 
@@ -868,7 +868,7 @@ REBNATIVE(any)
     assert(f->prior == D_FRAME);
 
     if (IS_TRUTHY(D_OUT)) {  // successful ANY returns the value
-        Abort_Frame(f);
+        Drop_Frame(f);
         return D_OUT;
     }
 
@@ -927,7 +927,7 @@ REBNATIVE(none)
     assert(f->prior == D_FRAME);
 
     if (IS_TRUTHY(D_OUT)) {  // any true results mean failure
-        Abort_Frame(f);
+        Drop_Frame(f);
         return nullptr;
     }
 

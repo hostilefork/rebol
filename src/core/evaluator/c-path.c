@@ -486,7 +486,7 @@ bool Eval_Path_Throws_Core(
         *label_out = pvs->opt_label;
 
     assert(not Is_Throwing(pvs));
-    Abort_Frame(pvs);
+    Drop_Frame_Unbalanced(pvs);  // refinements may accrue on stack
     return false; // not thrown
 
   return_thrown:
@@ -948,7 +948,7 @@ REB_R MAKE_Path(
     }
 
     REBARR *arr = Pop_Stack_Values_Core(dsp_orig, NODE_FLAG_MANAGED);
-    Drop_Frame_Unbalanced(f); // !!! f->dsp_orig got captured each loop
+    Drop_Frame_Unbalanced(f); // !!! f->baseline.dsp got captured each loop
 
     if (ARR_LEN(arr) < 2) // !!! Should pass produced array as BLOCK! to error
         fail ("MAKE PATH! must produce path of at least length 2");

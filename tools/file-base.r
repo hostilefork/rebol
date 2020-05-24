@@ -43,6 +43,7 @@ core: [
     c-port.c
     c-signal.c
     c-specialize.c
+    c-state.c
     c-value.c
     c-word.c
     c-yielder.c

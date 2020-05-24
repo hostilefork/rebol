@@ -75,6 +75,7 @@ REB_R Yielder_Dispatcher(REBFRM *f)
     }
 
     if (IS_FRAME(state)) {  // interrupted frame stack fragment needs resuming
+        REBFRM *yielder_frame = f;  // alias for clarity
         REBFRM *yield_frame = CTX_FRAME_IF_ON_STACK(VAL_CONTEXT(state));
         assert(yield_frame != nullptr);
 
@@ -95,7 +96,7 @@ REB_R Yielder_Dispatcher(REBFRM *f)
         //
         REBVAL *param = CTX_KEYS_HEAD(last_yielder_context);
         REBVAL *dest = CTX_VARS_HEAD(last_yielder_context);
-        REBVAL *src = FRM_ARGS_HEAD(f);
+        REBVAL *src = FRM_ARGS_HEAD(yielder_frame);
         for (; NOT_END(src); ++param, ++dest, ++src) {
             if (VAL_PARAM_CLASS(param) == REB_P_LOCAL)
                 continue;  // don't overwrite locals (including YIELD)
@@ -105,10 +106,11 @@ REB_R Yielder_Dispatcher(REBFRM *f)
         assert(IS_END(dest));
 
         // With variables extracted, we no longer need the varlist for this
-        // invocation (wrong identity) so we free it, if it isn't GC-managed.
+        // invocation (wrong identity) so we free it, if it isn't GC-managed,
+        // as it wouldn't get freed otherwise.
         //
-        if (NOT_SERIES_FLAG(f->varlist, MANAGED))  // won't just get GC'd
-            GC_Kill_Series(SER(f->varlist));  // Note: not alloc'd w/tracking
+        if (NOT_SERIES_FLAG(yielder_frame->varlist, MANAGED))
+            GC_Kill_Series(SER(yielder_frame->varlist));  // Note: no tracking
 
         // When the last yielder dropped from the frame stack, it should have
         // decayed its keysource from a REBFRM* to the action that was
@@ -120,9 +122,9 @@ REB_R Yielder_Dispatcher(REBFRM *f)
         //
         assert(
             ACT_UNDERLYING(ACT(LINK_KEYSOURCE(last_yielder_context)))
-            == ACT_UNDERLYING(f->original)  // mostly just check not a REBFRM*
+            == ACT_UNDERLYING(yielder_frame->original)
         );
-        INIT_LINK_KEYSOURCE(last_yielder_context, NOD(f));  // but now it is!
+        INIT_LINK_KEYSOURCE(last_yielder_context, NOD(yielder_frame));
 
         // Now that the last call's context varlist is pointing at our current
         // invocation frame, we point the other way from the frame to the
@@ -132,40 +134,9 @@ REB_R Yielder_Dispatcher(REBFRM *f)
         f->varlist = CTX_VARLIST(last_yielder_context);
         f->rootvar = CTX_ARCHETYPE(last_yielder_context);  // must match
 
-        REBFRM *temp = yield_frame;  // go up to seek frame under past yielder
-        while (true) {
-            //
-            // The top frame for the last yielder could target any output.
-            // But the last yielder finished, and that output may well be
-            // gone (e.g. written into an API cell that was released).  But
-            // more frames than that could have inherited the same f->out.
-            // YIELD put a bogus pointer to the read-only TRUE_VALUE cell,
-            // which is good enough to be GC safe and also distinct.
-            //
-            // Anywhere we see that signal, replace it with the output that
-            // this new invocation of the yielder wants to write to.
-            //
-            if (temp->out == TRUE_VALUE)
-                temp->out = f->out;
+        RELVAL *data_stack = KNOWN(ARR_AT(details, IDX_YIELDER_DATA_STACK));
 
-            // We're going to restore the values that were between the yielder
-            // and the yield on the data stack.  But that means we have to
-            // touch up the `dsp_orig` pointers as well in the frames.
-            //
-            temp->dsp_orig += f->dsp_orig;  // YIELD made dsp_orig zero-based
-
-            if (temp->prior == nullptr)
-                break;
-            temp = temp->prior;
-        }
-
-        // We chain the stack that was underneath the old call to the yielder
-        // so that it now considers this yielder the parent.  We also update
-        // the outputs of that subframe to match the output of the current
-        // frame (see assert in YIELD that proves subframe had same f->out).
-        //
-        assert(temp->out == f->out);  // frame under yielder was TRUE_VALUE
-        temp->prior = f;
+        Replug_Stack(yield_frame, yielder_frame, KNOWN(data_stack));
 
         // Restore the in-progress output cell state that was going on when
         // the YIELD ran (e.g. if it interrupted a CASE or something, this
@@ -178,12 +149,12 @@ REB_R Yielder_Dispatcher(REBFRM *f)
             KIND_BYTE_UNCHECKED(out_copy) == REB_BLOCK
             and VAL_ARRAY(out_copy) == details
         ){
-            SET_END(f->out);
+            SET_END(yielder_frame->out);
         }
         else
-            Move_Value(f->out, out_copy);
+            Move_Value(yielder_frame->out, out_copy);
         if (out_copy->header.bits & CELL_FLAG_OUT_MARKED_STALE)
-            f->out->header.bits |= CELL_FLAG_OUT_MARKED_STALE;
+            yielder_frame->out->header.bits |= CELL_FLAG_OUT_MARKED_STALE;
 
         // We could make YIELD appear to return a VOID! when we jump back in
          // to resume it.  But it's more interesting to return what the YIELD
@@ -194,24 +165,14 @@ REB_R Yielder_Dispatcher(REBFRM *f)
             KNOWN(ARR_AT(details, IDX_YIELDER_LAST_YIELD_RESULT))
         );
 
-        // Now add in all the data stack elements.
-        //
-        RELVAL *data_stack = KNOWN(ARR_AT(details, IDX_YIELDER_DATA_STACK));
-        assert(VAL_INDEX(data_stack) == 0);  // could store some number (?)
-        REBVAL *stack_item = KNOWN(VAL_ARRAY_HEAD(data_stack));
-        for (; NOT_END(stack_item); ++stack_item)
-            Move_Value(DS_PUSH(), stack_item);
-        Init_Blank(data_stack);  // no longer needed, let it be GC'd
-
         // If the yielder actually reaches its end (instead of YIELD-ing)
         // we need to know, so we can mark that it is finished.
         //
-        assert(NOT_EVAL_FLAG(f, DELEGATE_CONTROL));
+        assert(NOT_EVAL_FLAG(yielder_frame->out, DELEGATE_CONTROL));
 
         Init_Void(state);  // indicate "running" (no recursions allowed)
         Init_Blank(spare);  // differentiate continuation state from new call
 
-        TG_Top_Frame = yield_frame;  // jump deep back into the yield...
         return R_DEWIND;  // ...resuming where we left off
     }
 
@@ -373,66 +334,8 @@ REBNATIVE(yield)
     if (yielder_frame->out->header.bits & CELL_FLAG_OUT_MARKED_STALE)
         out_copy->header.bits |= CELL_FLAG_OUT_MARKED_STALE;
 
-  blockscope {
-    REBFRM *f = yield_frame;
-    while (true) {
-        if (f->out == yielder_frame->out) {
-            //
-            // Reassign to mark the output as something randomly bad, but
-            // still GC safe.  When the stack gets patched back in, it will
-            // be recognized and reset to the new yielder's out.
-            //
-            f->out = cast(REBVAL*, TRUE_VALUE);
-        }
-
-        // We make the dsp_orig stack pointers in each frame relative to the
-        // yielder_frame, with that frame as if it were 0.  When the yielder
-        // gets called again, we'll add the new yielder's base dsp back in.
-        //
-        // !!! This may confuse a fail() if it expects to climb the stack and
-        // see all the f->dsp_orig be sane.  But as far as the interim state
-        // is concerned, there's no good number to put here...leaving it as
-        // it was would be wrong too.  This might suggest an EVAL_FLAG for
-        // "don't believe the dsp".  Tricky.
-        //
-        f->dsp_orig -= yielder_frame->dsp_orig;
-
-        if (f->prior == yielder_frame) {
-            //
-            // The frame below a yielder was not fulfilling an argument, it
-            // should be writing into the yielder's out cell.  But when the
-            // yielder goes off the stack, that cell will most likely be
-            // gone.  We'll have to point it at the new yielder's out cell
-            // when we chain it back in.  Also we have to set it to something
-            // legal to mark in GC as the cell will go stale.
-            //
-            assert(f->out == TRUE_VALUE);  // should have matched yielder
-            f->prior = nullptr;  // show where the fragment of stack ends
-            break;
-        }
-        f = f->prior;
-
-        if (f == FS_TOP)  // "alive", but couldn't find it in the stack walk
-            fail ("Cannot yield to a generator that is suspended");
-
-        if (GET_EVAL_FLAG(f, ROOT_FRAME))
-            fail ("Cannot yield across frame that's not a continuation");
-    }
-  }
-
-    // If any data stack has been accrued, we capture it into an array.  We
-    // will have to re-push the values when the yielder is resumed.
-    //
-    // !!! We do not technically need to manage this array...just keep the
-    // values in it alive during GC.  It could be stored in some REBFRM* field
-    // and marked.  But for simplicity, we keep it in the yielder's details
-    // as a value cell, and manage it.
-    //
     RELVAL *data_stack = ARR_AT(yielder_details, IDX_YIELDER_DATA_STACK);
-    Init_Block(
-        data_stack,
-        Pop_Stack_Values(yielder_frame->dsp_orig)
-    );
+    Unplug_Stack(data_stack, yield_frame, yielder_frame);
 
     // We preserve the fragment of call stack leading from the yield up to the
     // yielder in a FRAME! value that the yielder holds in its `details`.
@@ -477,6 +380,5 @@ REBNATIVE(yield)
 
     /* REBACT *target_fun = FRM_UNDERLYING(target_frame); */
 
-    TG_Top_Frame = yielder_frame;
     return R_DEWIND;
 }

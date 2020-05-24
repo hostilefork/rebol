@@ -114,7 +114,7 @@ bool Do_Signals_Throws(REBVAL *out)
         //
         // Early in the booting process, it's not possible to handle Ctrl-C.
         //
-        if (Saved_State == NULL)
+        if (TG_Jump_List == nullptr)
             panic ("Ctrl-C or other HALT signal with no trap to process it");
 
         CLR_SIGNAL(SIG_HALT);

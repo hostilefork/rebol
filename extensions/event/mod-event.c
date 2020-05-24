@@ -258,7 +258,7 @@ bool Wait_Ports_Throws(
     // Waiting opens the doors to pressing Ctrl-C, which may get this code
     // to throw an error.  There needs to be a state to catch it.
     //
-    assert(Saved_State != NULL);
+    assert(TG_Jump_List != nullptr);
 
     while (wt) {
         if (GET_SIGNAL(SIG_HALT)) {

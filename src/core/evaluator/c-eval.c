@@ -319,7 +319,7 @@ REB_R Brancher_Executor(REBFRM *frame_)
 //
 REB_R New_Expression_Executor(REBFRM *f)
 {
-    assert(DSP >= f->dsp_orig);  // REDUCE accrues, APPLY adds refinements
+    assert(DSP >= f->baseline.dsp);  // REDUCE accrues, APPLY adds refinements
     assert(not IS_TRASH_DEBUG(f->out));  // all invisible will preserve output
     assert(f->out != f_spare);  // overwritten by temporary calculations
     assert(NOT_FEED_FLAG(f->feed, BARRIER_HIT));

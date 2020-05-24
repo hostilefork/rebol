@@ -33,8 +33,6 @@ bool Reduce_To_Stack_Throws(
     const RELVAL *any_array,
     REBSPC *specifier
 ){
-    REBDSP dsp_orig = DSP;
-
     DECLARE_ARRAY_FEED (feed,
         VAL_ARRAY(any_array),
         VAL_INDEX(any_array),
@@ -50,7 +48,6 @@ bool Reduce_To_Stack_Throws(
         bool line = IS_END(*v) ? false : GET_CELL_FLAG(*v, NEWLINE_BEFORE);
 
         if (Eval_Step_Throws(out, f)) {
-            DS_DROP_TO(dsp_orig);
             Abort_Frame(f);
             return true;
         }
@@ -146,9 +143,8 @@ REBNATIVE(reduce)
   }
 
   eval_step_finished: blockscope {
-    if (Is_Throwing(frame_)) {
-        DS_DROP_TO(frame_->dsp_orig);
-        Abort_Frame(frame_);
+    if (Is_Throwing(D_FRAME)) {
+        Abort_Frame(D_FRAME);
         return R_THROWN;
     }
 
@@ -174,11 +170,9 @@ REBNATIVE(reduce)
         else
             Move_Value(DS_PUSH(), D_OUT);
 
-        // !!! Expression evaluation checks on each step make sure there's no
-        // stack accrued (e.g. it would look for refinements relative to the
-        // dsp_orig).  So stack accrual must update the dsp_orig.  Review.
+        // We pushed one item, so next subframe step needs a higher baseline
         //
-        f->dsp_orig = DSP;
+        f->baseline.dsp += 1;
 
         if (VAL_LOGIC(D_SPARE))
             SET_CELL_FLAG(DS_TOP, NEWLINE_BEFORE);
@@ -201,7 +195,7 @@ REBNATIVE(reduce)
     return Init_Any_Array(
         D_OUT,
         VAL_TYPE(v),
-        Pop_Stack_Values_Core(frame_->dsp_orig, pop_flags)
+        Pop_Stack_Values_Core(D_FRAME->baseline.dsp, pop_flags)
     );
   }
 }
@@ -251,8 +245,6 @@ REB_R Compose_To_Stack_Core(
     bool only  // do not exempt (( )) from splicing
 ){
     assert(predicate == nullptr or IS_ACTION(predicate));
-
-    REBDSP dsp_orig = DSP;
 
     bool changed = false;
 
@@ -312,7 +304,6 @@ REB_R Compose_To_Stack_Core(
                 subfeed,
                 EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED
             )){
-                DS_DROP_TO(dsp_orig);
                 Abort_Frame(f);
                 return R_THROWN;
             }
@@ -420,7 +411,6 @@ REB_R Compose_To_Stack_Core(
             );
 
             if (r == R_THROWN) {
-                DS_DROP_TO(dsp_orig);  // drop to outer DSP (@ function start)
                 Abort_Frame(f);
                 return R_THROWN;
             }

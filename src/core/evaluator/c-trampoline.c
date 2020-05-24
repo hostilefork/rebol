@@ -66,7 +66,35 @@
 //
 bool Trampoline_Throws(REBFRM *f_stop)
 {
+  push_again: ;
+
     REBFRM *f = FS_TOP;  // *usually* FS_TOP, unless requested to not drop
+
+    struct Reb_Jump jump;
+    REBCTX *error_ctx;
+
+    PUSH_TRAP(&error_ctx, &jump);
+    jump.frame = f_stop;
+
+    // The first time through the following code 'error' will be null, but...
+    // `fail` can longjmp here, so 'error' won't be null *if* that happens!
+    //
+    if (error_ctx) {
+        //
+        // We want to unwind up to the nearest TRAP.  If there isn't one (or
+        // it isn't interested in the form of error we are raising) then we
+        // have to re-raise it.
+        //
+        if (not Is_Action_Frame(FS_TOP)
+            or FRM_PHASE(FS_TOP) != NAT_ACTION(trap)
+        ){
+            fail (error_ctx);
+        }
+
+        Init_Error(FS_TOP->out, error_ctx);
+
+        goto push_again;
+    }
 
   loop:
 
@@ -113,8 +141,10 @@ bool Trampoline_Throws(REBFRM *f_stop)
         // makes the call, it's not stackless...e.g. it should be written
         // some other way.
         //
-        if (f == f_stop)
+        if (f == f_stop) {
+            DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&jump);
             return false;
+        }
 
         // Some natives and executors want to be able to leave a pushed frame
         // intact as the "top of stack" even when it has completed.  This
@@ -203,5 +233,7 @@ bool Trampoline_Throws(REBFRM *f_stop)
     assert(f == f_stop);
 
     assert(r == R_THROWN);
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&jump);
+
     return true;  // thrown
 }

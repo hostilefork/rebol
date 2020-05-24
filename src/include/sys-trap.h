@@ -7,7 +7,7 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Revolt Open Source Contributors
+// Copyright 2012-2020 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
@@ -37,7 +37,7 @@
 // but custom interception code is needed for any generalized resource
 // that might be leaked in the case of a longjmp().
 //
-// The triggering of the longjmp() is done via "fail", and it's important
+// The triggering of the longjmp() is done via "fail()", and it's important
 // to know the distinction between a "fail" and a "throw".  In Rebol
 // terminology, a `throw` is a cooperative concept, which does *not* use
 // longjmp(), and instead must cleanly pipe the thrown value up through
@@ -45,25 +45,6 @@
 // climb the stack until somewhere in the backtrace, one of the calls
 // chooses to intercept the thrown value instead of pass it on.
 //
-// By contrast, a `fail` is non-local control that interrupts the stack,
-// and can only be intercepted by points up the stack that have explicitly
-// registered themselves interested.  So comparing these two bits of code:
-//
-//     catch [if 1 < 2 [trap [print ["Foo" (throw "Throwing")]]]]
-//
-//     trap [if 1 < 2 [catch [print ["Foo" (fail "Failing")]]]]
-//
-// In the first case, the THROW is offered to each point up the chain as
-// a special sort of "return value" that only natives can examine.  The
-// `print` will get a chance, the `trap` will get a chance, the `if` will
-// get a chance...but only CATCH will take the opportunity.
-//
-// In the second case, the FAIL is implemented with longjmp().  So it
-// doesn't make a return value...it never reaches the return.  It offers an
-// ERROR! up the stack to native functions that have called PUSH_TRAP() in
-// advance--as a way of registering interest in intercepting failures.  For
-// IF or CATCH or PRINT to have an opportunity, they would need to be changed
-// to include a PUSH_TRAP() call.
 //
 //=//// NOTES /////////////////////////////////////////////////////////////=//
 //
@@ -71,6 +52,36 @@
 //   is that API primitives like rebRescue() will be able to abstract the
 //   mechanism for fail, but for the moment only longjmp is implemented.
 //
+// * `fail` is a macro, e.g. `#define fail`, in order to capture __FILE__
+//   and __LINE__ (in some debugging modes).  This creates a notable conflict
+//   with `std::ios::fail()` in C++, which means that if standard library
+//   streaming headers are included after %sys-core.h, there will be errors...
+//   unless fail is #undef'd.  (It's not a problem when just using %rebol.h)
+//
+
+
+// R3-Alpha set up a separate `jmp_buf` at each point in the stack that wanted
+// to be able to do a TRAP.  With stackless Ren-C, only one jmp_buf is needed
+// per instance of the Trampoline on the stack.  (The codebase ideally does
+// not invoke more than one trampoline to implement its native code, but if
+// it is to call out to C code that wishes to use synchronous forms of API
+// calls then nested trampolines may occur.)
+//
+struct Reb_Jump {
+    //
+    // We put the jmp_buf first, since it has alignment specifiers on Windows
+    //
+  #ifdef HAS_POSIX_SIGNAL
+    sigjmp_buf cpu_state;
+  #else
+    jmp_buf cpu_state;
+  #endif
+
+    struct Reb_Jump *last_jump;
+
+    REBFRM *frame;  // bounding frame (can't be jumped past)
+    REBCTX *error;  // longjmp only takes `int`, pointer passed back via this
+};
 
 
 // "Under FreeBSD 5.2.1 and Mac OS X 10.3, setjmp and longjmp save and restore
@@ -132,26 +143,17 @@
 #endif
 
 
-// SNAP_STATE will record the interpreter state but not include it into
-// the chain of trapping points.  This is used by PUSH_TRAP but also by
-// debug code that just wants to record the state to make sure it balances
-// back to where it was.
-//
-#define SNAP_STATE(s) \
-    Snap_State_Core(s)
-
-
 // PUSH_TRAP is a construct which is used to catch errors that have been
 // triggered by the Fail_Core() function.  This can be triggered by a usage
 // of the `fail` pseudo-"keyword" in C code, and in Rebol user code by the
-// REBNATIVE(fail).  To call the push, you need a `struct Reb_State` to be
+// REBNATIVE(fail).  To call the push, you need a `struct Reb_Jump` to be
 // passed which it will write into--which is a black box that clients
 // shouldn't inspect.
 //
 // The routine also takes a pointer-to-a-REBCTX-pointer which represents
 // an error.  Using the tricky mechanisms of setjmp/longjmp, there will
 // be a first pass of execution where the line of code after the PUSH_TRAP
-// will see the error pointer as being NULL.  If a trap occurs during
+// will see the error pointer as being `nullptr`.  If a trap occurs during
 // code before the paired DROP_TRAP happens, then the C state will be
 // magically teleported back to the line after the PUSH_TRAP with the
 // error context now non-null and usable.
@@ -179,17 +181,18 @@
 // The API model is still being worked out, and so this is tolerated while
 // the code settles--until the right answer can be seen more clearly.
 //
-#define PUSH_TRAP(e,s) \
+#define PUSH_TRAP(e,j) \
     do { \
         /* assert(Saved_State or (DSP == 0 and FS_TOP == FS_BOTTOM)); */ \
-        Snap_State_Core(s); \
-        (s)->last_state = Saved_State; \
-        Saved_State = (s); \
-        if (!SET_JUMP((s)->cpu_state)) \
-            *(e) = NULL; /* this branch will always be run */ \
-        else { \
-            Trapped_Helper(s); \
-            *(e) = (s)->error; \
+        (j)->frame = FS_TOP; \
+        TRASH_POINTER_IF_DEBUG((j)->error); \
+        (j)->last_jump = TG_Jump_List; \
+        TG_Jump_List = (j); \
+        if (0 == SET_JUMP((j)->cpu_state))  /* initial setjmp branch */ \
+            *(e) = nullptr;  /* this branch will always be run */ \
+        else {  /* the longjmp happened */ \
+            Trapped_Helper(j); \
+            *(e) = (j)->error; \
         } \
     } while (0)
 
@@ -206,27 +209,10 @@
 //
 //      http://en.cppreference.com/w/c/program/longjmp
 //
-// Note: There used to be more aggressive balancing-oriented asserts, making
-// this a point where outstanding manuals or guarded values and series would
-// have to be balanced.  Those seemed to be more irritating than helpful,
-// so the asserts have been left to the evaluator's bracketing.
-//
-inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_State *s) {
-    assert(!s->error);
-    Saved_State = s->last_state;
+inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_Jump *j) {
+    assert(IS_POINTER_TRASH_DEBUG(j->error));
+    TG_Jump_List = j->last_jump;
 }
-
-
-// ASSERT_STATE_BALANCED is used to check that the situation modeled in a
-// SNAP_STATE has balanced out, without a trap (e.g. it is checked each time
-// the evaluator completes a cycle in the debug build)
-//
-#ifdef NDEBUG
-    #define ASSERT_STATE_BALANCED(s) NOOP
-#else
-    #define ASSERT_STATE_BALANCED(s) \
-        Assert_State_Balanced_Debug((s), __FILE__, __LINE__)
-#endif
 
 
 //

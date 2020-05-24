@@ -238,7 +238,7 @@ inline static bool Eval_Step_Maybe_Stale_Throws(
     assert(NOT_FEED_FLAG(f->feed, NO_LOOKAHEAD));
 
     f->out = out;
-    f->dsp_orig = DSP;
+    f->baseline.dsp = DSP;
     f->executor = &New_Expression_Executor;
     return (*PG_Trampoline_Throws)(f); // should already be pushed;
 }

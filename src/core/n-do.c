@@ -750,7 +750,7 @@ REBNATIVE(applique)
     INIT_BINDER(&binder);
     REBCTX *exemplar = Make_Context_For_Action_Push_Partials(
         applicand,
-        f->dsp_orig, // lowest_ordered_dsp of refinements to weave in
+        f->baseline.dsp, // lowest_ordered_dsp of refinements to weave in
         &binder,
         CELL_MASK_STACK
     );

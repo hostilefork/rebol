@@ -206,6 +206,7 @@ typedef struct Reb_Frame REBPVS;
 typedef struct Reb_Feed REBFED;
 
 struct Reb_State;
+struct Reb_Jump;
 
 //=//// DATA STACK ////////////////////////////////////////////////////////=//
 //

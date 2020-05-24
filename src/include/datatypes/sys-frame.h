@@ -136,7 +136,7 @@ inline static int FRM_LINE(REBFRM *f) {
     ACT_UNDERLYING((f)->original)
 
 #define FRM_DSP_ORIG(f) \
-    ((f)->dsp_orig + 0) // prevent assignment via this macro
+    ((f)->baseline.dsp + 0)  // prevent assignment via this macro
 
 #define F_VALUE(f) \
     ((f)->feed->value)
@@ -426,10 +426,8 @@ inline static void Push_Frame(REBVAL *out, REBFRM *f)
         }
     }
 
-  #if defined(DEBUG_BALANCE_STATE)
-    SNAP_STATE(&f->state); // to make sure stack balances, etc.
-    f->state.dsp = f->dsp_orig;
-  #endif
+    SNAP_STATE(&f->baseline);  // see notes on `baseline` in Reb_Frame
+    f->baseline.dsp = f->baseline.dsp;
 
   #if !defined(NDEBUG)
     f->initial_flags = f->flags.bits;
@@ -493,10 +491,16 @@ inline static void Abort_Frame(REBFRM *f) {
         }
     }
 
-  pop:
+  pop: {
+    // Things like the data stack and mold buffer need to be returned to their
+    // position before this frame was pushed.
+    //
+    Rollback_Globals_To_State(&f->baseline);
+
     assert(TG_Top_Frame == f);
     TG_Top_Frame = f->prior;
     Free_Frame_Internal(f);
+  }
 }
 
 
@@ -504,6 +508,8 @@ inline static void Drop_Frame_Core(REBFRM *f) {
   #if defined(DEBUG_EXPIRED_LOOKBACK)
     free(f->stress);
   #endif
+
+    assert(TG_Jump_List == nullptr or TG_Jump_List->frame != f);
 
     assert(TG_Top_Frame == f);
     TG_Top_Frame = f->prior;
@@ -522,11 +528,11 @@ inline static void Drop_Frame(REBFRM *f)
     // check this every cycle, just on drop.  But if it's hard to find which
     // exact cycle caused the problem, see BALANCE_CHECK_EVERY_EVALUATION_STEP
     //
-    f->state.dsp = DSP; // e.g. Reduce_To_Stack_Throws() doesn't want check
-    ASSERT_STATE_BALANCED(&f->state);
+    ASSERT_STATE_BALANCED(&f->baseline);
+  #else
+    assert(DSP == f->baseline.dsp);  // Cheaper check
   #endif
 
-    assert(DSP == f->dsp_orig); // Drop_Frame_Core() does not check
     Drop_Frame_Unbalanced(f);
 }
 
@@ -550,7 +556,7 @@ inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
     f->feed = feed;
     Prep_Stack_Cell(&f->spare);
     Init_Unreadable_Blank(&f->spare);
-    f->dsp_orig = DS_Index;
+    f->baseline.dsp = DS_Index;
     TRASH_POINTER_IF_DEBUG(f->out);
 
     f->original = nullptr;  // !!! redundant!

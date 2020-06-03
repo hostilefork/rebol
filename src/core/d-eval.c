@@ -131,7 +131,7 @@ static void Eval_Core_Shared_Checks_Debug(REBFRM *f) {
     }
 
     assert(f == FS_TOP);
-    assert(DSP == f->baseline.dsp);
+    assert(DSP == f->baseline.dsp or GET_EVAL_FLAG(f, TRAMPOLINE_KEEPALIVE));
 
     if (f->feed->array) {
         assert(not IS_POINTER_TRASH_DEBUG(f->feed->array));

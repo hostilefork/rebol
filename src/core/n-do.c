@@ -818,9 +818,9 @@ REBNATIVE(applique)
     f->varlist = CTX_VARLIST(stolen);
     SET_SERIES_FLAG(f->varlist, STACK_LIFETIME);
     f->rootvar = CTX_ARCHETYPE(stolen);
-    f->arg = nullptr;  // start state (cues enumeration)
+    f->arg = FRM_ARGS_HEAD(f);  // start state (cues enumeration)
     // f->param assigned above
-    f->special = FRM_ARGS_HEAD(f); // signal only type-check the existing data
+    f->special = f->arg; // signal only type-check the existing data
     INIT_FRM_PHASE(f, VAL_ACTION(applicand));
     FRM_BINDING(f) = VAL_BINDING(applicand);
 

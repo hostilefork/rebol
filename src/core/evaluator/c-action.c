@@ -282,11 +282,19 @@ bool Lookahead_To_Sync_Enfix_Defer_Flag(REBFED *feed) {
 //
 REB_R Action_Executor(REBFRM *f)
 {
-    if (Is_Throwing(f)) {
-        assert(f->arg);  // how could it throw before any args evaluate?
+    // We only interpret the STATE_BYTE(f) as being relevant to the action
+    // executor when NOT_END(f->param).  Otherwise it belongs to the active
+    // function dispatcher or native.
+    //
+    enum {
+        ST_ACTION_INITIAL_ENTRY = 0,
+        ST_ACTION_FULFILLING_ARGS = 100  // weird number if dispatcher gets it
+    };
 
+    if (Is_Throwing(f)) {
         if (NOT_END(f->param)) {  // *before* function runs
-            // !!! Investigate: why doesn't end check on f->arg work, too?
+            assert(STATE_BYTE(f) == ST_ACTION_FULFILLING_ARGS);
+
             Move_Value(f->out, f->arg);  // throw must be in out
             goto abort_action;
         }
@@ -298,22 +306,20 @@ REB_R Action_Executor(REBFRM *f)
         goto action_threw;  // could be an UNWIND or similar
     }
 
-    // !!! Temporary state assumption: f->arg being nullptr means it's the
-    // first time being called.  (We are reserving the END state of the
-    // frame spare for the dispatcher, which currently shares this frame,
-    // and that makes sense).
-    //
-    if (f->arg == nullptr)
-        goto process_action;
-
-    // !!! Second assumption: if f->arg is not an end pointer, it means we
-    // want to finalize an argument which we trampolined out to evaluate.
-    //
-    if (NOT_END(f->param))
-        goto finalize_arg;
-           // !!! Investigate: why doesn't end check on f->arg work, too?
-
-    // If f->arg is END, that means we're in some kind of post argument phase.
+    if (NOT_END(f->param)) {
+        switch (STATE_BYTE(f)) {
+          case ST_ACTION_INITIAL_ENTRY:
+            //
+            // It's important to make sure this transition happens before a
+            // recycle can happen, because the GC needs to know that the
+            // args are being fulfilled so it protects up through f->arg.
+            //
+            STATE_BYTE(f) = ST_ACTION_FULFILLING_ARGS;
+            goto process_action;
+          case ST_ACTION_FULFILLING_ARGS: goto finalize_arg;
+          default: assert(false);
+        }
+    }
 
     if (GET_EVAL_FLAG(f, DELEGATE_CONTROL)) {
         CLEAR_EVAL_FLAG(f, DELEGATE_CONTROL);
@@ -323,17 +329,29 @@ REB_R Action_Executor(REBFRM *f)
     goto redo_continuation;  // Assume a followup was desired otherwise
 
   process_action:
-    assert(f->arg == nullptr);
-    f->arg = FRM_ARGS_HEAD(f);
+
+    assert(f->original);  // set by Begin_Action()
+    assert(IS_FRAME(f->rootvar));
+    assert(f->arg == FRM_ARGS_HEAD(f));
+    assert(DSP >= f->baseline.dsp);  // path processing may push REFINEMENT!s
+    assert(NOT_EVAL_FLAG(f, DOING_PICKUPS));
 
   #if !defined(NDEBUG)
-    assert(f->original);  // set by Begin_Action()
-    Do_Process_Action_Checks_Debug(f);
+  blockscope {
+    REBACT *phase = VAL_PHASE(f->rootvar);
+    assert(GET_ARRAY_FLAG(ACT_PARAMLIST(phase), IS_PARAMLIST));
+
+    // !!! This check related to a marking of outputs stale that was in the
+    // PROCESS_ACTION branch of the pre-stackless work.  However that marking
+    // causes problems with boot now.  Temporarily eliminating the assert
+    // until it's understood what consequence it has.
+    //
+    /* if (NOT_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT)) {
+        if (NOT_CELL_FLAG(f->out, OUT_MARKED_STALE))
+            assert(GET_ACTION_FLAG(phase, IS_INVISIBLE));
+    } */
+  }
   #endif
-
-    assert(DSP >= f->baseline.dsp);  // path processing may push REFINEMENT!s
-
-    assert(NOT_EVAL_FLAG(f, DOING_PICKUPS));
 
     //=//// ACTION! ARGUMENT FULFILLMENT AND/OR TYPE CHECKING PROCESS /////=//
 
@@ -968,6 +986,7 @@ REB_R Action_Executor(REBFRM *f)
             //
             // !!! But we want to avoid recursions.
             //
+            assert(STATE_BYTE(f) == ST_ACTION_FULFILLING_ARGS);
             return R_CONTINUATION; }
 
     //=//// HARD QUOTED ARG-OR-REFINEMENT-ARG /////////////////////////////=//
@@ -1349,7 +1368,7 @@ REB_R Action_Executor(REBFRM *f)
     }
   }
 
-  dispatch_completed:
+  dispatch_completed: {
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1364,11 +1383,43 @@ REB_R Action_Executor(REBFRM *f)
     // pending on the stack to be run.
 
   #if !defined(NDEBUG)
-    Do_After_Action_Checks_Debug(f);
+    assert(NOT_END(f->out));
+    assert(not Is_Throwing(f));
+
+    if (NOT_SERIES_INFO(f->varlist, INACCESSIBLE)) {  // e.g. not ENCLOSE
+        REBACT *phase = FRM_PHASE(f);
+
+        // Usermode functions check the return type via Returner_Dispatcher(),
+        // with everything else assumed to return the correct type.  But this
+        // double-checks any function marked with RETURN in the debug build,
+        // so native return types are checked instead of just trusting the C.
+        //
+        // !!! Although this catches natives due to always being the last
+        // phase, other dispatchers than Returner_Dispatchers() should likely
+        // be getting the checks on all phases.
+        //
+      #ifdef DEBUG_NATIVE_RETURNS
+        if (GET_ACTION_FLAG(phase, HAS_RETURN)) {
+            REBVAL *typeset = ACT_PARAMS_HEAD(phase);
+            assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
+            if (
+                not Typecheck_Including_Quoteds(typeset, f->out)
+                and not (
+                    GET_ACTION_FLAG(phase, IS_INVISIBLE)
+                    and IS_NULLED(f->out) // this happens with `do [return]`
+                )
+            ){
+                printf("Native code violated return type contract!\n");
+                panic (Error_Bad_Return_Type(f, VAL_TYPE(f->out)));
+            }
+        }
+      #endif
+    }
   #endif
+  }
 
-  skip_output_check:
-
+  skip_output_check: {
+    //
     // If we have functions pending to run on the outputs (e.g. this was
     // the result of a CHAIN) we can run those chained functions in the
     // same REBFRM, for efficiency.
@@ -1439,11 +1490,11 @@ REB_R Action_Executor(REBFRM *f)
     //
     INIT_F_EXECUTOR(f, &Lookahead_Executor);
     return f->out;
-
+  }
 
   action_threw: {
-
     const REBVAL *label = VAL_THROWN_LABEL(f->out);
+
     if (IS_ACTION(label)) {
         if (
             VAL_ACTION(label) == NAT_ACTION(unwind)
@@ -1530,8 +1581,8 @@ REB_R Action_Executor(REBFRM *f)
     Expire_Out_Cell_Unless_Invisible(f);
 
     f->param = ACT_PARAMS_HEAD(FRM_PHASE(f));
-    f->arg = nullptr;  // start state (cues enumeration)
-    f->special = FRM_ARGS_HEAD(f);
+    f->arg = FRM_ARGS_HEAD(f);
+    f->special = f->arg;  // signal typecheck only (no specialization)
 
     return R_CONTINUATION;
   }

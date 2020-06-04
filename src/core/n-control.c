@@ -626,8 +626,8 @@ REBNATIVE(match)
 
         f->rootvar = CTX_ARCHETYPE(CTX(f->varlist));
         f->param = ACT_PARAMS_HEAD(VAL_ACTION(test));
-        f->arg = nullptr;  // start state (cues enumeration)
-        f->special = FRM_ARGS_HEAD(f);  // signal only type check data
+        f->arg = FRM_ARGS_HEAD(f);
+        f->special = f->arg;  // signal only type check data
 
         f->flags.bits = EVAL_MASK_DEFAULT
             | EVAL_FLAG_FULLY_SPECIALIZED;

@@ -827,7 +827,10 @@ static void Queue_Mark_Frame_And_Priors(REBFRM *f) {
         // then it can just be marked normally...no need to do custom
         // partial parameter traversal.
         //
-        assert(IS_END(f->param)); // done walking
+        assert(
+            f->special == f->arg  // just typechecking
+            or IS_END(f->param)  // or all done
+        );
         Queue_Mark_Node_Deep(CTX(f->varlist));
         return;
     }
@@ -845,11 +848,16 @@ static void Queue_Mark_Frame_And_Priors(REBFRM *f) {
     // (may be garbage bits past that).  Could also be an END value of an
     // in-progress arg fulfillment, but in that case it is protected by the
     // *evaluating frame's f->out* (!)
+
+    bool typechecking = (f->special == f->arg);
+    bool fulfilling = NOT_END(f->param) and not typechecking;
+
+    // BUT if the frame is in its "initial entry" and fulfilling, we have not
+    // started formatting cells at all yet.  Skip marking args.
     //
-    // Refinements need special treatment, and also consideration of if this
-    // is the "doing pickups" or not.  If doing pickups then skip the cells
-    // for pending refinement arguments.
-    //
+    if (fulfilling and STATE_BYTE(f) == 0)
+        return;
+
     REBACT *phase = FRM_PHASE(f);
     REBVAL *param = ACT_PARAMS_HEAD(phase);
 
@@ -860,32 +868,24 @@ static void Queue_Mark_Frame_And_Priors(REBFRM *f) {
         // but the way argument fulfillment phases are set up we can only
         // check that bit if we're past the parameter (see below).  Review.
 
-        if (param == f->param) {
+        if (fulfilling) {
             //
-            // When param and f->param match, that means that arg is the
-            // output slot for some other frame's f->out.  Let that frame
-            // do the marking (which tolerates END, an illegal state for
-            // prior arg slots we've visited...unless deferred!)
-
-            // If we're not doing "pickups" then the cell slots after
-            // this one have not been initialized, not even to trash.
+            // If we're not doing "pickups" then this cell slot and all the
+            // ones after have not been initialized, not even to trash.
+            // (pickups happen after all the args have been visited).
             //
-            if (NOT_EVAL_FLAG(f, DOING_PICKUPS))
+            if (param == f->param + 1 and NOT_EVAL_FLAG(f, DOING_PICKUPS))
                 break;
 
-            // But since we *are* doing pickups, we must have initialized
-            // all the cells to something...even to trash.  Continue and
-            // mark them.
+            // !!! Mechanism for cutting down on unnecessary GC likely needs
+            // to be rethought, but this invariant was true as a first take at
+            // trying to "format" some cells as not forcing GC "reification".
             //
-            continue;
+            assert(arg->header.bits & CELL_FLAG_STACK_LIFETIME);
         }
 
-        // At time of writing, all frame storage is in stack cells...not
-        // varlists.
-        //
-        assert(arg->header.bits & CELL_FLAG_STACK_LIFETIME);
-
-        Queue_Mark_Opt_Value_Deep(arg);
+        assert(NOT_END(arg) or (fulfilling and arg == f->arg));
+        Queue_Mark_Opt_End_Cell_Deep(arg);
     }
 }
 

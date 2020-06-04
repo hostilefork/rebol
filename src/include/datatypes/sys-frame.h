@@ -758,7 +758,7 @@ inline static void Push_Action(
     }
   #endif
 
-    f->arg = nullptr;  // start state (cues enumeration)
+    f->arg = FRM_ARGS_HEAD(f);  // e.g. `f->rootvar + 1`
 
     // Each layer of specialization of a function can only add specializations
     // of arguments which have not been specialized already.  For efficiency,
@@ -794,6 +794,8 @@ inline static void Drop_Action(REBFRM *f) {
 
     CLEAR_EVAL_FLAG(f, DISPATCHER_CATCHES);
     CLEAR_EVAL_FLAG(f, DELEGATE_CONTROL);
+
+    STATE_BYTE(f) = 0;
 
     assert(
         GET_SERIES_INFO(f->varlist, INACCESSIBLE)
@@ -896,7 +898,7 @@ inline static void Push_Dummy_Frame(REBFRM *f) {
 
     Push_Action(f, PG_Dummy_Action, UNBOUND);
     Begin_Prefix_Action(f, opt_label);
-    assert(f->arg == nullptr);
+    assert(f->arg == FRM_ARGS_HEAD(f));
     f->param = END_NODE;  // signal all arguments gathered
     f->arg = m_cast(REBVAL*, END_NODE);
     f->special = END_NODE;
@@ -1172,9 +1174,16 @@ inline static REBFRM *Push_Continuation_With_Core(
         subframe->param = CTX_KEYS_HEAD(c);
         REBCTX *stolen = Steal_Context_Vars(c, NOD(phase));
 
-        // v-- This changes CTX_KEYS_HEAD()
+        // While not tied to a REBFRM*, the keylist of a FRAME! points to the
+        // paramlist of the function it's for.  Now that it's becoming live,
+        // change the link.
+        //
+        // !!! A note here previously said "This changes CTX_KEYS_HEAD()!",
+        // but it's not clear that CTX_KEYS_HEAD(stolen) wouldn't be the same.
+        // assert() added but left as-is in case that bears out somewhere.
         //
         INIT_LINK_KEYSOURCE(stolen, NOD(subframe));
+        assert(CTX_KEYS_HEAD(stolen) == subframe->param);
 
         // Its data stolen, the context's node should now be GC'd when
         // references in other FRAME! value cells have all gone away.
@@ -1185,9 +1194,9 @@ inline static REBFRM *Push_Continuation_With_Core(
         Push_Frame(out, subframe);
         subframe->varlist = CTX_VARLIST(stolen);
         subframe->rootvar = CTX_ARCHETYPE(stolen);
-        subframe->arg = nullptr;  // signals start of enumeration
+        subframe->arg = FRM_ARGS_HEAD(subframe);
         // subframe->param set above
-        subframe->special = FRM_ARGS_HEAD(subframe);
+        subframe->special = subframe->arg;  // signals only typecheck
 
         // !!! Original code said "Should archetype match?"
         //

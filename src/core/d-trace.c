@@ -37,6 +37,27 @@
 
 #include "sys-core.h"
 
+
+//
+//  Dispatch_Internal: C
+//
+// !!! A concept used to start developing usermode debugging and tracing
+// constructs was that they would be able to "hook" the central function
+// calling mechanics by wrapping them.  This would be somewhat similar to
+// an ENCLOSE, where the frame was available for each function call to
+// inspect.  The idea of doing this hooking by replacing C functions and
+// then calling C functions is intrinsically flawed in a stackless model,
+// though the code for the old demos depending on the technique is not
+// deleted yet...as it might be helpful in rethinking how the demos would
+// work more generally in a stackless model.  Having a stub for this routine
+// around keeps the broken code compiling.
+//
+REB_R Dispatch_Internal(REBFRM * const f) {
+    UNUSED(f);
+    panic("Dispatch_Internal() is deprecated");
+}
+
+
 enum {
     TRACE_FLAG_FUNCTION = 1 << 0
 };

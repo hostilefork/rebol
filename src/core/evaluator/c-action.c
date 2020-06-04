@@ -51,24 +51,6 @@
 #include "sys-core.h"
 
 
-//
-//  Dispatch_Internal: C
-//
-// Default function provided for the hook at the moment of action application,
-// with all arguments gathered.
-//
-// As this is the default, it does nothing besides call the phase dispatcher.
-// Debugging and instrumentation might want to do other things...e.g TRACE
-// wants to preface the call by dumping the frame, and postfix it by showing
-// the evaluative result.
-//
-// !!! Review if lower-level than C tricks could be used to patch code in
-// some builds to not pay the cost for calling through a pointer.
-//
-REB_R Dispatch_Internal(REBFRM * const f)
-  { return ACT_DISPATCHER(FRM_PHASE(f))(f); }
-
-
 //=//// ARGUMENT LOOP MODES ///////////////////////////////////////////////=//
 //
 // f->special is kept in sync with one of three possibilities:
@@ -302,7 +284,7 @@ REB_R Action_Executor(REBFRM *f)
         // Function was running, may want to see the throw
 
         if (GET_EVAL_FLAG(f, DISPATCHER_CATCHES))
-            goto redo_continuation;  // might want to see BREAK/CONTINUE
+            goto dispatch_phase;  // might want to see BREAK/CONTINUE
         goto action_threw;  // could be an UNWIND or similar
     }
 
@@ -326,7 +308,7 @@ REB_R Action_Executor(REBFRM *f)
         goto dispatch_completed;  // the dispatcher didn't want a callback
     }
 
-    goto redo_continuation;  // Assume a followup was desired otherwise
+    goto dispatch_phase;  // Assume a followup was desired otherwise
 
   process_action:
 
@@ -1239,7 +1221,7 @@ REB_R Action_Executor(REBFRM *f)
     // Note that the dispatcher may push ACTION! values to the data stack
     // which are used to process the return result after the switch.
     //
-  redo_continuation: {
+  dispatch_phase: {
     //
     // These flags are optionally set by the dispatcher for use with
     // REB_R_CONTINUATION.  They are EVAL_FLAGs instead of part of the
@@ -1252,7 +1234,8 @@ REB_R Action_Executor(REBFRM *f)
         | EVAL_FLAG_DISPATCHER_CATCHES
     );
 
-    const REBVAL *r = (*PG_Dispatch)(f);  // default just calls FRM_PHASE
+    REBNAT dispatcher = ACT_DISPATCHER(FRM_PHASE(f));
+    const REBVAL *r = (*dispatcher)(f);
 
     if (r == f->out) {  // assume most common branch for speed
         assert(NOT_CELL_FLAG(f->out, OUT_MARKED_STALE));

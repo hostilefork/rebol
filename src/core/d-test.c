@@ -72,3 +72,43 @@ REBNATIVE(test_librevolt)
     return Init_Block(D_OUT, Pop_Stack_Values(dsp_orig));
   #endif
 }
+
+
+//
+//  diagnose: native [
+//
+//  {Prints some basic internal information about the value (debug only)}
+//
+//      return: "Same as input value (for passthru similar to PROBE)"
+//          [<opt> any-value!]
+//      value [<opt> any-value!]
+//  ]
+//
+REBNATIVE(diagnose)
+{
+  INCLUDE_PARAMS_OF_DIAGNOSE;
+
+  #if defined(NDEBUG)
+    UNUSED(ARG(value));
+    fail ("DIAGNOSE is only available in debug builds");
+  #else
+    REBVAL *v = ARG(value);
+
+  #if defined(DEBUG_COUNT_TICKS)
+    REBTCK tick = frame_->tick;
+  #else
+    REBTCK tick = 0
+  #endif
+
+    printf(
+        ">>> DIAGNOSE @ tick %ld in file %s at line %d\n",
+        cast(long, tick),
+        frame_->file,
+        frame_->line
+    );
+
+    Dump_Value_Debug(v);
+
+    return Init_Void(D_OUT);
+  #endif
+}

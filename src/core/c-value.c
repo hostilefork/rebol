@@ -32,19 +32,12 @@
 #if !defined(NDEBUG)
 
 //
-//  Panic_Value_Debug: C
+//  Dump_Value_Debug: C
 //
-// This is a debug-only "error generator", which will hunt through all the
-// series allocations and panic on the series that contains the value (if
-// it can find it).  This will allow those using Address Sanitizer or
-// Valgrind to know a bit more about where the value came from.
+// Returns the containing node.
 //
-// Additionally, if it happens to be NULLED, VOID!, LOGIC!, BAR!, BLANK!, or
-// a trash cell, it will dump out where the initialization happened if that
-// information was stored.  (See DEBUG_TRACK_EXTEND_CELLS for more intense
-// debugging scenarios, which track all cell types, but at greater cost.)
-//
-ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
+REBNOD *Dump_Value_Debug(const RELVAL *v)
+{
     fflush(stdout);
     fflush(stderr);
 
@@ -85,19 +78,62 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
     }
 
     printf("kind_byte=%d\n", cast(int, KIND_BYTE_UNCHECKED(v)));
+
+    enum Reb_Kind kind = CELL_KIND(VAL_UNESCAPED(v));
+    char *type = cast(char*, STR_HEAD(Canon(SYM_FROM_KIND(kind))));
+    printf("cell_kind=%s\n", type);
     fflush(stdout);
 
-    if (containing and not (containing->header.bits & NODE_FLAG_CELL)) {
-        printf("Containing series for value pointer found, panicking it:\n");
+    if (GET_CELL_FLAG(v, FIRST_IS_NODE))
+        printf("has first node: %p\n", cast(void*, VAL_NODE(v)));
+    if (GET_CELL_FLAG(v, SECOND_IS_NODE))
+        printf(
+            "has second node: %p\n",
+            cast(void*, PAYLOAD(Any, (v)).second.node)
+        );
+
+    if (not containing)
+        return nullptr;
+
+    if (not (containing->header.bits & NODE_FLAG_CELL)) {
+        printf(
+            "Containing series for value pointer found, %p:\n",
+            cast(void*, containing)
+        );
+    }
+    else{
+        printf(
+            "Containing pairing for value pointer found %p:\n",
+            cast(void*, containing)
+        );
+    }
+
+    return containing;
+}
+
+
+//
+//  Panic_Value_Debug: C
+//
+// This is a debug-only "error generator", which will hunt through all the
+// series allocations and panic on the series that contains the value (if
+// it can find it).  This will allow those using Address Sanitizer or
+// Valgrind to know a bit more about where the value came from.
+//
+// Additionally, if it happens to be NULLED, VOID!, LOGIC!, BAR!, BLANK!, or
+// a trash cell, it will dump out where the initialization happened if that
+// information was stored.  (See DEBUG_TRACK_EXTEND_CELLS for more intense
+// debugging scenarios, which track all cell types, but at greater cost.)
+//
+ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
+    REBNOD *containing = Dump_Value_Debug(v);
+
+    if (containing) {
+        printf("Panicking the containing REBSER...\n");
         Panic_Series_Debug(SER(containing));
     }
 
-    if (containing) {
-        printf("Containing pairing for value pointer found, panicking it:\n");
-        Panic_Series_Debug(cast(REBSER*, containing)); // won't pass SER()
-    }
-
-    printf("No containing series for value...panicking to make stack dump:\n");
+    printf("No containing series for value, panicking for stack dump:\n");
     Panic_Series_Debug(SER(EMPTY_ARRAY));
 }
 

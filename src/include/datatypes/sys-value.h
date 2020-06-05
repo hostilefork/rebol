@@ -880,9 +880,18 @@ inline static void Move_Value_Header(RELVAL *out, const RELVAL *v)
     out->header.bits |= v->header.bits & CELL_MASK_COPY;
 
   #ifdef DEBUG_TRACK_EXTEND_CELLS
-    out->track = v->track;
-    out->tick = v->tick; // initialization tick
-    out->touch = v->touch; // arbitrary debugging use via TOUCH_CELL
+    //
+    // The existing tick in a formatted cell says where that cell came from
+    // (e.g. the tick at the time of Copy_Array(), or Init_XXX(), etc.)
+    // While it might seem like copying that tick from the source cell in a
+    // move would help you trace the "true origin of the value", that is
+    // already covered most of the time by the tick in the series node both
+    // cells will point at.  Hence more useful to leave the destination alone.
+    //
+    // As a compromise in case there's something about the "originating cell"
+    // that is being tracked, the "touch" tick is copied in moves.
+    //
+    out->touch = v->touch;  // arbitrary debugging use via TOUCH_CELL()
   #endif
 }
 

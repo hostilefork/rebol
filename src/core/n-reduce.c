@@ -95,16 +95,16 @@ REBNATIVE(reduce)
 
     enum {
         ST_REDUCE_INITIAL_ENTRY = 0,
-        ST_REDUCE_EVAL_STEP_FINISHED
+        ST_REDUCE_EVAL_STEP
     };
 
     switch (D_STATE_BYTE) {
       case ST_REDUCE_INITIAL_ENTRY: goto initial_entry;
-      case ST_REDUCE_EVAL_STEP_FINISHED: goto eval_step_finished;
+      case ST_REDUCE_EVAL_STEP: goto eval_step_finished;
       default: assert(false);
     }
 
-  initial_entry: blockscope {
+  initial_entry: {
     if (not IS_BLOCK(v) and not IS_GROUP(v)) {
         //
         // Single value REDUCE does an EVAL, but doesn't allow arguments.
@@ -138,11 +138,11 @@ REBNATIVE(reduce)
         ? false
         : GET_CELL_FLAG(F_VALUE(f), NEWLINE_BEFORE);
     Init_Logic(D_SPARE, newline_before);
-    D_STATE_BYTE = ST_REDUCE_EVAL_STEP_FINISHED;
+    D_STATE_BYTE = ST_REDUCE_EVAL_STEP;
     return R_CONTINUATION;
   }
 
-  eval_step_finished: blockscope {
+  eval_step_finished: {
     if (Is_Throwing(D_FRAME)) {
         Abort_Frame(D_FRAME);
         return R_THROWN;
@@ -181,7 +181,7 @@ REBNATIVE(reduce)
             SET_END(D_OUT);  // result if all invisibles
             Init_Logic(D_SPARE, GET_CELL_FLAG(F_VALUE(f), NEWLINE_BEFORE));
             INIT_F_EXECUTOR(f, &New_Expression_Executor);
-            assert(D_STATE_BYTE == ST_REDUCE_EVAL_STEP_FINISHED);
+            assert(D_STATE_BYTE == ST_REDUCE_EVAL_STEP);
             return R_CONTINUATION;
         }
     }

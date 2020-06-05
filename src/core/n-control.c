@@ -62,25 +62,25 @@ REBNATIVE(if)
     INCLUDE_PARAMS_OF_IF;
 
     enum {
-        ST_IF_INITIAL_ENTRY,
-        ST_IF_BRANCH_WAS_EVALUATED
+        ST_IF_INITIAL_ENTRY = 0,
+        ST_IF_EVALUATING_BRANCH
     };
 
     switch (D_STATE_BYTE) {
       case ST_IF_INITIAL_ENTRY: goto initial_entry;
-      case ST_IF_BRANCH_WAS_EVALUATED: goto branch_was_evaluated;
+      case ST_IF_EVALUATING_BRANCH: goto branch_was_evaluated;
       default: assert(false);
     }
 
-  initial_entry: blockscope {
+  initial_entry: {
     if (IS_CONDITIONAL_FALSE(ARG(condition)))  // void or literal blocks fail
         return nullptr;  // branch not run, null signals ELSE and THEN
 
-    D_STATE_BYTE = ST_IF_BRANCH_WAS_EVALUATED;  // next entry
+    D_STATE_BYTE = ST_IF_EVALUATING_BRANCH;
     CONTINUE_WITH (ARG(branch), ARG(condition));  // pass condition if action
   }
 
-  branch_was_evaluated: blockscope {
+  branch_was_evaluated: {
     return Voidify_If_Nulled(D_OUT);  // null reserved for branch not run
   }
 }
@@ -455,24 +455,24 @@ REBNATIVE(also)  // see `tweak :also #defer on` in %base-defs.r
 
     enum {
         ST_ALSO_INITIAL_ENTRY = 0,
-        ST_ALSO_RETURN_ORIGINAL_INPUT
+        ST_ALSO_EVALUATING_BRANCH
     };
 
     switch (D_STATE_BYTE) {
       case ST_ALSO_INITIAL_ENTRY: goto initial_entry;
-      case ST_ALSO_RETURN_ORIGINAL_INPUT: goto return_original_input;
+      case ST_ALSO_EVALUATING_BRANCH: goto branch_was_evaluated;
       default: assert(false);
     }
 
-  initial_entry: blockscope {
+  initial_entry: {
     if (IS_NULLED(ARG(optional)))  // Note: VOID!s are crucially non-NULL
         return nullptr;  // telegraph original input, but don't run
 
-    D_STATE_BYTE = ST_ALSO_RETURN_ORIGINAL_INPUT;
+    D_STATE_BYTE = ST_ALSO_EVALUATING_BRANCH;
     CONTINUE_WITH (ARG(branch), ARG(optional));
   }
 
-  return_original_input: blockscope {
+  branch_was_evaluated: {
     RETURN (ARG(optional));  // ran, but pass thru the original input
   }
 }
@@ -788,12 +788,12 @@ REBNATIVE(all)
 
     enum {
         ST_ALL_INITIAL_ENTRY = 0,
-        ST_ALL_EVAL_STEP_FINISHED
+        ST_ALL_EVAL_STEP
     };
 
     switch (D_STATE_BYTE) {
       case ST_ALL_INITIAL_ENTRY: goto initial_entry;
-      case ST_ALL_EVAL_STEP_FINISHED: goto eval_step_finished;
+      case ST_ALL_EVAL_STEP: goto eval_step_finished;
       default: assert(false);
     }
 
@@ -802,7 +802,7 @@ REBNATIVE(all)
     assert(f == FS_TOP);  // recovered via FS_TOP on eval_step_finished
     UNUSED(f);
     Init_Nulled(D_OUT);  // so `all []` sees stale falsey value, returns null
-    D_STATE_BYTE = ST_ALL_EVAL_STEP_FINISHED;
+    D_STATE_BYTE = ST_ALL_EVAL_STEP;
     return R_CONTINUATION;
   }
 
@@ -822,7 +822,7 @@ REBNATIVE(all)
     }
 
     INIT_F_EXECUTOR(f, &New_Expression_Executor);
-    assert(D_STATE_BYTE == ST_ALL_EVAL_STEP_FINISHED);
+    assert(D_STATE_BYTE == ST_ALL_EVAL_STEP);
     return R_CONTINUATION;
   }
 }
@@ -845,12 +845,12 @@ REBNATIVE(any)
 
     enum {
         ST_ANY_INITIAL_ENTRY = 0,
-        ST_ANY_EVAL_STEP_FINISHED
+        ST_ANY_EVAL_STEP
     };
 
     switch (D_STATE_BYTE) {
       case ST_ANY_INITIAL_ENTRY: goto initial_entry;
-      case ST_ANY_EVAL_STEP_FINISHED: goto eval_step_finished;
+      case ST_ANY_EVAL_STEP: goto eval_step_finished;
       default: assert(false);
     }
 
@@ -859,7 +859,7 @@ REBNATIVE(any)
     assert(f == FS_TOP);  // recovered via FS_TOP on eval_step_finished
     UNUSED(f);
     Init_Nulled(D_OUT);  // preload output with falsey value
-    D_STATE_BYTE = ST_ANY_EVAL_STEP_FINISHED;
+    D_STATE_BYTE = ST_ANY_EVAL_STEP;
     return R_CONTINUATION;
   }
 
@@ -878,7 +878,7 @@ REBNATIVE(any)
     }
 
     INIT_F_EXECUTOR(f, &New_Expression_Executor);
-    assert(D_STATE_BYTE == ST_ANY_EVAL_STEP_FINISHED);
+    assert(D_STATE_BYTE == ST_ANY_EVAL_STEP);
     return R_CONTINUATION;
   }
 }
@@ -904,12 +904,12 @@ REBNATIVE(none)
 
     enum {
         ST_NONE_INITIAL_ENTRY = 0,
-        ST_NONE_EVAL_STEP_FINISHED
+        ST_NONE_EVAL_STEP
     };
 
     switch (D_STATE_BYTE) {
       case ST_NONE_INITIAL_ENTRY: goto initial_entry;
-      case ST_NONE_EVAL_STEP_FINISHED: goto eval_step_finished;
+      case ST_NONE_EVAL_STEP: goto eval_step_finished;
       default: assert(false);
     }
 
@@ -918,7 +918,7 @@ REBNATIVE(none)
     assert(f == FS_TOP);  // recovered via FS_TOP on eval_step_finished
     UNUSED(f);
     Init_Nulled(D_OUT);  // preload output with falsey value
-    D_STATE_BYTE = ST_NONE_EVAL_STEP_FINISHED;
+    D_STATE_BYTE = ST_NONE_EVAL_STEP;
     return R_CONTINUATION;
   }
 
@@ -937,7 +937,7 @@ REBNATIVE(none)
     }
 
     INIT_F_EXECUTOR(f, &New_Expression_Executor);
-    assert(D_STATE_BYTE == ST_NONE_EVAL_STEP_FINISHED);
+    assert(D_STATE_BYTE == ST_NONE_EVAL_STEP);
     return R_CONTINUATION;
   }
 }
@@ -968,9 +968,9 @@ REBNATIVE(case)
 
     enum {
         ST_CASE_INITIAL_ENTRY = 0,
-        ST_CASE_EVALUATE_NEW_CONDITION,
-        ST_CASE_CONDITION_WAS_EVALUATED,
-        ST_CASE_BRANCH_WAS_EVALUATED
+        ST_CASE_EVALUATING_CONDITION,
+        ST_CASE_SKIPPING_GROUP_BRANCH,  // (evaluated, but not then executed)
+        ST_CASE_EVALUATING_BRANCH
     };
 
     if (D_STATE_BYTE == ST_CASE_INITIAL_ENTRY)
@@ -981,13 +981,13 @@ REBNATIVE(case)
     assert(f->executor == nullptr);
 
     switch (D_STATE_BYTE) {
-      case ST_CASE_EVALUATE_NEW_CONDITION: goto evaluate_new_condition;
-      case ST_CASE_CONDITION_WAS_EVALUATED: goto condition_was_evaluated;
-      case ST_CASE_BRANCH_WAS_EVALUATED: goto branch_was_evaluated;
+      case ST_CASE_EVALUATING_CONDITION: goto condition_was_evaluated;
+      case ST_CASE_SKIPPING_GROUP_BRANCH: goto evaluate_new_condition;
+      case ST_CASE_EVALUATING_BRANCH: goto branch_was_evaluated;
       default: assert(false);
     }
 
-  initial_entry: blockscope {
+  initial_entry: {
     DECLARE_FRAME_AT (
         f_cases,  // will be named "f" on later calls
         ARG(cases),  // slot gets reused for `predicate_label`
@@ -1033,7 +1033,7 @@ REBNATIVE(case)
     goto evaluate_new_condition;
   }
 
-  evaluate_new_condition: blockscope {
+  evaluate_new_condition: {
     Init_Nulled(D_OUT);  // Stale value if no condition found
 
     if (IS_ACTION(predicate)) {
@@ -1043,11 +1043,11 @@ REBNATIVE(case)
     else
         INIT_F_EXECUTOR(f, &New_Expression_Executor);
 
-    D_STATE_BYTE = ST_CASE_CONDITION_WAS_EVALUATED;  // next entry
+    D_STATE_BYTE = ST_CASE_EVALUATING_CONDITION;
     return R_CONTINUATION;
   }
 
-  condition_was_evaluated: blockscope {
+  condition_was_evaluated: {
     if (GET_CELL_FLAG(D_OUT, OUT_MARKED_STALE)) {
         CLEAR_CELL_FLAG(D_OUT, OUT_MARKED_STALE);
         goto reached_end;
@@ -1080,7 +1080,7 @@ REBNATIVE(case)
             //
             f->executor = &New_Expression_Executor;
 
-            D_STATE_BYTE = ST_CASE_EVALUATE_NEW_CONDITION;  // next entry
+            D_STATE_BYTE = ST_CASE_SKIPPING_GROUP_BRANCH;
             return R_CONTINUATION;
         }
         else {
@@ -1107,7 +1107,7 @@ REBNATIVE(case)
     //
     INIT_F_EXECUTOR(f, &Finished_Executor);
 
-    D_STATE_BYTE = ST_CASE_BRANCH_WAS_EVALUATED;  // next entry
+    D_STATE_BYTE = ST_CASE_EVALUATING_BRANCH;
     Push_Continuation_With_Core(
         D_OUT,
         f,
@@ -1119,7 +1119,7 @@ REBNATIVE(case)
     return R_CONTINUATION;
   }
 
-  branch_was_evaluated: blockscope {
+  branch_was_evaluated: {
     if (GET_CELL_FLAG(D_OUT, OUT_MARKED_STALE)) {
         assert(!"Stale value seen, should not be possible here.");
         fail ("Stale value seen, should not be possible here.");
@@ -1137,7 +1137,7 @@ REBNATIVE(case)
     goto evaluate_new_condition;
   }
 
-  reached_end: blockscope {
+  reached_end: {
     Drop_Frame(f);
 
     // Last evaluation will "fall out" if there is no branch:
@@ -1382,16 +1382,16 @@ REBNATIVE(default)
 
     enum {
         ST_DEFAULT_INITIAL_ENTRY = 0,
-        ST_DEFAULT_BRANCH_WAS_EVALUATED
+        ST_DEFAULT_EVALUATING_BRANCH
     };
 
     switch (D_STATE_BYTE) {
       case ST_DEFAULT_INITIAL_ENTRY: goto initial_entry;
-      case ST_DEFAULT_BRANCH_WAS_EVALUATED: goto branch_was_evaluated;
+      case ST_DEFAULT_EVALUATING_BRANCH: goto branch_was_evaluated;
       default: assert(false);
     }
 
-  initial_entry: blockscope {
+  initial_entry: {
     if (IS_NULLED(target)) { // e.g. `case [... default [...]]`
         UNUSED(ARG(look));
         if (NOT_END(frame_->feed->value))  // !!! shortcut w/variadic for now
@@ -1462,11 +1462,11 @@ REBNATIVE(default)
         return D_OUT;  // count it as "already set" !!! is this right?
     }
 
-    D_STATE_BYTE = ST_DEFAULT_BRANCH_WAS_EVALUATED;
+    D_STATE_BYTE = ST_DEFAULT_EVALUATING_BRANCH;
     CONTINUE (ARG(branch));
   }
 
-  branch_was_evaluated: blockscope {
+  branch_was_evaluated: {
     if (IS_SET_WORD(target))
         Move_Value(Sink_Word_May_Fail(target, SPECIFIED), D_OUT);
     else {
@@ -1517,12 +1517,12 @@ REBNATIVE(catch)
 
     enum {
         ST_CATCH_INITIAL_ENTRY = 0,
-        ST_CATCH_EVALUATION_FINISHED
+        ST_CATCH_EVALUATING
     };
 
     switch (D_STATE_BYTE) {
         case ST_CATCH_INITIAL_ENTRY: goto initial_entry;
-        case ST_CATCH_EVALUATION_FINISHED: goto evaluation_finished;
+        case ST_CATCH_EVALUATING: goto evaluation_finished;
         default: assert(false);
     }
 
@@ -1533,7 +1533,7 @@ REBNATIVE(catch)
     if (REF(any) and REF(name))
         fail (Error_Bad_Refines_Raw());
 
-    D_STATE_BYTE = ST_CATCH_EVALUATION_FINISHED;
+    D_STATE_BYTE = ST_CATCH_EVALUATING;
     CONTINUE_CATCHABLE (ARG(block));
   }
 

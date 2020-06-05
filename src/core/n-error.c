@@ -55,21 +55,21 @@ REBNATIVE(trap)
 
     enum {
         ST_TRAP_INITIAL_ENTRY = 0,
-        ST_TRAP_CODE_EVALUATED
+        ST_TRAP_EVALUATING
     };
 
     switch (D_STATE_BYTE) {
-       case ST_TRAP_INITIAL_ENTRY: goto initial_entry;
-       case ST_TRAP_CODE_EVALUATED: goto code_evaluated;
-       default: assert(false);
+      case ST_TRAP_INITIAL_ENTRY: goto initial_entry;
+      case ST_TRAP_EVALUATING: goto evaluation_finished;
+      default: assert(false);
     }
 
   initial_entry: {
-    D_STATE_BYTE = ST_TRAP_CODE_EVALUATED;
+    D_STATE_BYTE = ST_TRAP_EVALUATING;
     CONTINUE (ARG(code));
   }
 
-  code_evaluated: {  // e.g. no error or throw occurred
+  evaluation_finished: {  // e.g. no error or throw occurred
     if (IS_ERROR(D_OUT))
         return D_OUT;  // !!! hack for the moment
 

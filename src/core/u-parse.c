@@ -80,8 +80,8 @@
 enum {
     ST_PARSE_ENTRY = 0,
     ST_PARSE_PRE_RULE,
-    ST_PARSE_GROUP_WAS_EVALUATED,
-    ST_PARSE_SUBRULES_COMPLETED
+    ST_PARSE_EVALUATING_GROUP,
+    ST_PARSE_PROCESSING_SUBRULES
 };
 
 
@@ -583,7 +583,7 @@ REB_R Parse_Group_Executor(REBFRM *f)
             SET_END(f->out);
 
     INIT_F_EXECUTOR(f, &Parse_Executor);  // return to prior parsing
-    assert(STATE_BYTE(f) == ST_PARSE_GROUP_WAS_EVALUATED);
+    assert(STATE_BYTE(f) == ST_PARSE_EVALUATING_GROUP);
     assert(IS_END(f->out) or not IS_NULLED(f->out));
     return f->out;
 }
@@ -1625,9 +1625,9 @@ REB_R Parse_Executor(REBFRM *frame_) {
             assert(IS_NULLED(P_OUT));  // temporary due to BLANK! continuation
             SET_END(P_OUT);
             break;  // sets `rule`
-          case ST_PARSE_GROUP_WAS_EVALUATED:
+          case ST_PARSE_EVALUATING_GROUP:
             goto group_was_evaluated;  // sets the `rule` or `goto pre_rule;`
-          case ST_PARSE_SUBRULES_COMPLETED:
+          case ST_PARSE_PROCESSING_SUBRULES:
             goto subrules_completed;
           default: assert(false);
         }
@@ -1700,7 +1700,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
     // indefinitely, but for now a GET-GROUP! can't return another.
 
     if (IS_GROUP(P_RULE) or IS_GET_GROUP(P_RULE)) {
-      process_group: blockscope {
+      process_group: {
         DECLARE_FEED_AT_CORE (subfeed, P_RULE, P_RULE_SPECIFIER);
         DECLARE_FRAME (subframe, subfeed,
             EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END | EVAL_FLAG_ALLOCATED_FEED);
@@ -1709,11 +1709,11 @@ REB_R Parse_Executor(REBFRM *frame_) {
         INIT_F_EXECUTOR(subframe, &New_Expression_Executor);
         assert(IS_END(P_OUT));
         Push_Frame(P_OUT, subframe);
-        D_STATE_BYTE = ST_PARSE_GROUP_WAS_EVALUATED;
+        D_STATE_BYTE = ST_PARSE_EVALUATING_GROUP;
         return R_CONTINUATION;
       }
 
-      group_was_evaluated: blockscope {
+      group_was_evaluated: {
         if (Is_Throwing(f))
             goto return_thrown;
 
@@ -2544,11 +2544,11 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 P_COLLECTION,
                 (P_FLAGS & PF_FIND_MASK)
             );
-            D_STATE_BYTE = ST_PARSE_SUBRULES_COMPLETED;
+            D_STATE_BYTE = ST_PARSE_PROCESSING_SUBRULES;
             return R_CONTINUATION;
           }
 
-          subrules_completed: blockscope {
+          subrules_completed: {
 
             bool interrupted;
             if (Unpack_Subparse_Throws(&interrupted, P_CELL, f)) {

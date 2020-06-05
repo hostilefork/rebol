@@ -59,12 +59,12 @@ REBNATIVE(delimit)
 
     enum {
         ST_DELIMIT_INITIAL_ENTRY = 0,
-        ST_DELIMIT_EVAL_STEP_FINISHED
+        ST_DELIMIT_EVAL_STEP
     };
 
     switch (D_STATE_BYTE) {
       case ST_DELIMIT_INITIAL_ENTRY: goto initial_entry;
-      case ST_DELIMIT_EVAL_STEP_FINISHED: goto eval_step_finished;
+      case ST_DELIMIT_EVAL_STEP: goto eval_step_finished;
       default: assert(false);
     }
 
@@ -92,7 +92,7 @@ REBNATIVE(delimit)
     Init_Blank(pending);  // no output yet, also IS_FALSEY() so not pending
 
     Push_Continuation_At(D_OUT, line);
-    D_STATE_BYTE = ST_DELIMIT_EVAL_STEP_FINISHED;
+    D_STATE_BYTE = ST_DELIMIT_EVAL_STEP;
     return R_CONTINUATION;
   }
 

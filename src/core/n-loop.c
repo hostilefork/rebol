@@ -880,14 +880,14 @@ REBNATIVE(for_skip)
 
     enum {
         ST_FOR_SKIP_INITIAL_ENTRY = 0,
-        ST_FOR_SKIP_BODY_WAS_EVALUATED
+        ST_FOR_SKIP_EVALUATING_BODY
     };
 
     switch (D_STATE_BYTE) {
       case ST_FOR_SKIP_INITIAL_ENTRY:
         goto initial_entry;
 
-      case ST_FOR_SKIP_BODY_WAS_EVALUATED:
+      case ST_FOR_SKIP_EVALUATING_BODY:
         pseudo_var = CTX_VAR(VAL_CONTEXT(D_SPARE), 1);  // not movable, #2274
         var = Real_Var_From_Pseudo(pseudo_var);
         goto body_was_evaluated;
@@ -923,7 +923,7 @@ REBNATIVE(for_skip)
 
     Init_Object(D_SPARE, context);  // GC protect and perist context
 
-    D_STATE_BYTE = ST_FOR_SKIP_BODY_WAS_EVALUATED;
+    D_STATE_BYTE = ST_FOR_SKIP_EVALUATING_BODY;
     goto next_step;
   }
 
@@ -1027,17 +1027,17 @@ REBNATIVE(cycle)
 
     enum {
         ST_CYCLE_INITIAL_ENTRY = 0,
-        ST_CYCLE_BODY_WAS_EVALUATED
+        ST_CYCLE_EVALUATING_BODY
     };
 
     switch (D_STATE_BYTE) {
       case ST_CYCLE_INITIAL_ENTRY: goto initial_entry;
-      case ST_CYCLE_BODY_WAS_EVALUATED: goto body_was_evaluated;
+      case ST_CYCLE_EVALUATING_BODY: goto body_was_evaluated;
       default: assert(false);
     }
 
   initial_entry: {
-    D_STATE_BYTE = ST_CYCLE_BODY_WAS_EVALUATED;
+    D_STATE_BYTE = ST_CYCLE_EVALUATING_BODY;
     CONTINUE_CATCHABLE (ARG(body));
   }
 
@@ -1575,12 +1575,12 @@ REBNATIVE(loop)
 
     enum {
         ST_LOOP_INITIAL_ENTRY = 0,
-        ST_LOOP_BODY_WAS_EVALUATED
+        ST_LOOP_EVALUATING_BODY
     };
 
     switch (D_STATE_BYTE) {
       case ST_LOOP_INITIAL_ENTRY: goto initial_entry;
-      case ST_LOOP_BODY_WAS_EVALUATED: goto body_was_evaluated;
+      case ST_LOOP_EVALUATING_BODY: goto body_was_evaluated;
       default: assert(false);
     }
 
@@ -1607,7 +1607,7 @@ REBNATIVE(loop)
         Move_Value(D_SPARE, count);
     }
 
-    D_STATE_BYTE = ST_LOOP_BODY_WAS_EVALUATED;
+    D_STATE_BYTE = ST_LOOP_EVALUATING_BODY;
     CONTINUE_CATCHABLE (ARG(body));
   }
 
@@ -1699,17 +1699,17 @@ REBNATIVE(until)
 
     enum {
         ST_UNTIL_INITIAL_ENTRY = 0,
-        ST_UNTIL_BODY_WAS_EVALUATED
+        ST_UNTIL_EVALUATING_BODY
     };
 
   switch (D_STATE_BYTE) {
     case ST_UNTIL_INITIAL_ENTRY: goto initial_entry;
-    case ST_UNTIL_BODY_WAS_EVALUATED: goto body_was_evaluated;
+    case ST_UNTIL_EVALUATING_BODY: goto body_was_evaluated;
     default: assert(false);
   }
 
   initial_entry: {
-    D_STATE_BYTE = ST_UNTIL_BODY_WAS_EVALUATED;
+    D_STATE_BYTE = ST_UNTIL_EVALUATING_BODY;
     CONTINUE_CATCHABLE (ARG(body));
   }
 
@@ -1755,20 +1755,20 @@ REBNATIVE(while)
 
     enum {
         ST_WHILE_INITIAL_ENTRY = 0,
-        ST_WHILE_CONDITION_WAS_EVALUATED,
-        ST_WHILE_BODY_WAS_EVALUATED
+        ST_WHILE_EVALUATING_CONDITION,
+        ST_WHILE_EVALUATING_BODY
     };
 
     switch (D_STATE_BYTE) {
       case ST_WHILE_INITIAL_ENTRY: goto initial_entry;
-      case ST_WHILE_CONDITION_WAS_EVALUATED: goto condition_was_evaluated;
-      case ST_WHILE_BODY_WAS_EVALUATED: goto body_was_evaluated;
+      case ST_WHILE_EVALUATING_CONDITION: goto condition_was_evaluated;
+      case ST_WHILE_EVALUATING_BODY: goto body_was_evaluated;
       default: assert(false);
     }
 
   initial_entry: {
     Init_Blank(ARG(return));  // result if body never runs
-    D_STATE_BYTE = ST_WHILE_CONDITION_WAS_EVALUATED;  // next entry
+    D_STATE_BYTE = ST_WHILE_EVALUATING_CONDITION;
     CONTINUE (ARG(condition));
   }
 
@@ -1778,7 +1778,7 @@ REBNATIVE(while)
         Voidify_If_Nulled_Or_Blank(D_OUT);  // null->BREAK, blank->not run
         RETURN (ARG(return));  // condition false, return last body result
     }
-    D_STATE_BYTE = ST_WHILE_BODY_WAS_EVALUATED;  // next entry
+    D_STATE_BYTE = ST_WHILE_EVALUATING_BODY;
     CONTINUE_CATCHABLE (ARG(body));
   }
 
@@ -1795,7 +1795,7 @@ REBNATIVE(while)
     }
 
     Move_Value(ARG(return), D_OUT);  // save body result
-    D_STATE_BYTE = ST_WHILE_CONDITION_WAS_EVALUATED;  // next entry
+    D_STATE_BYTE = ST_WHILE_EVALUATING_CONDITION;
     CONTINUE (ARG(condition));  // run the condition, no catching of throws
   }
 }

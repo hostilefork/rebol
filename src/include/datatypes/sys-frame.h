@@ -1217,7 +1217,7 @@ inline static REBFRM *Push_Continuation_With_Core(
         fail ("Bad branch type");
     }
 
-  just_use_out: blockscope {
+  just_use_out: {
     DECLARE_END_FRAME (subframe, EVAL_MASK_DEFAULT);
     INIT_F_EXECUTOR(subframe, &Finished_Executor);
     Push_Frame(f->out, subframe);

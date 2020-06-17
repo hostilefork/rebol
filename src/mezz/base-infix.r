@@ -97,9 +97,6 @@ for-each [comparison-op function-name] compose [
 ]
 
 
-=>: enfixed :lambda  ; quick function generator
-
-
 ; <- is the SHOVE operator.  It grabs whatever is on the left and uses it as
 ; the first argument to whatever operation is on its right hand side.  It
 ; adopts the parameter convention of the right.  If the right's first argument

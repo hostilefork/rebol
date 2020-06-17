@@ -1775,7 +1775,11 @@ REB_R Adapter_Dispatcher(REBFRM *f)
 //
 //  Encloser_Dispatcher: C
 //
-// Dispatcher used by ENCLOSE.
+// An encloser is called with a frame that was built compatibly to invoke an
+// "inner" function.  It wishes to pass this frame as an argument to an
+// "outer" function, that takes only that argument.  To do this, the frame's
+// varlist must thus be detached from `f` and transitioned from an "executing"
+// to "non-executing" state...so that it can be used with DO.
 //
 REB_R Encloser_Dispatcher(REBFRM *f)
 {
@@ -1826,6 +1830,15 @@ REB_R Encloser_Dispatcher(REBFRM *f)
     //
     SET_SERIES_FLAG(f->varlist, MANAGED);
 
+    // The `c` context is now detached from a frame, so nothing would protect
+    // it from garbage collection.  Use the FRM_SPARE(f) as a place to put it.
+    //
+    // !!! See notes in Push_Continuation_With_Core() on how the frame might
+    // be filled directly and bypassing a feed allocation, hence not needing
+    // any GC safety.
+    //
+    Move_Value(FRM_SPARE(f), rootvar);
+
     // It's important we use EVAL_FLAG_DELEGATE_CONTROL because because we
     // have stolen the original frame--there is no longer a complete entity to
     // come back and reinvoke.
@@ -1836,7 +1849,7 @@ REB_R Encloser_Dispatcher(REBFRM *f)
         EVAL_FLAG_DELEGATE_CONTROL,
         outer,
         SPECIFIED,
-        rootvar
+        FRM_SPARE(f)  // the "with" parameter
     );
     return R_CONTINUATION;
 }

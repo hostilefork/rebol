@@ -805,6 +805,22 @@ REBVAL *First_Unspecialized_Param(REBACT *act)
 
 
 //
+//  First_Unspecialized_Arg: C
+//
+// Helper built on First_Unspecialized_Param(), can also give you the param.
+//
+REBVAL *First_Unspecialized_Arg(REBVAL **opt_param_out, REBFRM *f)
+{
+    REBACT *phase = FRM_PHASE(f);
+    REBVAL *param = First_Unspecialized_Param(phase);
+    if (*opt_param_out)
+        *opt_param_out = param;
+    REBLEN index = param - ACT_PARAMS_HEAD(phase);
+    return FRM_ARGS_HEAD(f) + index;
+}
+
+
+//
 //  Block_Dispatcher: C
 //
 // There are no arguments or locals to worry about in a DOES, nor does it

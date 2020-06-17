@@ -995,13 +995,18 @@ inline static REBVAL *D_ARG_Core(REBFRM *f, REBLEN n) {  // 1 for first arg
 // continuation finishes, and its f->out pointer will contain whatever was
 // produced.
 //
+// !!! The with parameter, e.g. to a single-arg function, must be in a GC safe
+// location.  This could perhaps be optimized to avoid a feed allocation by
+// filling a function's frame directly via First_Unspecialized_Arg() and
+// catching any errors there...which would bypass the need for GC safety.
+//
 inline static REBFRM *Push_Continuation_With_Core(
     REBVAL *out,
     REBFRM *f,
     REBFLGS flags,  // EVAL_FLAG_(DELEGATE_CONTROL/DISPATCHER_CATCHES)
     const RELVAL *branch,
     REBSPC *branch_specifier,
-    const REBVAL *with
+    const REBVAL *with  // See note: Must be in GC-safe location!
 ){
     f->flags.bits |= flags;
     assert(branch != out and with != out);

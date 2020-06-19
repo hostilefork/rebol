@@ -1556,8 +1556,7 @@ REB_R Action_Executor(REBFRM *f)
 
   abort_action: {
     Drop_Action(f);
-    DS_DROP_TO(f->baseline.dsp);  // unprocessed refinements / chains on stack
-    return R_THROWN;
+    return R_THROWN;  // Will Abort_Frame() and drop to baseline DSP, mold...
   }
 
   redo_checked: {  // R_REDO_CHECKED

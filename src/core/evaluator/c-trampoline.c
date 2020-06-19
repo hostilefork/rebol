@@ -181,7 +181,7 @@ bool Trampoline_Throws(REBFRM *f_stop)
                 //assert(f->out == FRM_SPARE(f->prior));
                 Move_Value(f->prior->out, f->out);
             }
-            Drop_Frame(f);
+            Abort_Frame(f);
             f = FS_TOP;  // refresh
 
             // We assume the action and parse executors want to catch throws

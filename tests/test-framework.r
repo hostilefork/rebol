@@ -41,7 +41,7 @@ make object! compose [
 
         if not empty? exclude flags allowed-flags [
             skipped: me + 1
-            log [space "skipped" newline]
+            log [space {"skipped"} newline]
             return
         ]
 
@@ -166,8 +166,11 @@ make object! compose [
                     any [
                         any whitespace
                         [
-                            position: "%" (
-                                next_position: _  ; !!! for SET-WORD! gather
+                            position:
+
+                            ; Test filenames appear in the log, %x.test.reb
+                            "%" (
+                                next-position: _  ; !!! for SET-WORD! gather
                                 [value next-position]: transcode position
                             )
                             :next-position
@@ -191,16 +194,16 @@ make object! compose [
                                 ; test result found
                                 (
                                     parse value [
-                                        "succeeded"
+                                        "succeeded" end
                                         (successes: me + 1)
                                             |
-                                        "failed"
+                                        "failed" opt ["," to end]  ; error msg
                                         (test-failures: me + 1)
                                             |
-                                        "crashed"
+                                        "crashed" end
                                         (crashes: me + 1)
                                             |
-                                        "skipped"
+                                        "skipped" end
                                         (skipped: me + 1)
                                             |
                                         (fail "invalid test result")
@@ -210,11 +213,13 @@ make object! compose [
                                 |
                             "system/version:"
                             to end
-                            (last-vector: guard: _)
-
-                        ] position: guard break
+                            (last-vector: _)
+                        ]
                             |
-                        :position
+                        (fail [
+                            "Log file parse problem, see"
+                            mold/limit as text! position 240
+                        ])
                     ]
                     end
                 ] else [

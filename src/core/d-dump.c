@@ -62,7 +62,7 @@ void Dump_Series(REBSER *s, const char *memo)
     printf(" size: %ld\n", cast(unsigned long, SER_TOTAL_IF_DYNAMIC(s)));
     if (IS_SER_DYNAMIC(s))
         printf(" bias: %d\n", cast(int, SER_BIAS(s)));
-    printf(" tail: %d\n", cast(int, SER_LEN(s)));
+    printf(" used: %d\n", cast(int, SER_USED(s)));
     printf(" rest: %d\n", cast(int, SER_REST(s)));
 
     // flags includes len if non-dynamic
@@ -94,7 +94,7 @@ void Dump_Info(void)
 
     printf("    Ballast: %d\n", cast(int, GC_Ballast));
     printf("    Disable: %s\n", GC_Disabled ? "yes" : "no");
-    printf("    Guarded Nodes: %d\n", cast(int, SER_LEN(GC_Guarded)));
+    printf("    Guarded Nodes: %d\n", cast(int, SER_USED(GC_Guarded)));
     fflush(stdout);
 }
 

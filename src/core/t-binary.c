@@ -475,7 +475,7 @@ REB_R PD_Binary(
     if (not opt_setval) { // PICK-ing
         if (IS_INTEGER(picker)) {
             REBINT n = Int32(picker) + VAL_INDEX(pvs->out) - 1;
-            if (n < 0 or cast(REBLEN, n) >= SER_LEN(ser))
+            if (n < 0 or cast(REBLEN, n) >= BIN_LEN(ser))
                 return nullptr;
 
             Init_Integer(pvs->out, *BIN_AT(ser, n));
@@ -493,7 +493,7 @@ REB_R PD_Binary(
         return R_UNHANDLED;
 
     REBINT n = Int32(picker) + VAL_INDEX(pvs->out) - 1;
-    if (n < 0 or cast(REBLEN, n) >= SER_LEN(ser))
+    if (n < 0 or cast(REBLEN, n) >= BIN_LEN(ser))
         fail (Error_Out_Of_Range(picker));
 
     REBINT c;

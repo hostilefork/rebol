@@ -805,7 +805,7 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
             // the top-level META-OF, not the "incidentally" named RETURN
             // parameter in the list
             //
-            if (SER_LEN(VAL_SERIES(definitional_return + 2)) == 0)
+            if (VAL_LEN_HEAD(definitional_return + 2) == 0)
                 Init_Nulled(CTX_VAR(meta, STD_ACTION_META_RETURN_NOTE));
             else {
                 Move_Value(
@@ -823,7 +823,7 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
             if (definitional_return and src == definitional_return + 2)
                 continue;
 
-            if (SER_LEN(VAL_SERIES(src)) == 0)
+            if (VAL_LEN_HEAD(src) == 0)
                 Init_Nulled(dest);
             else
                 Move_Value(dest, src);

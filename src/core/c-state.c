@@ -47,9 +47,9 @@ void Snap_State_Core(struct Reb_State *s)
     //
     assert(ARR_LEN(BUF_COLLECT) == 0);
 
-    s->guarded_len = SER_LEN(GC_Guarded);
+    s->guarded_len = SER_USED(GC_Guarded);
 
-    s->manuals_len = SER_LEN(GC_Manuals);
+    s->manuals_len = SER_USED(GC_Manuals);
     s->mold_buf_len = STR_LEN(STR(MOLD_BUF));
     s->mold_buf_size = STR_SIZE(STR(MOLD_BUF));
     s->mold_loop_tail = ARR_LEN(TG_Mold_Stack);
@@ -74,11 +74,11 @@ void Rollback_Globals_To_State(struct Reb_State *s)
     // into the managed state).  This will include the series used as backing
     // store for rebMalloc() calls.
     //
-    assert(SER_LEN(GC_Manuals) >= s->manuals_len);
-    while (SER_LEN(GC_Manuals) != s->manuals_len) {
+    assert(SER_USED(GC_Manuals) >= s->manuals_len);
+    while (SER_USED(GC_Manuals) != s->manuals_len) {
         Free_Unmanaged_Series(
-            *SER_AT(REBSER*, GC_Manuals, SER_LEN(GC_Manuals) - 1)
-        );  // ^-- Free_Unmanaged_Series will decrement SER_LEN(GC_Manuals)
+            *SER_AT(REBSER*, GC_Manuals, SER_USED(GC_Manuals) - 1)
+        );  // ^-- Free_Unmanaged_Series will decrement SER_USED(GC_Manuals)
     }
 
     SET_SERIES_LEN(GC_Guarded, s->guarded_len);
@@ -304,27 +304,27 @@ void Assert_State_Balanced_Debug(
 
     assert(ARR_LEN(BUF_COLLECT) == 0);
 
-    if (s->guarded_len != SER_LEN(GC_Guarded)) {
+    if (s->guarded_len != SER_USED(GC_Guarded)) {
         printf(
             "PUSH_GC_GUARD()x%d without DROP_GC_GUARD()\n",
-            cast(int, SER_LEN(GC_Guarded) - s->guarded_len)
+            cast(int, SER_USED(GC_Guarded) - s->guarded_len)
         );
         REBNOD *guarded = *SER_AT(
             REBNOD*,
             GC_Guarded,
-            SER_LEN(GC_Guarded) - 1
+            SER_USED(GC_Guarded) - 1
         );
         panic_at (guarded, file, line);
     }
 
     // !!! Note that this inherits a test that uses GC_Manuals->content.xxx
-    // instead of SER_LEN().  The idea being that although some series
+    // instead of SER_USED().  The idea being that although some series
     // are able to fit in the series node, the GC_Manuals wouldn't ever
     // pay for that check because it would always be known not to.  Review
     // this in general for things that may not need "series" overhead,
     // e.g. a contiguous pointer stack.
     //
-    if (s->manuals_len > SER_LEN(GC_Manuals)) {
+    if (s->manuals_len > SER_USED(GC_Manuals)) {
         //
         // Note: Should this ever actually happen, panic() on the series won't
         // do any real good in helping debug it.  You'll probably need
@@ -333,15 +333,15 @@ void Assert_State_Balanced_Debug(
         //
         panic_at ("manual series freed outside checkpoint", file, line);
     }
-    else if (s->manuals_len < SER_LEN(GC_Manuals)) {
+    else if (s->manuals_len < SER_USED(GC_Manuals)) {
         printf(
             "Make_Series()x%d w/o Free_Unmanaged_Series or Manage_Series\n",
-            cast(int, SER_LEN(GC_Manuals) - s->manuals_len)
+            cast(int, SER_USED(GC_Manuals) - s->manuals_len)
         );
         REBSER *manual = *(SER_AT(
             REBSER*,
             GC_Manuals,
-            SER_LEN(GC_Manuals) - 1
+            SER_USED(GC_Manuals) - 1
         ));
         panic_at (manual, file, line);
     }

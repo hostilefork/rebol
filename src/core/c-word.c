@@ -131,7 +131,7 @@ static void Expand_Word_Table(void)
     // The only full list of canon words available is the old hash table.
     // Hold onto it while creating the new hash table.
 
-    REBLEN old_num_slots = SER_LEN(PG_Canons_By_Hash);
+    REBLEN old_num_slots = SER_USED(PG_Canons_By_Hash);
     REBSTR* *old_canons_by_hash = SER_HEAD(REBSTR*, PG_Canons_By_Hash);
 
     REBLEN num_slots = Get_Hash_Prime_May_Fail(old_num_slots + 1);
@@ -207,10 +207,10 @@ REBSTR *Intern_UTF8_Managed(const REBYTE *utf8, size_t size)
     // actually kept larger than that, but to be on the right side of theory,
     // the table is always checked for expansion needs *before* the search.)
     //
-    REBLEN num_slots = SER_LEN(PG_Canons_By_Hash);
+    REBLEN num_slots = SER_USED(PG_Canons_By_Hash);
     if (PG_Num_Canon_Slots_In_Use > num_slots / 2) {
         Expand_Word_Table();
-        num_slots = SER_LEN(PG_Canons_By_Hash); // got larger
+        num_slots = SER_USED(PG_Canons_By_Hash);  // got larger
     }
 
     REBSTR* *canons_by_hash = SER_HEAD(REBSTR*, PG_Canons_By_Hash);
@@ -383,7 +383,7 @@ void GC_Kill_Interning(REBSTR *intern)
     assert(MISC(intern).bind_index.high == 0);  // shouldn't GC during binds?
     assert(MISC(intern).bind_index.low == 0);
 
-    REBLEN num_slots = SER_LEN(PG_Canons_By_Hash);
+    REBLEN num_slots = SER_USED(PG_Canons_By_Hash);
     REBSTR* *canons_by_hash = SER_HEAD(REBSTR*, PG_Canons_By_Hash);
 
     REBLEN skip;
@@ -568,8 +568,8 @@ void Startup_Symbols(REBARR *words)
 
     *SER_AT(REBSTR*, PG_Symbol_Canons, cast(REBLEN, sym)) = NULL; // terminate
 
-    SET_SERIES_LEN(PG_Symbol_Canons, 1 + cast(REBLEN, sym));
-    assert(SER_LEN(PG_Symbol_Canons) == 1 + ARR_LEN(words));
+    SET_SERIES_USED(PG_Symbol_Canons, 1 + cast(REBLEN, sym));
+    assert(SER_USED(PG_Symbol_Canons) == 1 + ARR_LEN(words));
 
     // Do some sanity checks.  !!! Fairly critical, is debug-only appropriate?
 
@@ -617,7 +617,7 @@ void Shutdown_Interning(void)
         fflush(stdout);
 
         REBLEN slot;
-        for (slot = 0; slot < SER_LEN(PG_Canons_By_Hash); ++slot) {
+        for (slot = 0; slot < SER_USED(PG_Canons_By_Hash); ++slot) {
             REBSTR *canon = *SER_AT(REBSTR*, PG_Canons_By_Hash, slot);
             if (canon and canon != DELETED_CANON)
                 panic (canon);

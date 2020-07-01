@@ -87,7 +87,7 @@ inline static REBVAL *Init_Vector(
     REBVAL *paired = Alloc_Pairing();
 
     Init_Binary(paired, bin);
-    assert(SER_LEN(bin) % (bitsize / 8) == 0);
+    assert(BIN_LEN(bin) % (bitsize / 8) == 0);
 
     REBVAL *siw = RESET_CELL(
         PAIRING_KEY(paired),

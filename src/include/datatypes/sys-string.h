@@ -45,7 +45,7 @@
 //   datatypes.  However, the series used to store UTF-8 strings also store
 //   information about their length in codepoints in their series nodes (the
 //   main "number of bytes used" in the series conveys bytes, not codepoints).
-//   See the distinction between SER_USED() and SER_LEN()
+//   See the distinction between SER_USED() and STR_LEN().
 //
 
 
@@ -455,16 +455,6 @@ inline static REBLEN STR_INDEX_AT(REBSTR *s, REBSIZ offset) {
     return index;
 }
 
-// If you already know what kind of series you have, you should call STR_LEN()
-// or SER_USED() (aliased as BIN_LEN(), ARR_LEN(), etc.)  It's rare that you
-// don't actually know which it should be.
-//
-inline static REBLEN SER_LEN(REBSER *s) {  // Generic REBSER length
-    if (NOT_SERIES_FLAG(s, IS_STRING))
-        return SER_USED(s);
-    return STR_LEN(STR(s));
-}
-
 inline static void SET_STR_LEN_SIZE(REBSTR *s, REBLEN len, REBSIZ used) {
     assert(not IS_STR_SYMBOL(s));
 
@@ -719,10 +709,17 @@ inline static REBSTR *VAL_STRING(const REBCEL *v) {
     return STR(VAL_NODE(v));  // VAL_SERIES() would assert
 }
 
+// This routine works with the notion of "length" that corresponds to the
+// idea of the datatype which the series index is for.  Notably, a BINARY!
+// can alias an ANY-STRING! or ANY-WORD! and address the individual bytes of
+// that type.  So if the series is a string and not a binary, the special
+// cache of the length in the series node for strings must be used.
+//
 inline static REBLEN VAL_LEN_HEAD(const REBCEL *v) {
-    if (REB_BINARY == CELL_KIND(v))
-        return SER_USED(VAL_SERIES(v));  // binaries can alias strings...
-    return SER_LEN(VAL_SERIES(v));  // senses strings, not optimal.  :-/
+    REBSER *s = VAL_SERIES(v);
+    if (GET_SERIES_FLAG(s, IS_STRING) and CELL_KIND(v) != REB_BINARY)
+        return STR_LEN(STR(s));
+    return SER_USED(s);
 }
 
 inline static bool VAL_PAST_END(const REBCEL *v)
@@ -734,7 +731,7 @@ inline static REBLEN VAL_LEN_AT(const REBCEL *v) {
     // length of a series is 0 if its index is actually past the end, than
     // to implicitly clip the data pointer on out of bounds access.  It's
     // still going to be inconsistent, as if the caller extracts the index
-    // and low level SER_LEN() themselves, they'll find it doesn't add up.
+    // and low level length themselves, they'll find it doesn't add up.
     // This is a longstanding historical Rebol issue that needs review.
     //
     if (VAL_INDEX(v) >= VAL_LEN_HEAD(v))

@@ -144,7 +144,7 @@ REBNATIVE(recycle)
       #else
         REBSER *sweeplist = Make_Series(100, sizeof(REBNOD*));
         count = Recycle_Core(false, sweeplist);
-        assert(count == SER_LEN(sweeplist));
+        assert(count == SER_USED(sweeplist));
 
         REBLEN index = 0;
         for (index = 0; index < count; ++index) {

@@ -174,7 +174,7 @@
 //=//// SERIES_FLAG_ALWAYS_DYNAMIC ////////////////////////////////////////=//
 //
 // The optimization which uses small series will fit the data into the series
-// node if it is small enough.  But doing this requires a test on SER_LEN()
+// node if it is small enough.  But doing this requires a test on SER_USED()
 // and SER_DATA_RAW() to see if the small optimization is in effect.  Some
 // code is more interested in the performance gained by being able to assume
 // where to look for the data pointer and the length (e.g. paramlists and
@@ -367,7 +367,7 @@ STATIC_ASSERT(SERIES_INFO_7_IS_FALSE == NODE_FLAG_CELL);
     mutable_SECOND_BYTE((s)->info.bits)
 
 
-//=//// BITS 16-23 ARE SER_LEN() FOR NON-DYNAMIC SERIES ///////////////////=//
+//=//// BITS 16-23 ARE SER_USED() FOR NON-DYNAMIC SERIES //////////////////=//
 
 // 255 indicates that this series has a dynamically allocated portion.  If it
 // is another value, then it's the length of content which is found directly
@@ -694,12 +694,10 @@ union Reb_Series_Misc {
     //
     REBLIN line;
 
-    // Under UTF-8 everywhere, strings are byte-sized...so the series "size"
+    // Under UTF-8 everywhere, strings are byte-sized...so the series "used"
     // is actually counting *bytes*, not logical character codepoint units.
-    // SER_SIZE() and SER_LEN() can therefore be different...where SER_LEN()
-    // on a string series comes from here, vs. just report the size.
-    //
-    // !!! UTF-8 everywhere is a work-in-progress.
+    // SER_USED() and STR_LEN() can therefore be different...where STR_LEN()
+    // on a string series comes from here, vs. just report the used units.
     //
     REBLEN length;
 

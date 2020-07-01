@@ -952,7 +952,7 @@ REBTYPE(Image)
 
     REBSER *series = VAL_BINARY(VAL_IMAGE_BIN(value));
     REBINT index = VAL_IMAGE_POS(value);
-    REBINT tail = cast(REBINT, SER_LEN(series));
+    REBINT tail = cast(REBINT, BIN_LEN(series));
 
     // Clip index if past tail:
     //

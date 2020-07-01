@@ -204,7 +204,7 @@ void New_Indented_Line(REB_MOLD *mo)
 REBLEN Find_Pointer_In_Series(REBSER *s, void *p)
 {
     REBLEN index = 0;
-    for (; index < SER_LEN(s); ++index) {
+    for (; index < SER_USED(s); ++index) {
         if (*SER_AT(void*, s, index) == p)
             return index;
     }
@@ -218,8 +218,8 @@ void Push_Pointer_To_Series(REBSER *s, void *p)
 {
     if (SER_FULL(s))
         Extend_Series(s, 8);
-    *SER_AT(void*, s, SER_LEN(s)) = p;
-    SET_SERIES_LEN(s, SER_LEN(s) + 1);
+    *SER_AT(void*, s, SER_USED(s)) = p;
+    SET_SERIES_USED(s, SER_USED(s) + 1);
 }
 
 //
@@ -227,9 +227,9 @@ void Push_Pointer_To_Series(REBSER *s, void *p)
 //
 void Drop_Pointer_From_Series(REBSER *s, void *p)
 {
-    assert(p == *SER_AT(void*, s, SER_LEN(s) - 1));
+    assert(p == *SER_AT(void*, s, SER_USED(s) - 1));
     UNUSED(p);
-    SET_SERIES_LEN(s, SER_LEN(s) - 1);
+    SET_SERIES_USED(s, SER_USED(s) - 1);
 
     // !!! Could optimize so mold stack is always dynamic, and just use
     // s->content.dynamic.len--
@@ -525,7 +525,7 @@ void Push_Mold(REB_MOLD *mo)
         // the contents, as there may be important mold data behind the
         // ->start index in the stack!
         //
-        REBLEN len = SER_LEN(s);
+        REBLEN len = STR_LEN(MOLD_BUF);
         Remake_Series(
             s,
             SER_USED(s) + MIN_COMMON,

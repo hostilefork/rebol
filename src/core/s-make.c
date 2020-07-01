@@ -424,7 +424,7 @@ void Join_Binary_In_Byte_Buf(const REBVAL *blk, REBINT limit)
             fail (Error_Bad_Value_Core(val, VAL_SPECIFIER(blk)));
         }
 
-        tail = SER_LEN(buf);
+        tail = SER_USED(buf);
     }
 
     *BIN_AT(buf, tail) = 0;

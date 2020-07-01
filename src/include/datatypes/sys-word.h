@@ -180,7 +180,7 @@ inline static OPT_REBSYM STR_SYMBOL(REBSTR *s) {
 
 inline static REBSTR *Canon(REBSYM sym) {
     assert(cast(REBLEN, sym) != 0);
-    assert(cast(REBLEN, sym) < SER_LEN(PG_Symbol_Canons));
+    assert(cast(REBLEN, sym) < SER_USED(PG_Symbol_Canons));
     return *SER_AT(REBSTR*, PG_Symbol_Canons, cast(REBLEN, sym));
 }
 

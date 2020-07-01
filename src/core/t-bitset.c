@@ -209,7 +209,7 @@ REBINT Find_Max_Bit(const RELVAL *val)
 bool Check_Bit(REBSER *bset, REBLEN c, bool uncased)
 {
     REBLEN i, n = c;
-    REBLEN tail = SER_LEN(bset);
+    REBLEN tail = BIN_LEN(bset);
     bool flag = false;
 
     if (uncased) {
@@ -247,7 +247,7 @@ retry:
 void Set_Bit(REBSER *bset, REBLEN n, bool set)
 {
     REBLEN i = n >> 3;
-    REBLEN tail = SER_LEN(bset);
+    REBLEN tail = BIN_LEN(bset);
     REBYTE bit;
 
     // Expand if not enough room:
@@ -392,7 +392,7 @@ bool Set_Bits(REBSER *bset, const REBVAL *val, bool set)
             if (not IS_BINARY(item))
                 return false;
             REBLEN n = VAL_LEN_AT(item);
-            REBUNI c = SER_LEN(bset);
+            REBUNI c = BIN_LEN(bset);
             if (n >= c) {
                 Expand_Series(bset, c, (n - c));
                 CLEAR(BIN_AT(bset, c), (n - c));
@@ -554,7 +554,7 @@ REB_R PD_Bitset(
 //
 void Trim_Tail_Zeros(REBSER *ser)
 {
-    REBLEN len = SER_LEN(ser);
+    REBLEN len = BIN_LEN(ser);
     REBYTE *bp = BIN_HEAD(ser);
 
     while (len > 0 && bp[len] == 0)

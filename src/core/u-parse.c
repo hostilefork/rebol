@@ -109,6 +109,7 @@ enum {
 #define P_INPUT             VAL_SERIES(P_INPUT_VALUE)
 #define P_INPUT_SPECIFIER   VAL_SPECIFIER(P_INPUT_VALUE)
 #define P_POS               VAL_INDEX(P_INPUT_VALUE)
+#define P_INPUT_LEN         VAL_LEN_HEAD(P_INPUT_VALUE)
 
 #define P_FLAGS_VALUE       (f->rootvar + 3)
 #define P_FLAGS             VAL_INT64(P_FLAGS_VALUE)
@@ -454,7 +455,7 @@ static void Print_Parse_Index(REBFRM *f) {
     // when seeking a position given in a variable or modifying?
     //
     if (IS_END(P_RAW_RULE)) {
-        if (P_POS >= SER_LEN(P_INPUT))
+        if (P_POS >= P_INPUT_LEN)
             rebElide("print {[]: ** END **}", rebEND);
         else
             rebElide("print [{[]:} mold", input, "]", rebEND);
@@ -463,7 +464,7 @@ static void Print_Parse_Index(REBFRM *f) {
         DECLARE_LOCAL (rule);
         Derelativize(rule, P_RAW_RULE, P_RULE_SPECIFIER);
 
-        if (P_POS >= SER_LEN(P_INPUT))
+        if (P_POS >= P_INPUT_LEN)
             rebElide("print [mold", rule, "{** END **}]", rebEND);
         else {
             rebElide("print ["
@@ -546,8 +547,8 @@ REB_R Process_Group_For_Parse(
     // PARSE's own REMOVE/etc.  This is a sketchy idea, but as long as it's
     // allowed, each time arbitrary user code runs, rules have to be adjusted
     //
-    if (P_POS > SER_LEN(P_INPUT))
-        P_POS = SER_LEN(P_INPUT);
+    if (P_POS > P_INPUT_LEN)
+        P_POS = P_INPUT_LEN;
 
     if (not inject or IS_NULLED(cell))  // even GET-GROUP! discards nulls
         return R_INVISIBLE;
@@ -575,8 +576,8 @@ REB_R Parse_Group_Executor(REBFRM *f)
     // PARSE's own REMOVE/etc.  This is a sketchy idea, but as long as it's
     // allowed, each time arbitrary user code runs, rules have to be adjusted
     //
-    if (P_POS > SER_LEN(P_INPUT))
-        P_POS = SER_LEN(P_INPUT);
+    if (P_POS > P_INPUT_LEN)
+        P_POS = P_INPUT_LEN;
 
     if (NOT_END(f->out))
         if (not inject or IS_NULLED(f->out))  // even GET-GROUP! discards null
@@ -618,7 +619,7 @@ static REB_R Parse_One_Rule(
             return R_THROWN;
         }
         if (rule == R_INVISIBLE) { // !!! Should this be legal?
-            assert(pos <= SER_LEN(P_INPUT)); // !!! Process_Group ensures
+            assert(pos <= P_INPUT_LEN); // !!! Process_Group ensures
             return Init_Integer(P_OUT, pos);
         }
         // was a GET-GROUP! :(...), use result as rule
@@ -629,7 +630,7 @@ static REB_R Parse_One_Rule(
         Trace_Parse_Input(P_INPUT_VALUE);
     }
 
-    if (P_POS == SER_LEN(P_INPUT)) { // at end of input
+    if (P_POS == P_INPUT_LEN) { // at end of input
         if (IS_BLANK(rule) or IS_LOGIC(rule) or IS_BLOCK(rule)) {
             //
             // Only these types can *potentially* handle an END input.
@@ -786,6 +787,7 @@ static REB_R Parse_One_Rule(
             REBLEN index = Find_In_Any_Sequence(
                 &len,
                 P_INPUT_VALUE,
+                P_POS,
                 rule_cell,
                 (P_FLAGS & PF_FIND_MASK) | AM_FIND_MATCH
             );
@@ -933,12 +935,12 @@ static REBIXO To_Thru_Block_Rule(
 ) {
     DECLARE_LOCAL (cell); // holds evaluated rules (use frame cell instead?)
 
-    // Note: This enumeration goes through <= SER_LEN(P_INPUT), because the
+    // Note: This enumeration goes through <= P_INPUT_LEN, because the
     // block rule might be something like `to [{a} | end]`.  e.g. being
     // positioned on the end cell or null terminator of a string may match.
     //
     REBLEN pos = P_POS;
-    for (; pos <= SER_LEN(P_INPUT); ++pos) {  // see note
+    for (; pos <= P_INPUT_LEN; ++pos) {  // see note
         const RELVAL *blk = VAL_ARRAY_HEAD(rule_block);
         for (; NOT_END(blk); blk++) {
             if (IS_BAR(blk))
@@ -962,8 +964,8 @@ static REBIXO To_Thru_Block_Rule(
 
                 if (cmd != SYM_0) {
                     if (cmd == SYM_END) {
-                        if (pos >= SER_LEN(P_INPUT))
-                            return SER_LEN(P_INPUT);
+                        if (pos >= P_INPUT_LEN)
+                            return P_INPUT_LEN;
                         goto next_alternate_rule;
                     }
                     else if (
@@ -1010,7 +1012,7 @@ static REBIXO To_Thru_Block_Rule(
             else if (P_TYPE == REB_BINARY) {
                 REBYTE ch1 = *BIN_AT(P_INPUT, pos);
 
-                if (pos == SER_LEN(P_INPUT)) {
+                if (pos == P_INPUT_LEN) {
                     //
                     // If we weren't matching END, then the only other thing
                     // we'll match at the BINARY! end is an empty BINARY!.
@@ -1062,7 +1064,7 @@ static REBIXO To_Thru_Block_Rule(
 
                 REBUNI ch_unadjusted = GET_CHAR_AT(STR(P_INPUT), pos);
                 if (ch_unadjusted == '\0') { // cannot be passed to UP_CASE()
-                    assert(pos == SER_LEN(P_INPUT));
+                    assert(pos == P_INPUT_LEN);
 
                     if (IS_TEXT(rule) and VAL_LEN_AT(rule) == 0)
                         return pos;  // empty string can match at end
@@ -1096,44 +1098,13 @@ static REBIXO To_Thru_Block_Rule(
                         return pos;
                     }
                 }
-                else if (IS_TAG(rule)) {
-                    if (ch == '<') {
-                        //
-                        // !!! This code was adapted from Parse_to, and is
-                        // inefficient in the sense that it forms the tag
-                        //
-                        REBSTR *formed = Copy_Form_Value(rule, 0);
-                        REBLEN len = STR_LEN(formed);
-                        const REBINT skip = 1;
-                        REBLEN i = Find_Str_In_Str(
-                            STR(P_INPUT),
-                            pos,
-                            SER_LEN(P_INPUT),
-                            skip,
-                            formed,
-                            0,
-                            len,
-                            (P_FLAGS & PF_FIND_MASK) | AM_FIND_MATCH
-                        );
-                        Free_Unmanaged_Series(SER(formed));
-                        if (i != NOT_FOUND) {
-                            if (is_thru)
-                                return pos + len;
-                            return pos;
-                        }
-                    }
-                }
                 else if (ANY_STRING(rule)) {
                     REBLEN len = VAL_LEN_AT(rule);
-                    const REBINT skip = 1;
-                    REBLEN i = Find_Str_In_Str(
-                        STR(P_INPUT),
+                    REBLEN i = Find_In_Any_Sequence(
+                        &len,
+                        P_INPUT_VALUE,
                         pos,
-                        SER_LEN(P_INPUT),
-                        skip,
-                        VAL_STRING(rule),
-                        VAL_INDEX(rule),
-                        len,
+                        rule,
                         (P_FLAGS & PF_FIND_MASK) | AM_FIND_MATCH
                     );
 
@@ -1193,7 +1164,7 @@ static REBIXO To_Thru_Non_Block_Rule(
         //
         // `TO/THRU END` JUMPS TO END INPUT SERIES (ANY SERIES TYPE)
         //
-        return SER_LEN(P_INPUT);
+        return P_INPUT_LEN;
     }
 
     if (IS_SER_ARRAY(P_INPUT)) {
@@ -1214,7 +1185,7 @@ static REBIXO To_Thru_Non_Block_Rule(
         REBLEN i = Find_In_Array(
             ARR(P_INPUT),
             P_POS,
-            SER_LEN(P_INPUT),
+            ARR_LEN(ARR(P_INPUT)),
             rule,
             1,
             find_flags,
@@ -1236,6 +1207,7 @@ static REBIXO To_Thru_Non_Block_Rule(
     REBLEN i = Find_In_Any_Sequence(
         &len,
         P_INPUT_VALUE,
+        P_POS,
         rule,
         (P_FLAGS & PF_FIND_MASK)
     );
@@ -1305,7 +1277,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
     REBARR *holder;
 
     REBLEN index;
-    if (P_POS >= SER_LEN(P_INPUT)) {
+    if (P_POS >= P_INPUT_LEN) {
         //
         // We could short circuit and notice if the rule was END or not, but
         // that leaves out other potential matches like `[(print "Hi") end]`
@@ -1393,7 +1365,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
         // communicate reaching the end, these parse routines always return
         // an array index.
         //
-        return IS_END(P_CELL) ? SER_LEN(P_INPUT) : index;
+        return IS_END(P_CELL) ? P_INPUT_LEN : index;
     }
 
     return P_POS; // as failure, hand back original position--no advancement
@@ -1472,8 +1444,8 @@ static REB_R Handle_Seek_Rule_Dont_Update_Begin(
         fail (Error_Parse_Series_Raw(specific));
     }
 
-    if (cast(REBLEN, index) > SER_LEN(P_INPUT))
-        P_POS = SER_LEN(P_INPUT);
+    if (cast(REBLEN, index) > P_INPUT_LEN)
+        P_POS = P_INPUT_LEN;
     else
         P_POS = index;
 
@@ -2293,15 +2265,15 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
             switch (cmd) {
               case SYM_SKIP:
-                i = (P_POS < SER_LEN(P_INPUT))
+                i = (P_POS < P_INPUT_LEN)
                     ? P_POS + 1
                     : END_FLAG;
                 break;
 
               case SYM_END:
-                i = (P_POS < SER_LEN(P_INPUT))
+                i = (P_POS < P_INPUT_LEN)
                     ? END_FLAG
-                    : SER_LEN(P_INPUT);
+                    : P_INPUT_LEN;
                 break;
 
               case SYM_TO:
@@ -2618,7 +2590,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
         P_POS = cast(REBLEN, i);
 
-        if (i == SER_LEN(P_INPUT) and (P_FLAGS & PF_ANY_OR_SOME)) {
+        if (i == P_INPUT_LEN and (P_FLAGS & PF_ANY_OR_SOME)) {
             //
             // ANY and SOME auto terminate on e.g. `some [... | end]`.
             // But WHILE is conceptually a synonym for a self-recursive
@@ -2630,7 +2602,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         }
     }
 
-    if (P_POS > SER_LEN(P_INPUT))
+    if (P_POS > P_INPUT_LEN)
         P_POS = NOT_FOUND;
 
     //==////////////////////////////////////////////////////////////////==//

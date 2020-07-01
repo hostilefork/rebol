@@ -193,21 +193,21 @@ static void Schema_From_Block_May_Fail(
 inline static void *Expand_And_Align_Core(
     uintptr_t *offset_out,
     REBLEN align,
-    REBSER *store,
+    REBBIN *store,
     REBLEN size
 ){
-    REBLEN padding = SER_LEN(store) % align;
+    REBLEN padding = BIN_LEN(store) % align;
     if (padding != 0)
         padding = align - padding;
 
-    *offset_out = SER_LEN(store) + padding;
+    *offset_out = BIN_LEN(store) + padding;
     EXPAND_SERIES_TAIL(store, padding + size);
     return SER_DATA_RAW(store) + *offset_out;
 }
 
 inline static void *Expand_And_Align(
     uintptr_t *offset_out,
-    REBSER *store,
+    REBBIN *store,
     REBLEN size // assumes align == size
 ){
     return Expand_And_Align_Core(offset_out, size, store, size);
@@ -220,7 +220,7 @@ inline static void *Expand_And_Align(
 // INTEGER! into the appropriate representation of an `int` in memory.)
 //
 static uintptr_t arg_to_ffi(
-    REBSER *store,
+    REBBIN *store,
     void *dest,
     const REBVAL *arg,
     const REBVAL *schema,
@@ -713,7 +713,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
     // base of the series.  Hence the offsets must be mutated into pointers
     // at the last minute before the FFI call.
     //
-    REBSER *store = Make_Series(1, sizeof(REBYTE));
+    REBBIN *store = Make_Binary(1);
 
     void *ret_offset;
     if (not IS_BLANK(RIN_RET_SCHEMA(rin))) {
@@ -852,7 +852,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
     REBLEN i;
     for (i = 0; i < num_args; ++i) {
         uintptr_t off = cast(uintptr_t, *SER_AT(void*, arg_offsets, i));
-        assert(off == 0 or off < SER_LEN(store));
+        assert(off == 0 or off < BIN_LEN(store));
         *SER_AT(void*, arg_offsets, i) = SER_DATA_RAW(store) + off;
     }
   }

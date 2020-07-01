@@ -236,7 +236,7 @@ REBLEN Find_Bin_In_Bin(
     REBSIZ size2,
     REBFLGS flags // AM_FIND_MATCH
 ){
-    assert(SER_LEN(series) >= offset);
+    assert(SER_USED(series) >= offset);
     assert((flags & ~AM_FIND_MATCH) == 0);  // no AM_FIND_CASE
 
     if (size2 == 0 || (size2 + offset) > BIN_LEN(series))
@@ -302,7 +302,7 @@ REBLEN Find_Str_In_Bin(
         );
     }
 
-    if (size2 == 0 or (size2 + offset) > SER_LEN(series))
+    if (size2 == 0 or (size2 + offset) > SER_USED(series))
         return NOT_FOUND; // pattern empty or is longer than the target
 
     const REBYTE *bp1 = BIN_AT(series, offset);
@@ -737,11 +737,11 @@ REBLEN Next_Line(REBYTE **bin)
 //
 REBLEN Find_In_Any_Sequence(
     REBLEN *len,  // length of match (e.g. if pattern is a TAG!, includes <>)
-    const RELVAL *any_series,
+    const RELVAL *any_series,  // VAL_INDEX() will be ignored...
+    REBLEN index,  // ...overrides VAL_INDEX(any_series) for sliding searches
     const REBCEL *pattern,
     REBFLGS flags
 ){
-    REBLEN index = VAL_INDEX(any_series);
     REBLEN end = VAL_LEN_HEAD(any_series);
     REBINT skip = 1;
 

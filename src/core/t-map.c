@@ -94,16 +94,16 @@ REBINT Find_Key_Hashed(
     //
     // https://en.wikipedia.org/wiki/Linear_probing
     //
-    // Len and skip are co-primes, so is guaranteed that repeatedly
+    // Used and skip are co-primes, so is guaranteed that repeatedly
     // adding skip (and subtracting len when needed) all positions are
     // visited.  1 <= skip < len, and len is prime, so this is guaranteed.
     //
-    REBLEN len = SER_LEN(hashlist);
+    REBLEN used = SER_USED(hashlist);
     REBLEN *indexes = SER_HEAD(REBLEN, hashlist);
 
     uint32_t hash = Hash_Value(key);
-    REBLEN slot = hash % len; // first slot to try for this hash
-    REBLEN skip = hash % (len - 1) + 1; // how much to skip by each collision
+    REBLEN slot = hash % used;  // first slot to try for this hash
+    REBLEN skip = hash % (used - 1) + 1;  // skip by how much each collision
 
     // Zombie slots are those which are left behind by removing items, with
     // void values that are illegal in maps, and indicate they can be reused.
@@ -141,8 +141,8 @@ REBINT Find_Key_Hashed(
             zombie_slot = slot;
 
         slot += skip;
-        if (slot >= len)
-            slot -= len;
+        if (slot >= used)
+            slot -= used;
     }
 
     if (synonym_slot != -1) {
@@ -229,7 +229,7 @@ void Expand_Hash(REBSER *ser)
 {
     assert(not IS_SER_ARRAY(ser));
 
-    REBINT prime = Get_Hash_Prime_May_Fail(SER_LEN(ser) + 1);
+    REBINT prime = Get_Hash_Prime_May_Fail(SER_USED(ser) + 1);
     Remake_Series(
         ser,
         prime + 1,
@@ -266,7 +266,7 @@ REBLEN Find_Map_Entry(
     assert(hashlist);
 
     // Get hash table, expand it if needed:
-    if (ARR_LEN(pairlist) > SER_LEN(hashlist) / 2) {
+    if (ARR_LEN(pairlist) > SER_USED(hashlist) / 2) {
         Expand_Hash(hashlist); // modifies size value
         Rehash_Map(map);
     }

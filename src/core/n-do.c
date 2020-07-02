@@ -256,6 +256,14 @@ REBNATIVE(shove)
     else
         Init_Blank(D_SPARE);  // temporary non-end state
 
+    // We want the D_OUT of the frame to be used as the next item in the feed.
+    //
+    // !!! It's still not clear if this is a feed flag or a frame flag, as
+    // a feed might be used by multiple frames with different out pointers.
+    // Originally it was moved off the frame due to lack of EVAL_FLAGs.
+    //
+    SET_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT);
+
     if (REF(enfix)) {  // don't heed enfix state in the action itself
         DECLARE_FRAME (subframe, f->feed, EVAL_MASK_DEFAULT);
         Push_Frame(D_OUT, subframe);

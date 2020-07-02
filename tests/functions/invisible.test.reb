@@ -296,6 +296,8 @@
 (null? spaced [])
 (null? spaced [comment "hi"])
 (null? spaced [()])
+("" = spaced [() "" ()])
+("" = spaced [(elide 1 + 2) "" (comment "hi")])
 
 
 ; GROUP!s are able to "vaporize" if they are empty or invisible

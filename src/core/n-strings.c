@@ -91,6 +91,7 @@ REBNATIVE(delimit)
 
     Init_Blank(pending);  // no output yet, also IS_FALSEY() so not pending
 
+    Init_Nulled(D_OUT);  // in case `spaced [()]` or similar, default null
     Push_Continuation_At(D_OUT, line);
     D_STATE_BYTE = ST_DELIMIT_EVAL_STEP;
     return R_CONTINUATION;
@@ -136,6 +137,7 @@ REBNATIVE(delimit)
 
   next_step:
     if (NOT_END(f->feed->value)) {
+        Init_Nulled(D_OUT);  // e.g. spaced ["" ()], reset output
         INIT_F_EXECUTOR(f, &New_Expression_Executor);
         return R_CONTINUATION;
     }

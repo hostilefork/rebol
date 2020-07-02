@@ -210,8 +210,14 @@ bool Trampoline_Throws(REBFRM *f_stop)
         //     o: make object! [f: does [1]]
         //     o/f left-lit  ; want error suggesting -> here, need flag for that
         //
+        /* // !!! v-- Said this originally, but stackless seemed to not work
         CLEAR_EVAL_FLAG(f, DIDNT_LEFT_QUOTE_PATH);
         assert(NOT_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT));  // must be consumed
+        */
+        if (GET_FEED_FLAG(f->feed, NEXT_ARG_FROM_OUT)) {
+            assert(GET_EVAL_FLAG(f, DIDNT_LEFT_QUOTE_PATH));
+            fail (Error_Literal_Left_Path_Raw());
+        }
 
         #if !defined(NDEBUG)
         //assert(NOT_EVAL_FLAG(f, DOING_PICKUPS));

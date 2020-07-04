@@ -100,7 +100,7 @@
 // be accounted for by pushing the value to some other stack--e.g. the data
 // stack.  But for the moment this (uncommon?) case uses a new frame.
 //
-inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
+inline static bool Was_Rightward_Continuation_Needed(
     REBFRM *f,
     const RELVAL *v
 ){
@@ -113,16 +113,6 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
     if (IS_END(f_next))  // `do [x:]`, `do [o/x:]`, etc. are illegal
         fail (Error_Need_Non_End_Core(v, f_specifier));
 
-    // !!! While assigning `x: #[void]` is not legal, we make a special
-    // exemption for quoted voids, e.g. '#[void]`.  This means a molded
-    // object with void fields can be safely MAKE'd back.
-    //
-    if (KIND_BYTE(f_next) == REB_VOID + REB_64) {
-        Init_Void(f->out);
-        Fetch_Next_Forget_Lookback(f);  // advances f->value
-        return false;
-    }
-
     // Using a SET-XXX! means you always have at least two elements; it's like
     // an arity-1 function.  `1 + x: whatever ...`.  This overrides the no
     // lookahead behavior flag right up front.
@@ -134,29 +124,19 @@ inline static bool Rightward_Evaluate_Nonvoid_Into_Out_Throws(
 
     SET_END(f->out);  // `1 x: comment "hi"` shouldn't set x to 1!
 
-    // !!! This used to have an optimization to reuse the current frame if
-    // not CURRENT_CHANGES_IF_FETCH_NEXT.  Reusing frames got more complex
-    // because the evaluator might be in a continuation.  The optimization is
-    // questionable in a stackless world, and should be reviewed.
-    //
-    bool x = true;
-    if (
-        x or
-        CURRENT_CHANGES_IF_FETCH_NEXT
-    ){
-        if (Eval_Step_In_Subframe_Throws(f->out, f, flags))
-            return true;
-    }
-    else {  // !!! Reusing the frame, would inert optimization be worth it?
-        if ((*PG_Trampoline_Throws)(f))  // reuse `f`
-            return true;
-    }
+    REBNAT executor = &New_Expression_Executor;
+/*    if (Did_Init_Inert_Optimize_Complete(out, f->feed, &flags, &executor))
+        return false;  // If eval not hooked, ANY-INERT! may not need a frame */
 
-    if (IS_END(f->out))  // e.g. `do [x: ()]` or `(x: comment "hi")`.
-        fail (Error_Need_Non_End_Core(v, f_specifier));
+    // Can't SET_END() here, because sometimes it would be overwriting what
+    // the optimization produced.  Trust that it has already done it if it
+    // was necessary.
 
-    CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // this helper counts as eval
-    return false;
+    DECLARE_FRAME (subframe, f->feed, flags);
+    subframe->executor = executor;
+
+    Push_Frame(f->out, subframe);
+    return true;
 }
 
 
@@ -186,72 +166,6 @@ REB_R Finished_Executor(REBFRM *f)
     else
         INIT_F_EXECUTOR(f, nullptr);
     return f->out;
-}
-
-
-//
-//  Group_Executor: C
-//
-// A GROUP! whose contents wind up vaporizing wants to be invisible:
-//
-//     >> 1 + 2 ()
-//     == 3
-//
-//     >> 1 + 2 (comment "hi")
-//     == 3
-//
-// But there's a limit with group invisibility and enfix.  A single step
-// of the evaluator only has one lookahead, because it doesn't know if it
-// wants to evaluate the next thing or not:
-//
-//     >> evaluate [1 (2) + 3]
-//     == [(2) + 3]  ; takes one step...so next step will add 2 and 3
-//
-//     >> evaluate [1 (comment "hi") + 3]
-//     == [(comment "hi") + 3]  ; next step errors: `+` has no left argument
-//
-// It is supposed to be possible for DO to be implemented as a series of
-// successive single EVALUATE steps, giving no input beyond the block.  So
-// that means even though the `f->out` may technically still hold bits of
-// the last evaluation such that `do [1 (comment "hi") + 3]` could draw
-// from them to give a left hand argument, it should not do so...and it's
-// why those bits are marked "stale".
-//
-// The other side of the operator is a different story.  Turning up no result,
-// the group can just invoke a reevaluate without breaking any rules:
-//
-//     >> evaluate [1 + (2) 3]
-//     == [3]
-//
-//     >> evaluate [1 + (comment "hi") 3]
-//     == []
-//
-// This subtlety means the continuation for running a GROUP! has the subtlety
-// of noticing when no result was produced (an output of END) and then
-// re-triggering a step in the parent frame, e.g. to pick up the 3 above.
-//
-REB_R Group_Executor(REBFRM *f)
-{
-    // Check for lack of staleness (this also implies not a END if not stale).
-    // Use raw bit test instead of GET_CELL_FLAG() since f->out may be END.
-    //
-    if (not (f->out->header.bits & CELL_FLAG_OUT_MARKED_STALE)) {
-        CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // `(1)` is evaluative
-        INIT_F_EXECUTOR(f, &Lookahead_Executor);  // subsequent enfix is ok
-        return f->out;
-    }
-
-    if (IS_END(F_VALUE(f))) {  // no input to try to fill in missing output
-        f->out->header.bits &= ~CELL_FLAG_OUT_MARKED_STALE;
-        INIT_F_EXECUTOR(f, &Finished_Executor);
-        return f->out;  // use the END or stale `f->out` (enfix can't pick up)
-    }
-
-    // If there's more to try after a vaporized group, retrigger the evaluator
-    //
-    INIT_F_EXECUTOR(f, &Reevaluation_Executor);
-    f->u.reval.value = Lookback_While_Fetching_Next(f);
-    return R_CONTINUATION;
 }
 
 
@@ -400,6 +314,29 @@ REB_R Reevaluation_Executor(REBFRM *f)
     const RELVAL *v = f->u.reval.value;
     const REBVAL *gotten = nullptr;
     kind.byte = KIND_BYTE(v);
+
+    enum {
+        ST_EVALUATOR_REEVALUATING = 0,
+        ST_EVALUATOR_EXECUTING_GROUP,
+        ST_EVALUATOR_SET_WORD_RIGHT_SIDE,
+        ST_EVALUATOR_SET_PATH_RIGHT_SIDE,
+        ST_EVALUATOR_SET_GROUP_RIGHT_SIDE
+    };
+
+    switch (STATE_BYTE(f)) {
+      case ST_EVALUATOR_REEVALUATING:
+        break;
+      case ST_EVALUATOR_EXECUTING_GROUP:
+        STATE_BYTE(f) = 0; goto group_execution_done;
+      case ST_EVALUATOR_SET_WORD_RIGHT_SIDE:
+        STATE_BYTE(f) = 0; goto set_word_with_out;
+      case ST_EVALUATOR_SET_PATH_RIGHT_SIDE:
+        STATE_BYTE(f) = 0; goto set_path_with_out;
+      case ST_EVALUATOR_SET_GROUP_RIGHT_SIDE:
+        STATE_BYTE(f) = 0; goto set_group_with_out;
+      default:
+        assert(false);
+    }
 
   reevaluate: ;  // meaningful semicolon--subsequent macro may declare things
 
@@ -583,6 +520,7 @@ REB_R Reevaluation_Executor(REBFRM *f)
         goto process_action; }
 
       process_action:  // Note: Also jumped to by the redo_checked code
+        assert(STATE_BYTE(f) == 0);
         return R_CONTINUATION;
 
 
@@ -639,14 +577,20 @@ REB_R Reevaluation_Executor(REBFRM *f)
 //
 // Right hand side is evaluated into `out`, and then copied to the variable.
 //
-// All values are allowed in these assignments, including NULL and VOID!
-// https://forum.rebol.info/t/1206
+// Nulled cells and void cells are allowed: https://forum.rebol.info/t/895/4
 
       case REB_SET_WORD: {
-        if (Rightward_Evaluate_Nonvoid_Into_Out_Throws(f, v))  // see notes
-            goto return_thrown;
+        if (Was_Rightward_Continuation_Needed(f, v)) {  // see notes
+            STATE_BYTE(f) = ST_EVALUATOR_SET_WORD_RIGHT_SIDE;
+            return R_CONTINUATION;
+        }
 
       set_word_with_out:
+
+        if (IS_END(f->out))  // e.g. `do [x: ()]` or `(x: comment "hi")`.
+            fail (Error_Need_Non_End_Core(v, f_specifier));
+
+        CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // this helper counts as eval
 
         Move_Value(Sink_Word_May_Fail(v, f_specifier), f->out);
         break; }
@@ -674,19 +618,44 @@ REB_R Reevaluation_Executor(REBFRM *f)
 
 //==//// GROUP! ///////////////////////////////////////////////////////////=//
 //
-// If a GROUP! is seen then it generates another call into Eval_Core().  The
-// current frame is not reused, as the source array from which values are
-// being gathered changes.
+// A GROUP! whose contents wind up vaporizing wants to be invisible:
 //
-// Empty groups vaporize, as do ones that only consist of invisibles.  If
-// this is not desired, one should use DO or lead with `(void ...)`
-//
-//     >> 1 + 2 (comment "vaporize")
+//     >> 1 + 2 ()
 //     == 3
 //
-//     >> 1 + () 2
+//     >> 1 + 2 (comment "hi")
 //     == 3
-
+//
+// But there's a limit with group invisibility and enfix.  A single step
+// of the evaluator only has one lookahead, because it doesn't know if it
+// wants to evaluate the next thing or not:
+//
+//     >> evaluate [1 (2) + 3]
+//     == [(2) + 3]  ; takes one step...so next step will add 2 and 3
+//
+//     >> evaluate [1 (comment "hi") + 3]
+//     == [(comment "hi") + 3]  ; next step errors: `+` has no left argument
+//
+// It is supposed to be possible for DO to be implemented as a series of
+// successive single EVALUATE steps, giving no input beyond the block.  So
+// that means even though the `f->out` may technically still hold bits of
+// the last evaluation such that `do [1 (comment "hi") + 3]` could draw
+// from them to give a left hand argument, it should not do so...and it's
+// why those bits are marked "stale".
+//
+// The other side of the operator is a different story.  Turning up no result,
+// the group can just invoke a reevaluate without breaking any rules:
+//
+//     >> evaluate [1 + (2) 3]
+//     == [3]
+//
+//     >> evaluate [1 + (comment "hi") 3]
+//     == []
+//
+// This subtlety means the continuation for running a GROUP! has the subtlety
+// of noticing when no result was produced (an output of END) and then
+// re-triggering a step in the parent frame, e.g. to pick up the 3 above.
+//
       case REB_GROUP: {
         f_next_gotten = nullptr;  // arbitrary code changes fetched variables
 
@@ -720,9 +689,33 @@ REB_R Reevaluation_Executor(REBFRM *f)
         // result may be stale, e.g. the f->out we started with.
         //
         assert(f->executor == &Reevaluation_Executor);
-        INIT_F_EXECUTOR(f, &Group_Executor);
+        STATE_BYTE(f) = ST_EVALUATOR_EXECUTING_GROUP;
 
         return R_CONTINUATION; }
+
+      group_execution_done:
+
+        // Check for lack of staleness (also implies not an END if not stale).
+        // Use raw test instead of GET_CELL_FLAG() since f->out may be END.
+        //
+        if (not (f->out->header.bits & CELL_FLAG_OUT_MARKED_STALE)) {
+            CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // `(1)` is evaluative
+            INIT_F_EXECUTOR(f, &Lookahead_Executor);  // subsequent enfix ok
+            return f->out;
+        }
+
+        if (IS_END(F_VALUE(f))) {  // no input to reeval for missing output
+            f->out->header.bits &= ~CELL_FLAG_OUT_MARKED_STALE;
+            INIT_F_EXECUTOR(f, &Finished_Executor);
+            return f->out;  // use END or stale `f->out` (enfix can't pick up)
+        }
+
+        // If there's more to try after a vaporized group, retrigger
+        //
+        assert(f->executor == &Reevaluation_Executor);
+        v = Lookback_While_Fetching_Next(f);
+        kind.byte = KIND_BYTE(v);
+        goto reevaluate;
 
 
 //==//// PATH! ///////////////////////////////////////////////////////////==//
@@ -824,10 +817,17 @@ REB_R Reevaluation_Executor(REBFRM *f)
 // Note that nulled cells are allowed: https://forum.rebol.info/t/895/4
 
       case REB_SET_PATH: {
-        if (Rightward_Evaluate_Nonvoid_Into_Out_Throws(f, v))
-            goto return_thrown;
+        if (Was_Rightward_Continuation_Needed(f, v)) {  // see notes
+            STATE_BYTE(f) = ST_EVALUATOR_SET_PATH_RIGHT_SIDE;
+            return R_CONTINUATION;
+        }
 
       set_path_with_out:
+
+        if (IS_END(f->out))  // e.g. `do [x: ()]` or `(x: comment "hi")`.
+            fail (Error_Need_Non_End_Core(v, f_specifier));
+
+        CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // this helper counts as eval
 
         if (Eval_Path_Throws_Core(
             f_spare,  // output if thrown, used as scratch space otherwise
@@ -930,8 +930,17 @@ REB_R Reevaluation_Executor(REBFRM *f)
         // of PARSE, where it has to hold the SET-GROUP! in suspension while
         // it looks on the right in order to decide if it will run it at all!)
         //
-        if (Rightward_Evaluate_Nonvoid_Into_Out_Throws(f, v))
-            goto return_thrown;
+        if (Was_Rightward_Continuation_Needed(f, v)) {  // see notes
+            STATE_BYTE(f) = ST_EVALUATOR_SET_GROUP_RIGHT_SIDE;
+            return R_CONTINUATION;
+        }
+
+      set_group_with_out:
+
+        if (IS_END(f->out))  // e.g. `do [x: ()]` or `(x: comment "hi")`.
+            fail (Error_Need_Non_End_Core(v, f_specifier));
+
+        CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // this helper counts as eval
 
         f_next_gotten = nullptr;  // arbitrary code changes fetched variables
 

@@ -156,6 +156,7 @@ inline static int FRM_LINE(REBFRM *f) {
 
 inline static void INIT_F_EXECUTOR(REBFRM *f, REBNAT executor)
 {
+    assert(executor == nullptr or STATE_BYTE(f) == 0);  // nullptr is done
     if (f->original)
         assert(executor == &Action_Executor);
     else

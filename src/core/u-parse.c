@@ -583,8 +583,10 @@ REB_R Parse_Group_Executor(REBFRM *f)
         if (not inject or IS_NULLED(f->out))  // even GET-GROUP! discards null
             SET_END(f->out);
 
-    INIT_F_EXECUTOR(f, &Parse_Executor);  // return to prior parsing
     assert(STATE_BYTE(f) == ST_PARSE_EVALUATING_GROUP);
+    STATE_BYTE(f) = 0;  // !!! Executor checks
+    INIT_F_EXECUTOR(f, &Parse_Executor);  // return to prior parsing
+    STATE_BYTE(f) = ST_PARSE_EVALUATING_GROUP;
     assert(IS_END(f->out) or not IS_NULLED(f->out));
     return f->out;
 }
@@ -1676,6 +1678,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
         DECLARE_FEED_AT_CORE (subfeed, P_RULE, P_RULE_SPECIFIER);
         DECLARE_FRAME (subframe, subfeed,
             EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END | EVAL_FLAG_ALLOCATED_FEED);
+        STATE_BYTE(f) = 0;  // !!! INIT_F_EXECUTOR checks
         INIT_F_EXECUTOR(f, &Parse_Group_Executor);
         Init_Logic(FRM_SPARE(f), IS_GET_GROUP(P_RULE));
         INIT_F_EXECUTOR(subframe, &New_Expression_Executor);

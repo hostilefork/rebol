@@ -220,6 +220,27 @@ REBNATIVE(resume)
 }
 
 
+// !!! With the emergence of stackless, this was no longer used except in
+// the (currently broken) debugger, which will need a complete overhaul.
+//
+static bool Reevaluate_In_Subframe_Maybe_Stale_Throws(
+    REBVAL *out,
+    REBFRM *f,
+    const REBVAL *reval,
+    REBFLGS flags
+){
+    DECLARE_FRAME (subframe, f->feed, flags);
+    subframe->executor = &Reevaluation_Executor;
+    subframe->u.reval.value = reval;
+
+    Push_Frame(out, subframe);
+    bool threw = (*PG_Trampoline_Throws)(subframe);
+    Drop_Frame(subframe);
+
+    return threw;
+}
+
+
 REBVAL *Spawn_Interrupt_Dangerous(void *opaque)
 {
     REBFRM *f = cast(REBFRM*, opaque);

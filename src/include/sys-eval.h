@@ -281,24 +281,6 @@ inline static bool Eval_Step_In_Subframe_Throws(
 }
 
 
-inline static bool Reevaluate_In_Subframe_Maybe_Stale_Throws(
-    REBVAL *out,
-    REBFRM *f,
-    const REBVAL *reval,
-    REBFLGS flags
-){
-    DECLARE_FRAME (subframe, f->feed, flags);
-    subframe->executor = &Reevaluation_Executor;
-    subframe->u.reval.value = reval;
-
-    Push_Frame(out, subframe);
-    bool threw = (*PG_Trampoline_Throws)(subframe);
-    Drop_Frame(subframe);
-
-    return threw;
-}
-
-
 inline static bool Eval_Step_In_Any_Array_At_Throws(
     REBVAL *out,
     REBLEN *index_out,

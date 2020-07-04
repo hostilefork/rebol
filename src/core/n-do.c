@@ -57,18 +57,17 @@ REBNATIVE(reeval)
     // !!! Review ramifications of Enfix.  See SHOVE for how the reevaluate
     // situation was addressed in that case.
 
-    REBFLGS flags = EVAL_MASK_DEFAULT;
-    if (Reevaluate_In_Subframe_Maybe_Stale_Throws(
-        Init_Void(D_OUT),  // `eval lit (comment "this gives void vs. error")`
-        frame_,
-        ARG(value),
-        flags
-    )){
-        return R_THROWN;
-    }
+    Init_Void(D_OUT);  // `eval lit (comment "this gives void vs. error")`
 
-    CLEAR_CELL_FLAG(D_OUT, OUT_MARKED_STALE);
-    return D_OUT;
+    REBFLGS flags = EVAL_MASK_DEFAULT;
+
+    DECLARE_FRAME (subframe, frame_->feed, flags);
+    subframe->executor = &Reevaluation_Executor;
+    subframe->u.reval.value = ARG(value);
+    Push_Frame(D_OUT, subframe);
+
+    SET_EVAL_FLAG(frame_, DELEGATE_CONTROL);
+    return R_CONTINUATION;
 }
 
 

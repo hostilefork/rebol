@@ -1273,6 +1273,13 @@ inline static REBFRM *Push_Continuation_With_Core(
         return R_CONTINUATION; \
     } while (0)
 
+#define CONTINUE_WITH_CATCHABLE(branch,with) \
+    do { \
+        Push_Continuation_With(frame_->out, \
+            frame_, EVAL_FLAG_DISPATCHER_CATCHES, (branch), (with)); \
+        return R_CONTINUATION; \
+    } while (0)
+
 
 // Common behavior shared by dispatchers which execute on BLOCK!s of code.
 // Assumes the code to be run is in the first details slot, and is relative

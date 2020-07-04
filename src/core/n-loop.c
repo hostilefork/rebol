@@ -1784,6 +1784,10 @@ REBNATIVE(while)
         RETURN (ARG(return));  // condition false, return last body result
     }
     D_STATE_BYTE = ST_WHILE_EVALUATING_BODY;
+    if (IS_ACTION(ARG(body))) {
+        Move_Value(D_SPARE, D_OUT);  // !!! Could spare be evaluated into?
+        CONTINUE_WITH_CATCHABLE (ARG(body), D_SPARE);
+    }
     CONTINUE_CATCHABLE (ARG(body));
   }
 

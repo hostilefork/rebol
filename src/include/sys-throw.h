@@ -129,9 +129,9 @@ static inline void CATCH_THROWN(
 
     UNUSED(thrown);
     Move_Value(arg_out, &TG_Thrown_Arg);
+    SET_END(&TG_Thrown_Arg);
 
   #if !defined(NDEBUG)
-    SET_END(&TG_Thrown_Arg);
     SET_END(&TG_Thrown_Label_Debug);
   #endif
 }

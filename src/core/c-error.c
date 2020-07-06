@@ -215,12 +215,9 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
     TG_Jump_List->error = error;
 
     // If a throw was being processed up the stack when the error was raised,
-    // then it had the thrown argument set.  Trash it in debug builds.  (The
-    // value will not be kept alive, it is not seen by GC)
+    // then it had the thrown argument set.  Set it to END.
     //
-  #if !defined(NDEBUG)
     SET_END(&TG_Thrown_Arg);
-  #endif
 
     LONG_JUMP(TG_Jump_List->cpu_state, 1);
 }

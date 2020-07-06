@@ -245,7 +245,7 @@ REBNATIVE(panic_value)
 {
     INCLUDE_PARAMS_OF_PANIC_VALUE;
 
-  #ifdef DEBUG_TRACK_TICKS
+  #ifdef DEBUG_COUNT_TICKS
     //
     // Use frame tick (if available) instead of TG_Tick, so tick count dumped
     // is the exact moment before the PANIC-VALUE ACTION! was invoked.

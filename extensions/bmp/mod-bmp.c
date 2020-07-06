@@ -359,7 +359,7 @@ REBNATIVE(decode_bmp)
             colors = 0;
 
         if (colors) {
-            ctab = ALLOC_N(RGBQUAD, colors);
+            ctab = TRY_ALLOC_N(RGBQUAD, colors);
             for (i = 0; i<colors; i++) {
                 ctab[i].rgbBlue = *cp++;
                 ctab[i].rgbGreen = *cp++;
@@ -380,7 +380,7 @@ REBNATIVE(decode_bmp)
             colors = bmih.biClrUsed;
 
         if (colors) {
-            ctab = ALLOC_N(RGBQUAD, colors);
+            ctab = TRY_ALLOC_N(RGBQUAD, colors);
             memcpy(ctab, cp, colors * sizeof(RGBQUAD));
             cp += colors * sizeof(RGBQUAD);
         }

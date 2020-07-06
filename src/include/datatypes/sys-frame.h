@@ -552,6 +552,13 @@ inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
             | EVAL_FLAG_7_IS_TRUE
         )) == (EVAL_FLAG_0_IS_TRUE | EVAL_FLAG_4_IS_TRUE | EVAL_FLAG_7_IS_TRUE)
     );
+
+    if (f == nullptr) {  // e.g. a failed allocation
+        if (flags & EVAL_FLAG_ALLOCATED_FEED)
+            Free_Feed(feed);
+        fail (Error_No_Memory(sizeof(REBFRM)));
+    }
+
     f->flags.bits = flags;
 
     f->feed = feed;
@@ -566,7 +573,7 @@ inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
 }
 
 #define DECLARE_FRAME(name,feed,flags) \
-    REBFRM * name = cast(REBFRM*, Make_Node(FRM_POOL)); \
+    REBFRM * name = cast(REBFRM*, Try_Alloc_Node(FRM_POOL)); \
     Prep_Frame_Core(name, (feed), (flags));
 
 // !!! Initially, frames and feeds were C stack allocated and did not come
@@ -577,8 +584,9 @@ inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
 // start folding together common patterns to simplify callsites.
 //
 inline static REBFRM *Push_Continuation_At(REBVAL *out, REBVAL *any_array) {
-    REBFRM *f = cast(REBFRM*, Make_Node(FRM_POOL));
     DECLARE_FEED_AT (feed, any_array);
+
+    REBFRM *f = cast(REBFRM*, Try_Alloc_Node(FRM_POOL));
     Prep_Frame_Core(
         f,
         feed,
@@ -716,8 +724,12 @@ inline static void Push_Action(
         f->varlist = ARR(s);
     }
 
-    if (not Did_Series_Data_Alloc(s, num_args + 1 + 1)) // +rootvar, +end
-        fail ("Out of memory in Push_Action()");
+    if (not Did_Series_Data_Alloc(s, num_args + 1 + 1)) {  // +rootvar, +end
+        s->info.bits |= SERIES_INFO_INACCESSIBLE;
+        GC_Kill_Series(s);  // ^-- needs non-null data unless INACCESSIBLE
+        f->varlist = nullptr;
+        fail (Error_No_Memory(sizeof(REBVAL) * (num_args + 1 + 1)));
+    }
 
     f->rootvar = cast(REBVAL*, s->content.dynamic.data);
     f->rootvar->header.bits =
@@ -814,7 +826,7 @@ inline static void Drop_Action(REBFRM *f) {
         if (GET_SERIES_FLAG(f->varlist, MANAGED))
             f->varlist = nullptr; // references exist, let a new one alloc
         else {
-            // This node could be reused vs. calling Make_Node() on the next
+            // This node could be reused vs. calling Alloc_Node() on the next
             // action invocation...but easier for the moment to let it go.
             //
             Free_Node(SER_POOL, NOD(f->varlist));

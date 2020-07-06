@@ -690,7 +690,7 @@ inline static REBYTE *VAL_RAW_DATA_AT(const REBCEL *v) {
 inline static REBSER *Alloc_Series_Node(REBFLGS flags) {
     assert(not (flags & NODE_FLAG_CELL));
 
-    REBSER *s = cast(REBSER*, Make_Node(SER_POOL));
+    REBSER *s = cast(REBSER*, Alloc_Node(SER_POOL));
     if ((GC_Ballast -= sizeof(REBSER)) <= 0)
         SET_SIGNAL(SIG_RECYCLE);
 
@@ -744,7 +744,7 @@ inline static REBLEN FIND_POOL(size_t size) {
 // This routine can thus be used for an initial construction or an operation
 // like expansion.
 //
-inline static bool Did_Series_Data_Alloc(REBSER *s, REBLEN length) {
+inline static bool Did_Series_Data_Alloc(REBSER *s, REBLEN capacity) {
     //
     // Currently once a series becomes dynamic, it never goes back.  There is
     // no shrinking process that will pare it back to fit completely inside
@@ -755,19 +755,22 @@ inline static bool Did_Series_Data_Alloc(REBSER *s, REBLEN length) {
     REBYTE wide = SER_WIDE(s);
     assert(wide != 0);
 
+    if (cast(REBU64, capacity) * wide > INT32_MAX)  // R3-Alpha said "too big"
+        return false;
+
     REBSIZ size; // size of allocation (possibly bigger than we need)
 
-    REBLEN pool_num = FIND_POOL(length * wide);
+    REBLEN pool_num = FIND_POOL(capacity * wide);
     if (pool_num < SYSTEM_POOL) {
         // ...there is a pool designated for allocations of this size range
-        s->content.dynamic.data = cast(char*, Make_Node(pool_num));
+        s->content.dynamic.data = cast(char*, Try_Alloc_Node(pool_num));
         if (not s->content.dynamic.data)
             return false;
 
         // The pooled allocation might wind up being larger than we asked.
         // Don't waste the space...mark as capacity the series could use.
         size = Mem_Pools[pool_num].wide;
-        assert(size >= length * wide);
+        assert(size >= capacity * wide);
 
         // We don't round to power of 2 for allocations in memory pools
         CLEAR_SERIES_FLAG(s, POWER_OF_2);
@@ -778,7 +781,7 @@ inline static bool Did_Series_Data_Alloc(REBSER *s, REBLEN length) {
         // for, the system does some second-guessing to align to 2Kb
         // boundaries (or choose a power of 2, if requested).
 
-        size = length * wide;
+        size = capacity * wide;
         if (GET_SERIES_FLAG(s, POWER_OF_2)) {
             REBSIZ size2 = 2048;
             while (size2 < size)
@@ -792,7 +795,7 @@ inline static bool Did_Series_Data_Alloc(REBSER *s, REBLEN length) {
                 CLEAR_SERIES_FLAG(s, POWER_OF_2);
         }
 
-        s->content.dynamic.data = ALLOC_N(char, size);
+        s->content.dynamic.data = TRY_ALLOC_N(char, size);
         if (not s->content.dynamic.data)
             return false;
 
@@ -854,17 +857,22 @@ inline static REBSER *Make_Series_Core(
         | FLAG_WIDE_BYTE_OR_0(wide);
 
     if (
-        (flags & SERIES_FLAG_ALWAYS_DYNAMIC) // inlining will constant fold
+        (flags & SERIES_FLAG_ALWAYS_DYNAMIC)  // inlining will constant fold
         or (capacity * wide > sizeof(s->content))
     ){
-        //
         // Data won't fit in a REBSER node, needs a dynamic allocation.  The
         // capacity given back as the ->rest may be larger than the requested
         // size, because the memory pool reports the full rounded allocation.
 
-        mutable_LEN_BYTE_OR_255(s) = 255; // alloc caller sets
-        if (not Did_Series_Data_Alloc(s, capacity))
+        mutable_LEN_BYTE_OR_255(s) = 255;  // dynamic
+
+        if (not Did_Series_Data_Alloc(s, capacity)) {
+            s->header.bits &= ~NODE_FLAG_MANAGED;
+            s->info.bits |= SERIES_INFO_INACCESSIBLE;
+            GC_Kill_Series(s);  // ^-- needs non-null data unless INACCESSIBLE
+
             fail (Error_No_Memory(capacity * wide));
+        }
 
       #if !defined(NDEBUG)
         PG_Reb_Stats->Series_Memory += capacity * wide;

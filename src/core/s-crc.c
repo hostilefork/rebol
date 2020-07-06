@@ -582,7 +582,7 @@ REBINT Hash_UTF8_Caseless(const REBYTE *utf8, REBLEN len) {
 //
 void Startup_CRC(void)
 {
-    crc24_table = ALLOC_N(REBLEN, 256);
+    crc24_table = TRY_ALLOC_N(REBLEN, 256);
     Make_CRC24_Table(PRZCRC);
 
     // If Zlib is built with DYNAMIC_CRC_TABLE, then the first call to

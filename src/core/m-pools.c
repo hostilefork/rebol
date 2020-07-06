@@ -64,17 +64,17 @@
 
 
 //
-//  Alloc_Mem: C
+//  Try_Alloc_Mem: C
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// NOTE: Use the ALLOC and ALLOC_N macros instead of Alloc_Mem to ensure the
+// NOTE: Use TRY_ALLOC and TRY_ALLOC_N instead of Try_Alloc_Mem to ensure the
 // memory matches the size for the type, and that the code builds as C++.
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Alloc_Mem is a basic memory allocator, which clients must call with the
-// correct size of memory block to be freed.  This differs from malloc(),
+// Try_Alloc_Mem() is a basic memory allocator, which clients must call with
+// the correct size of memory block to be freed.  This differs from malloc(),
 // whose clients do not need to remember the size of the allocation to pass
 // into free().
 //
@@ -86,16 +86,32 @@
 //     http://stackoverflow.com/questions/1229241/
 //
 // Finer-grained allocations are done with memory pooling.  But the blocks of
-// memory used by the pools are still acquired using ALLOC_N and FREE_N, which
-// are interfaces to this routine.
+// memory used by the pools are still acquired using TRY_ALLOC_N and FREE_N,
+// which are interfaces to the Try_Alloc_Mem() and Free_Mem() routines.
 //
-void *Alloc_Mem(size_t size)
+void *Try_Alloc_Mem(size_t size)
 {
     // Trap memory usage limit *before* the allocation is performed
 
     PG_Mem_Usage += size;
-    if (PG_Mem_Limit != 0 and PG_Mem_Usage > PG_Mem_Limit)
+    if (PG_Mem_Limit != 0 and PG_Mem_Usage > PG_Mem_Limit) {
+        PG_Mem_Usage -= size;
         Check_Security_Placeholder(Canon(SYM_MEMORY), SYM_EXEC, 0);
+    }
+
+  #if !defined(NDEBUG)
+    if (PG_Fuzz_Factor != 0) {
+        if (PG_Fuzz_Factor < 0) {
+            ++PG_Fuzz_Factor;
+            if (PG_Fuzz_Factor == 0)
+                return nullptr;
+        }
+        else if ((TG_Tick % 10000) <= cast(REBLEN, PG_Fuzz_Factor)) {
+            PG_Fuzz_Factor = 0;
+            return nullptr;
+        }
+    }
+  #endif
 
     // malloc() internally remembers the size of the allocation, and is hence
     // "overkill" for this operation.  Yet the current implementations on all
@@ -105,13 +121,15 @@ void *Alloc_Mem(size_t size)
     void *p = malloc(size);
   #else
     // Cache size at the head of the allocation in debug builds for checking.
-    // Also catches free() use with Alloc_Mem() instead of Free_Mem().
+    // Also catches free() use with Try_Alloc_Mem() instead of Free_Mem().
     //
     // Use a 64-bit quantity to preserve DEBUG_MEMORY_ALIGN invariant.
 
     void *p_extra = malloc(size + ALIGN_SIZE);
-    if (not p_extra)
+    if (not p_extra) {
+        PG_Mem_Usage -= size;
         return nullptr;
+    }
     *cast(REBI64*, p_extra) = size;
     void *p = cast(char*, p_extra) + ALIGN_SIZE;
   #endif
@@ -246,7 +264,7 @@ void Startup_Pools(REBINT scale)
         scale = 1;
     }
 
-    Mem_Pools = ALLOC_N(REBPOL, MAX_POOLS);
+    Mem_Pools = TRY_ALLOC_N(REBPOL, MAX_POOLS);
 
     // Copy pool sizes to new pool structure:
     //
@@ -273,7 +291,7 @@ void Startup_Pools(REBINT scale)
     }
 
     // For pool lookup. Maps size to pool index. (See Find_Pool below)
-    PG_Pool_Map = ALLOC_N(REBYTE, (4 * MEM_BIG_SIZE) + 1);
+    PG_Pool_Map = TRY_ALLOC_N(REBYTE, (4 * MEM_BIG_SIZE) + 1);
 
     // sizes 0 - 8 are pool 0
     for (n = 0; n <= 8; n++) PG_Pool_Map[n] = 0;
@@ -288,7 +306,7 @@ void Startup_Pools(REBINT scale)
     // organized to have some of the logic not in the pools file
 
   #if !defined(NDEBUG)
-    PG_Reb_Stats = ALLOC(REB_STATS);
+    PG_Reb_Stats = TRY_ALLOC(REB_STATS);
   #endif
 
     // Manually allocated series that GC is not responsible for (unless a
@@ -300,7 +318,7 @@ void Startup_Pools(REBINT scale)
     GC_Manuals = Make_Series_Core(15, sizeof(REBSER *), NODE_FLAG_MANAGED);
     CLEAR_SERIES_FLAG(GC_Manuals, MANAGED);
 
-    Prior_Expand = ALLOC_N(REBSER*, MAX_EXPAND_LIST);
+    Prior_Expand = TRY_ALLOC_N(REBSER*, MAX_EXPAND_LIST);
     CLEAR(Prior_Expand, sizeof(REBSER*) * MAX_EXPAND_LIST);
     Prior_Expand[0] = (REBSER*)1;
 }
@@ -392,23 +410,14 @@ void Shutdown_Pools(void)
 // the size and units specified when the pool header was created.  The nodes
 // of the pool are linked to the free list.
 //
-void Fill_Pool(REBPOL *pool)
+bool Try_Fill_Pool(REBPOL *pool)
 {
     REBLEN units = pool->units;
     REBLEN mem_size = pool->wide * units + sizeof(REBSEG);
 
-    REBSEG *seg = cast(REBSEG *, ALLOC_N(char, mem_size));
-    if (seg == NULL) {
-        panic ("Out of memory error during Fill_Pool()");
-
-        // R3-Alpha's safe handling of running out of memory was never really
-        // articulated.  Yet it should be possible to run a fail()...at least
-        // of a certain type...without allocating more memory.  (This probably
-        // suggests a need for pre-creation of the out of memory objects,
-        // as is done with the stack overflow error)
-        //
-        // fail (Error_No_Memory(mem_size));
-    }
+    REBSEG *seg = cast(REBSEG*, TRY_ALLOC_N(char, mem_size));
+    if (seg == nullptr)
+        return false;
 
     seg->size = mem_size;
     seg->next = pool->segs;
@@ -446,6 +455,7 @@ void Fill_Pool(REBPOL *pool)
     }
 
     pool->last = node;
+    return true;
 }
 
 
@@ -545,7 +555,7 @@ REBNOD *Try_Find_Containing_Node_Debug(const void *p)
 // them ensures they are cleaned up.
 //
 REBVAL *Alloc_Pairing(void) {
-    REBVAL *paired = cast(REBVAL*, Make_Node(PAR_POOL));  // 2x REBVAL size
+    REBVAL *paired = cast(REBVAL*, Alloc_Node(PAR_POOL));  // 2x REBVAL size
     Prep_Non_Stack_Cell(paired);
 
     REBVAL *key = PAIRING_KEY(paired);
@@ -1008,6 +1018,7 @@ void Remake_Series(REBSER *s, REBLEN units, REBYTE wide, REBFLGS flags)
     if (not Did_Series_Data_Alloc(s, units + 1)) {
         // Put series back how it was (there may be extant references)
         s->content.dynamic.data = cast(char*, data_old);
+
         fail (Error_No_Memory((units + 1) * wide));
     }
     assert(IS_SER_DYNAMIC(s));
@@ -1095,7 +1106,7 @@ void Decay_Series(REBSER *s)
         // nodes themselves...have they never been accounted for, e.g. in
         // R3-Alpha?  If not, they should be...additional sizeof(REBSER),
         // also tracking overhead for that.  Review the question of how
-        // the GC watermarks interact with Alloc_Mem and the "higher
+        // the GC watermarks interact with Try_Alloc_Mem() and the "higher
         // level" allocations.
 
         int tmp;

@@ -174,9 +174,15 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
 
     // If the error doesn't have a where/near set, set it from stack
     //
-    ERROR_VARS *vars = ERR_VARS(error);
-    if (IS_NULLED_OR_BLANK(&vars->where))
-        Set_Location_Of_Error(error, FS_TOP);
+    // !!! Do not do this for out off memory errors, as it allocates memory.
+    // If this were to be done there would have to be a preallocated array
+    // to use for it.
+    //
+    if (error != Error_No_Memory(1020)) {  // static global, review
+        ERROR_VARS *vars = ERR_VARS(error);
+        if (IS_NULLED_OR_BLANK(&vars->where))
+            Set_Location_Of_Error(error, FS_TOP);
+    }
 
     // The information for the Revolt call frames generally is held in stack
     // variables, so the data will go bad in the longjmp.  We have to free
@@ -901,12 +907,15 @@ REBCTX *Error_No_Arg(REBFRM *f, const RELVAL *param)
 //
 //  Error_No_Memory: C
 //
+// !!! Historically, Rebol had a stack overflow error that didn't want to
+// create new C function stack levels.  So the error was preallocated.  The
+// same needs to apply to out of memory errors--they shouldn't be allocating
+// a new error object.
+//
 REBCTX *Error_No_Memory(REBLEN bytes)
 {
-    DECLARE_LOCAL (bytes_value);
-
-    Init_Integer(bytes_value, bytes);
-    return Error_No_Memory_Raw(bytes_value);
+    UNUSED(bytes);  // !!! Revisit how this information could be tunneled
+    return VAL_CONTEXT(Root_No_Memory_Error);
 }
 
 
@@ -1292,6 +1301,20 @@ void Startup_Stackoverflow(void)
         Alloc_Value(),
         Error_Stack_Overflow_Raw()
     );
+
+    // !!! The original "No memory" error let you supply the size of the
+    // request that could not be fulfilled.  But if you are creating a new
+    // out of memory error with that identity, you need to do an allocation...
+    // and out of memory errors can't work this way.  It may be that the
+    // error is generated after the stack is unwound and memory freed up.
+    //
+    DECLARE_LOCAL (temp);
+    Init_Integer(temp, 1020);
+
+    Root_No_Memory_Error = Init_Error(
+        Alloc_Value(),
+        Error_No_Memory_Raw(temp)
+    );
 }
 
 
@@ -1301,7 +1324,10 @@ void Startup_Stackoverflow(void)
 void Shutdown_Stackoverflow(void)
 {
     rebRelease(Root_Stackoverflow_Error);
-    Root_Stackoverflow_Error = NULL;
+    Root_Stackoverflow_Error = nullptr;
+
+    rebRelease(Root_No_Memory_Error);
+    Root_No_Memory_Error = nullptr;
 }
 
 

@@ -591,7 +591,7 @@ inline static void Literal_Next_In_Feed(REBVAL *out, REBFED *feed) {
 
 
 inline static REBFED* Alloc_Feed(void) {
-    REBFED* feed = cast(REBFED*, Make_Node(FED_POOL));
+    REBFED* feed = cast(REBFED*, Alloc_Node(FED_POOL));
   #ifdef DEBUG_COUNT_TICKS
     feed->tick = TG_Tick;
   #endif

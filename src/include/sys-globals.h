@@ -136,7 +136,8 @@ PVAR REBVAL *Root_Action_Meta;
 
 PVAR REBVAL *Root_Stats_Map;
 
-PVAR REBVAL *Root_Stackoverflow_Error; // made in advance, avoids extra calls
+PVAR REBVAL *Root_Stackoverflow_Error;  // made in advance, avoids extra calls
+PVAR REBVAL *Root_No_Memory_Error;  // also must be made in advance
 
 PVAR REBARR *PG_Extension_Types;  // array of datatypes created by extensions
 
@@ -192,6 +193,10 @@ TVAR bool GC_Disabled;      // true when RECYCLE/OFF is run
 TVAR REBSER *GC_Guarded; // A stack of GC protected series and values
 PVAR REBSER *GC_Mark_Stack; // Series pending to mark their reachables as live
 TVAR REBSER **Prior_Expand; // Track prior series expansions (acceleration)
+
+#if !defined(NDEBUG)  // Used by the FUZZ native to inject memory failures
+    TVAR REBINT PG_Fuzz_Factor;  // (-) => a countdown, (+) percent of 10000
+#endif
 
 TVAR REBSER *TG_Mold_Stack; // Used to prevent infinite loop in cyclical molds
 

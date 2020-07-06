@@ -907,15 +907,15 @@ static const REBUNI Char_Cases[] = {
 void Init_Char_Cases(void)
 {
     // Init whitespace table:
-    White_Chars = ALLOC_N(REBYTE, 34);
+    White_Chars = TRY_ALLOC_N(REBYTE, 34);
     memset(White_Chars, 1, 33); // All white chars: NL, CR, BS, etc...
     White_Chars[cast(REBYTE, ' ')] = 3; // space
     White_Chars[cast(REBYTE, '\t')] = 3; // tab
     White_Chars[0] = 0; // special
 
     // Casing tables:
-    Upper_Cases = ALLOC_N(REBUNI, UNICODE_CASES);
-    Lower_Cases = ALLOC_N(REBUNI, UNICODE_CASES);
+    Upper_Cases = TRY_ALLOC_N(REBUNI, UNICODE_CASES);
+    Lower_Cases = TRY_ALLOC_N(REBUNI, UNICODE_CASES);
 
     int n;
     for (n = 0; n < UNICODE_CASES; n++) {

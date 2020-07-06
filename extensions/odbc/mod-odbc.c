@@ -1056,7 +1056,7 @@ void ODBC_DescribeResults(
             fail ("Unknown column SQL_XXX type");
         }
 
-        col->buffer = ALLOC_N(char, col->buffer_size);
+        col->buffer = TRY_ALLOC_N(char, col->buffer_size);
         if (col->buffer == nullptr)
             fail ("Couldn't allocate column buffer!");
     }

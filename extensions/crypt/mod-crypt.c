@@ -351,7 +351,7 @@ REBNATIVE(rc4_key)
 {
     CRYPT_INCLUDE_PARAMS_OF_RC4_KEY;
 
-    struct mbedtls_arc4_context *ctx = ALLOC(struct mbedtls_arc4_context);
+    struct mbedtls_arc4_context *ctx = TRY_ALLOC(struct mbedtls_arc4_context);
     mbedtls_arc4_init(ctx);
     mbedtls_arc4_setup(ctx, VAL_BIN_AT(ARG(key)), VAL_LEN_AT(ARG(key)));
 
@@ -892,7 +892,7 @@ REBNATIVE(aes_key)
     );
 
     struct mbedtls_cipher_context_t *ctx
-        = ALLOC(struct mbedtls_cipher_context_t);
+        = TRY_ALLOC(struct mbedtls_cipher_context_t);
     mbedtls_cipher_init(ctx);
 
     REBVAL *error = nullptr;

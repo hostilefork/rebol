@@ -1203,13 +1203,13 @@ REBACT *Alloc_Ffi_Action_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
         // not variadic.  The CIF must stay alive for the entire the lifetime
         // of the args_fftypes, apparently.
         //
-        ffi_cif *cif = ALLOC(ffi_cif);
+        ffi_cif *cif = TRY_ALLOC(ffi_cif);
 
         ffi_type **args_fftypes;
         if (num_fixed == 0)
             args_fftypes = nullptr;
         else
-            args_fftypes = ALLOC_N(ffi_type*, num_fixed);
+            args_fftypes = TRY_ALLOC_N(ffi_type*, num_fixed);
 
         REBLEN i;
         for (i = 0; i < num_fixed; ++i)

@@ -112,3 +112,38 @@ REBNATIVE(diagnose)
     return Init_Void(D_OUT);
   #endif
 }
+
+
+//
+//  fuzz: native [
+//
+//  {Introduce periodic or deterministic fuzzing of out of memory errors}
+//
+//      return: [void!]
+//      factor "Ticks or percentage of time to cause allocation errors"
+//          [integer! percent!]
+//  ]
+//
+REBNATIVE(fuzz)
+{
+    INCLUDE_PARAMS_OF_FUZZ;
+
+  #if defined(NDEBUG)
+    UNUSED(ARG(factor));
+    fail ("FUZZ is only availble in DEBUG builds");
+  #else
+    if (IS_INTEGER(ARG(factor))) {
+        PG_Fuzz_Factor = - VAL_INT32(ARG(factor));  // negative counts ticks
+    }
+    else {
+        // Positive number is used with SPORADICALLY(10000) as the number
+        // it is compared against.  If the result is less than the specified
+        // amount it's a hit.  1.0 is thus 10000, which will always trigger.
+        // 0.0 is thus 0, which never will.
+        //
+        assert(IS_PERCENT(ARG(factor)));
+        PG_Fuzz_Factor = 10000 * VAL_DECIMAL(ARG(factor));
+    }
+    return Init_Void(D_OUT);
+  #endif
+}

@@ -551,12 +551,12 @@ struct Reb_Node {
 //=//// MEMORY ALLOCATION AND FREEING MACROS //////////////////////////////=//
 //
 // Rebol's internal memory management is done based on a pooled model, which
-// use Alloc_Mem and Free_Mem instead of calling malloc directly.  (See the
-// comments on those routines for explanations of why this was done--even in
-// an age of modern thread-safe allocators--due to Rebol's ability to exploit
-// extra data in its pool block when a series grows.)
+// use Try_Alloc_Mem() and Free_Mem() instead of calling malloc directly.
+// (Comments on those routines explain why this was done--even in an age of
+// modern thread-safe allocators--due to Rebol's ability to exploit extra
+// data in its pool block when a series grows.)
 //
-// Since Free_Mem requires the caller to pass in the size of the memory being
+// Since Free_Mem() requires callers to pass in the size of the memory being
 // freed, it can be tricky.  These macros are modeled after C++'s new/delete
 // and new[]/delete[], and allocations take either a type or a type and a
 // length.  The size calculation is done automatically, and the result is cast
@@ -567,17 +567,17 @@ struct Reb_Node {
 // FREE or FREE_N lines up with the type of pointer being freed.
 //
 
-#define ALLOC(t) \
-    cast(t *, Alloc_Mem(sizeof(t)))
+#define TRY_ALLOC(t) \
+    cast(t *, Try_Alloc_Mem(sizeof(t)))
 
-#define ALLOC_ZEROFILL(t) \
+#define TRY_ALLOC_ZEROFILL(t) \
     cast(t *, memset(ALLOC(t), '\0', sizeof(t)))
 
-#define ALLOC_N(t,n) \
-    cast(t *, Alloc_Mem(sizeof(t) * (n)))
+#define TRY_ALLOC_N(t,n) \
+    cast(t *, Try_Alloc_Mem(sizeof(t) * (n)))
 
-#define ALLOC_N_ZEROFILL(t,n) \
-    cast(t *, memset(ALLOC_N(t, (n)), '\0', sizeof(t) * (n)))
+#define TRY_ALLOC_N_ZEROFILL(t,n) \
+    cast(t *, memset(TRY_ALLOC_N(t, (n)), '\0', sizeof(t) * (n)))
 
 #ifdef CPLUSPLUS_11
     #define FREE(t,p) \

@@ -222,17 +222,20 @@ inline static REBARR *Make_Array_Core(REBLEN capacity, REBFLGS flags) {
     REBSER *s = Alloc_Series_Node(flags);
 
     if (
-        (flags & SERIES_FLAG_ALWAYS_DYNAMIC) // inlining will constant fold
+        (flags & SERIES_FLAG_ALWAYS_DYNAMIC)  // inlining will constant fold
         or capacity > 1
     ){
-        capacity += 1; // account for cell needed for terminator (END)
+        capacity += 1;  // account for cell needed for terminator (END)
 
-        if (cast(REBU64, capacity) * wide > INT32_MAX) // too big
-            fail (Error_No_Memory(cast(REBU64, capacity) * wide));
+        s->info = Endlike_Header(FLAG_LEN_BYTE_OR_255(255));  // dynamic
 
-        s->info = Endlike_Header(FLAG_LEN_BYTE_OR_255(255)); // dynamic
-        if (not Did_Series_Data_Alloc(s, capacity)) // expects LEN_BYTE=255
+        if (not Did_Series_Data_Alloc(s, capacity)) {  // expects LEN_BYTE=255
+            s->header.bits &= ~NODE_FLAG_MANAGED;  // can't kill if managed
+            s->info.bits |= SERIES_INFO_INACCESSIBLE;
+            GC_Kill_Series(s);  // ^-- needs non-null data unless INACCESSIBLE
+
             fail (Error_No_Memory(capacity * wide));
+        }
 
         Prep_Array(ARR(s), capacity);
         SET_END(ARR_HEAD(ARR(s)));
@@ -246,7 +249,7 @@ inline static REBARR *Make_Array_Core(REBLEN capacity, REBFLGS flags) {
         TRACK_CELL_IF_DEBUG(SER_CELL(s), "<<make>>", 0);
 
         s->info = Endlike_Header(
-            FLAG_WIDE_BYTE_OR_0(0) // implicit termination
+            FLAG_WIDE_BYTE_OR_0(0)  // implicit termination
                 | FLAG_LEN_BYTE_OR_255(0)
         );
     }
@@ -257,13 +260,13 @@ inline static REBARR *Make_Array_Core(REBLEN capacity, REBFLGS flags) {
     //
     // !!! Code duplicated in Make_Series_Core ATM.
     //
-    if (not (flags & NODE_FLAG_MANAGED)) { // most callsites const fold this
+    if (not (flags & NODE_FLAG_MANAGED)) {  // most callsites const fold this
         if (SER_FULL(GC_Manuals))
             Extend_Series(GC_Manuals, 8);
 
         cast(REBSER**, GC_Manuals->content.dynamic.data)[
             GC_Manuals->content.dynamic.used++
-        ] = s; // start out managed to not need to find/remove from this later
+        ] = s;  // start with NODE_FLAG_MANAGED to not need to remove later
     }
 
     // Arrays created at runtime default to inheriting the file and line

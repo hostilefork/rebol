@@ -1419,7 +1419,7 @@ REBTYPE(String)
 //
 void Startup_String(void)
 {
-    Char_Escapes = ALLOC_N_ZEROFILL(REBYTE, MAX_ESC_CHAR + 1);
+    Char_Escapes = TRY_ALLOC_N_ZEROFILL(REBYTE, MAX_ESC_CHAR + 1);
 
     REBYTE *cp = Char_Escapes;
     REBYTE c;
@@ -1431,7 +1431,7 @@ void Startup_String(void)
     Char_Escapes[cast(REBYTE, '"')] = '"';
     Char_Escapes[cast(REBYTE, '^')] = '^';
 
-    URL_Escapes = ALLOC_N_ZEROFILL(REBYTE, MAX_URL_CHAR + 1);
+    URL_Escapes = TRY_ALLOC_N_ZEROFILL(REBYTE, MAX_URL_CHAR + 1);
 
     for (c = 0; c <= ' '; c++)
         URL_Escapes[c] = ESC_URL | ESC_FILE;

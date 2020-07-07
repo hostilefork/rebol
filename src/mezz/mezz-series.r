@@ -56,7 +56,7 @@ join-all: function [
     <local> position base
 ][
     until [
-        block: (evaluate @base block) else [return null]
+        block: (evaluate/result block 'base) else [return null]
         set? 'base  ; skip NULL evaluations
     ]
     join base block

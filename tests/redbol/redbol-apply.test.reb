@@ -5,17 +5,18 @@
     action [action!]
     block [block!]
     /only
+    <local> arg
 ][
     frame: make frame! :action
     params: parameters of :action
     using-args: true
 
     while [block: sync-invisibles block] [
-        block: if only [
+        if only [
             arg: get* 'block/1
-            try next block
+            block: next block
         ] else [
-            try evaluate @(lit arg:) block
+            [block arg]: evaluate block
         ]
 
         if refinement? params/1 [

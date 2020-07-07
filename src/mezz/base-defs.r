@@ -158,7 +158,7 @@ pointfree*: func* [
             strict-equal? blank! type of :block/1 [block: skip block 1]
 
             match word! p/1 [
-                if not block: try evaluate @var block [
+                if not [block var]: evaluate block [
                     break  ; ran out of args, assume remaining unspecialized
                 ]
                 frame/(p/1): :var
@@ -180,7 +180,7 @@ pointfree*: func* [
         ]
     ]
 
-    if :block/1 [
+    all [block :block/1] then [
         fail 'block ["Unused argument data at end of POINTFREE block"]
     ]
 

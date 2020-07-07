@@ -17,9 +17,9 @@ verify: function [
     return: []
     conditions [block!]
         {Conditions to check}
-    <local> result
+    <local> pos result
 ][
-    while [pos: evaluate @result conditions] [
+    while [pos: evaluate/result conditions 'result] [
         if (void? :result) or [not :result] [
             ;
             ; including bars in the failure report looks messy, skip them

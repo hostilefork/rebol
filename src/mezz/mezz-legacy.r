@@ -194,6 +194,7 @@ rejoin: function [
         "Will be the type of the first non-null series produced by evaluation"
     block [block!]
         "Values to reduce and join together"
+    <local> evaluated
 ][
     ; An empty block should result in an empty block.
     ;
@@ -203,7 +204,7 @@ rejoin: function [
     ;
     values: copy []
     pos: block
-    while [pos: evaluate @(lit evaluated:) pos][
+    while [[pos evaluated]: evaluate pos][
         append/only values :evaluated
     ]
 

@@ -24,6 +24,7 @@ dump: function [
         [text!]
 
     <static> enablements (make map! [])
+    <local> result
 ][
     print: adapt 'lib/print [
         if prefix [
@@ -81,7 +82,7 @@ dump: function [
 
     case [
         swp: match [set-word! set-path!] :value [ ; `dump x: 1 + 2`
-            pos: evaluate @(lit result:) extra
+            [pos result]: evaluate extra
             set swp :result
             print [swp | result]
         ]
@@ -89,7 +90,7 @@ dump: function [
         b: match block! :value [
             while [not tail? b] [
                 if swp: match [set-word! set-path!] :b/1 [ ; `dump [x: 1 + 2]`
-                    b: evaluate @(lit result:) b
+                    [b result]: evaluate b
                     print [swp | result]
                 ] else [
                     dump-one b/1
@@ -150,7 +151,7 @@ dumps: enfixed function [
         ; Make it easy to declare and dump a variable at the same time.
         ;
         if match [set-word! set-path!] value [
-            evaluate @value extra
+            [_ value]: evaluate extra
             value: either set-word? value [as word! value] [as path! value]
         ]
 

@@ -236,21 +236,21 @@
     success
 )
 (
-    b: evaluate @value [1 2]
+    [b value]: evaluate [1 2]
     did all [
         1 = value
         [2] = b
     ]
 )
 (
-    value: <untouched>
+    value: <overwritten>
     did all [
-        null? evaluate @value []
-        value = <untouched>
+        null? [_ value]: evaluate []
+        void? get/any 'value
     ]
 )
 (
-    evaluate @value [trap [1 / 0]]
+    [_ value]: evaluate [trap [1 / 0]]
     error? value
 )
 (
@@ -276,6 +276,7 @@
 )]
 ; infinite recursion for evaluate
 (
-    blk: [b: evaluate blk]
-    error? trap blk
+    n: 0
+    blk: [(if 2000 = n: n + 1 [throw <2000>] b: evaluate blk)]
+    <2000> = catch blk
 )

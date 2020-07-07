@@ -486,59 +486,59 @@ REBNATIVE(do)
 //
 //  {Perform a single evaluator step, returning the next source position}
 //
-//      return: [<opt> block! group! varargs!]
-//      :var "Is set with result of evaluation (left as-is if end/invisible)"
-//          [<skip> sym-word! sym-path! sym-group!]
+//      return: "Next evaluation position, or NULL if complete"
+//          [<opt> block! group! varargs!]
 //      source [
 //          <blank>  ; useful for `evaluate try ...` scenarios when no match
 //          block!  ; source code in block form
 //          group!  ; same as block (or should it have some other nuance?)
 //          varargs!  ; simulates as if frame! or block! is being executed
 //      ]
-//      /set "DEPRECATED: use `evaluate @var` or `evaluate @(lit var:)` etc."
-//          [any-word!]
+//      /result "Optional output: the result of the evaluation"
+//          [<output>]
 //  ]
 //
 REBNATIVE(evaluate)
 {
     INCLUDE_PARAMS_OF_EVALUATE;
 
-    if (REF(set))
-        fail ("EVALUATE/SET deprecated: https://forum.rebol.info/t/1173");
+    enum {
+        ST_EVALUATE_INITIAL_ENTRY = 0,
+        ST_EVALUATE_STEPPING
+    };
 
     REBVAL *source = ARG(source);  // may be only GC reference, don't lose it!
+
+    switch (D_STATE_BYTE) {
+      case ST_EVALUATE_INITIAL_ENTRY: break;
+      case ST_EVALUATE_STEPPING: goto step_completed;
+      default: assert(false);
+    }
+
   #if !defined(NDEBUG)
     SET_CELL_FLAG(ARG(source), PROTECTED);
   #endif
 
-    REBVAL *var = ARG(var);
-
-    if (IS_SYM_GROUP(var)) {
-        if (Do_Any_Array_At_Throws(D_OUT, var, SPECIFIED))
-            return R_THROWN;
-
-        if (IS_BLANK(D_OUT))
-            Init_Nulled(var);  // for consistency with <skip>'d var
-        if (ANY_WORD(D_OUT) or ANY_PATH(D_OUT))
-            Move_Value(var, D_OUT);
-        else
-            fail ("@(...) for EVALUATE must be BLANK!/ANY-WORD!/ANY-PATH!");
-    }
-
     switch (VAL_TYPE(source)) {
       case REB_BLOCK:
       case REB_GROUP: {
-        REBLEN index;
-        if (Eval_Step_In_Any_Array_At_Throws(
-            D_SPARE,
-            &index,
+        DECLARE_FRAME_AT (
+            subframe,
             source,
-            SPECIFIED,
             EVAL_MASK_DEFAULT
-        )){
-            Move_Value(D_OUT, D_SPARE);
-            return R_THROWN;
-        }
+                | EVAL_FLAG_TRAMPOLINE_KEEPALIVE  // we need `index` of feed
+        );
+        INIT_F_EXECUTOR(subframe, &New_Expression_Executor);
+        SET_END(D_SPARE);
+        Push_Frame(D_SPARE, subframe);
+        D_STATE_BYTE = ST_EVALUATE_STEPPING;
+        return R_CONTINUATION;
+      }
+
+      step_completed: {
+        assert(FS_TOP->prior == frame_);  // FS_TOP should be frame we pushed
+        REBLEN index = FS_TOP->feed->index - 1;
+        Drop_Frame(FS_TOP);
 
         if (IS_END(D_SPARE))  // we were at array end or was just COMMENT/etc.
             return nullptr;  // leave the result variable with old value
@@ -612,9 +612,9 @@ REBNATIVE(evaluate)
         panic (source);
     }
 
-    if (not IS_NULLED(var))
+    if (not IS_NULLED(ARG(result)))
         Set_Var_May_Fail(
-            ARG(var), SPECIFIED,
+            ARG(result), SPECIFIED,
             D_SPARE, SPECIFIED,
             false  // not hard (e.g. GROUP!s don't run, and not literal)
         );

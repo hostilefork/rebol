@@ -320,6 +320,7 @@ apply: emulate [
         action [action!]
         block [block!]
         /only
+        <local> arg
     ][
         frame: make frame! :action
         params: parameters of :action
@@ -328,9 +329,9 @@ apply: emulate [
         while [block: sync-invisibles block] [
             block: if only [
                 arg: block/1
-                try next block
+                block: next block
             ] else [
-                try evaluate @(lit arg:) block
+                [block arg]: evaluate block
             ]
 
             if refinement? params/1 [
@@ -520,13 +521,14 @@ do: emulate [
         :hards [any-value! <...>]
         /args [any-value!]
         /next [word!]
+        <local> result
     ][
         var: next
         next: :lib/next
 
         if var [  ; DO/NEXT
             if args [fail "Can't use DO/NEXT with ARGS"]
-            source: evaluate @(lit result:) :source
+            [source result]: evaluate :source
             set var source  ; DO/NEXT put the *position* in the var
             return :result  ; DO/NEXT returned the *evaluative result*
         ]

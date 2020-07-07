@@ -1605,7 +1605,7 @@ REBNATIVE(catch)
     else {
         // Return THROW's arg only if it did not have a /NAME supplied
         //
-        if (IS_NULLED(label))
+        if (IS_NULLED(label) and (REF(any) or not REF(quit)))
             goto was_caught;
     }
 

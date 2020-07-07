@@ -132,6 +132,12 @@ cflags: compose [
         ; Instruction to compiler front end (via -D) to do a #define
         {-DUSE_PTHREADS=1}  ; clearer than `#if !defined(USE_ASYNCIFY)`
     ]]))
+
+    ; By default, Emscripten will abort when malloc() doesn't succeed.  In the
+    ; "stackless" paradigm, infinite recursions can be trapped in the form of
+    ; out of memory errors.  We want malloc() to return NULL, this makes it.
+    ;
+    {-s ABORTING_MALLOC=0}
 ]
 
 ldflags: compose [
@@ -282,6 +288,12 @@ ldflags: compose [
         {-s WASM=0 -s SAFE_HEAP=1}
     ])
 
+    ; By default, Emscripten will abort when malloc() doesn't succeed.  In the
+    ; "stackless" paradigm, infinite recursions can be trapped in the form of
+    ; out of memory errors.  We want malloc() to return NULL, this makes it.
+    ;
+    {-s ABORTING_MALLOC=0}
+
     ; This allows memory growth but disables asm.js optimizations (little to
     ; no effect on WASM).  Disable until it becomes an issue.
     ;
@@ -318,9 +330,9 @@ ldflags: compose [
         ;
         {-s ASYNCIFY_BLACKLIST=@prep/include/asyncify-blacklist.json}
 
-    ; whitelist needs true function names
-
-    {--profiling-funcs}
+        ; whitelist needs true function names
+        ;
+        {--profiling-funcs}
     ]]
     else [[
         {-s USE_PTHREADS=1}  ; must be in both cflags and ldflags if used

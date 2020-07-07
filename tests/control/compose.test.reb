@@ -43,8 +43,9 @@
 )
 ; infinite recursion
 (
-    blk: [(compose blk)]
-    error? trap blk
+    n: 0
+    blk: [(if 2000 = n: n + 1 [throw <2000>]) (compose blk)]
+    <2000> = catch blk
 )
 
 ; #1906

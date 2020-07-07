@@ -343,9 +343,19 @@ REBNATIVE(do)
       case REB_SYM_BLOCK:
       case REB_GROUP:
       case REB_SYM_GROUP: {
-        if (Do_Any_Array_At_Throws(D_OUT, source, SPECIFIED))
-            return R_THROWN;
-        return D_OUT; }
+        DECLARE_FRAME_AT_CORE (
+            subframe,
+            source,
+            VAL_SPECIFIER(source),
+            EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END
+        );
+
+        Init_Void(D_OUT);  // in case all invisibles, as usual
+        Push_Frame(D_OUT, subframe);
+        INIT_F_EXECUTOR(subframe, &New_Expression_Executor);
+
+        SET_EVAL_FLAG(frame_, DELEGATE_CONTROL);
+        return R_CONTINUATION; }
 
       case REB_VARARGS: {
         REBVAL *position;
@@ -411,20 +421,30 @@ REBNATIVE(do)
         REBVAL *sys_do_helper = Get_Sys_Function(DO_P);
         assert(IS_ACTION(sys_do_helper));
 
-        UNUSED(REF(args)); // detected via `value? :arg`
+        // !!! This used to use "RunQ_Throws()" but that was not stackless.
+        // Building an array of code is not as efficient as setting up a
+        // frame directly.  Consider better ways to build frames from C
+        //
+        REBARR *code = Make_Array(4);
+        Move_Value(ARR_AT(code, 0), sys_do_helper);
+        Move_Value(ARR_AT(code, 1), source);
+        Move_Value(ARR_AT(code, 2), Quotify(ARG(args), 1));  // may be null
+        Init_Logic(ARR_AT(code, 3), REF(only) ? true : false);
+        TERM_ARRAY_LEN(code, 4);
 
-        if (RunQ_Throws(
-            D_OUT,
-            true,  // fully = true, error if not all arguments consumed
-            rebU1(sys_do_helper),
-            source,
-            REF(args),
-            REF(only) ? TRUE_VALUE : FALSE_VALUE,
-            rebEND
-        )){
-            return R_THROWN;
-        }
-        return D_OUT; }
+        DECLARE_FRAME_AT_CORE (
+            subframe,
+            Init_Block(D_SPARE, code),
+            SPECIFIED,
+            EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END
+        );
+
+        Init_Void(D_OUT);  // in case all invisibles, as usual
+        Push_Frame(D_OUT, subframe);
+        INIT_F_EXECUTOR(subframe, &New_Expression_Executor);
+
+        SET_EVAL_FLAG(frame_, DELEGATE_CONTROL);
+        return R_CONTINUATION; }
 
       case REB_ERROR:
         //

@@ -264,13 +264,15 @@
 (3 = reeval :reeval :add 1 2)
 ; infinite recursion for block
 (
-    blk: [do blk]
-    error? trap blk
+    n: 0
+    blk: [if 2000 = n: n + 1 [throw <2000>] do blk]
+    <2000> = catch blk
 )
 ; infinite recursion for string
 [#1896 (
-    str: "do str"
-    error? trap [do str]
+    n: 0
+    str: "if 1000 = n: n + 1 [throw <1000>] do str"
+    <1000> = catch [do str]
 )]
 ; infinite recursion for evaluate
 (

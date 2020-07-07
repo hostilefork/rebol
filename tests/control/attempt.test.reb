@@ -18,6 +18,7 @@
 (null? attempt [attempt [1 / 0]])
 ; infinite recursion
 (
-    blk: [attempt blk]
-    null? attempt blk
+    n: 0
+    blk: [if 2000 = n: n + 1 [throw <2000>] attempt blk]
+    <2000> = catch [attempt blk]
 )

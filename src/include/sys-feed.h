@@ -160,11 +160,13 @@ STATIC_ASSERT(FLAG_LEFT_BIT(7) == NODE_FLAG_CELL);  // !!! use it or not?
 #define FLAG_QUOTING_BYTE(quoting) \
     FLAG_SECOND_BYTE(quoting)
 
-#define QUOTING_BYTE(feed) \
-    SECOND_BYTE((feed)->flags.bits)
-
-#define mutable_QUOTING_BYTE(feed) \
-    mutable_SECOND_BYTE((feed)->flags.bits)
+#if !defined(__cplusplus)
+    #define QUOTING_BYTE(feed) \
+        mutable_SECOND_BYTE((feed)->flags.bits)
+#else
+    inline static REBYTE& QUOTING_BYTE(REBFED *feed)  // type checks feed...
+        { return mutable_SECOND_BYTE(feed->flags.bits); }  // ...but mutable
+#endif
 
 
 // The user is able to flip the constness flag explicitly with the CONST and

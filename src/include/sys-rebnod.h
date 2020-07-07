@@ -131,6 +131,9 @@
 // `unsigned char` is used below, as opposed to `uint8_t`, to coherently
 // access the bytes despite being written via a `uintptr_t`, due to the strict
 // aliasing exemption for character types (some say uint8_t should count...)
+//
+// mutable and immutable variations are needed, because sometimes the flags
+// are const (e.g. of a header in a `const REBVAL*`)
 
 #define FIRST_BYTE(flags)       ((const unsigned char*)&(flags))[0]
 #define SECOND_BYTE(flags)      ((const unsigned char*)&(flags))[1]

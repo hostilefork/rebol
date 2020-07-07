@@ -149,8 +149,8 @@ inline static int FRM_LINE(REBFRM *f) {
     #define STATE_BYTE(f) \
         mutable_SECOND_BYTE((f)->flags)
 #else
-    inline static REBYTE& STATE_BYTE(REBFRM *f)
-      { return mutable_SECOND_BYTE(f->flags); }
+    inline static REBYTE& STATE_BYTE(REBFRM *f)  // type checks f...
+      { return mutable_SECOND_BYTE(f->flags); }  // ...but mutable
 #endif
 
 

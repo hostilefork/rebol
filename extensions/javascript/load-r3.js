@@ -477,7 +477,7 @@ function libRebolComponentURL(suffix) {  // suffix includes the dot
 let workerJsBlob = null
 let prefetch_worker_js_promiser = () => new Promise(
     function (resolve, reject) {
-        if (!hasThreads) {
+        if (use_asyncify) {
             resolve()
             return
         }

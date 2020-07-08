@@ -1831,18 +1831,13 @@ REB_R Encloser_Dispatcher(REBFRM *f)
     //
     SET_SERIES_FLAG(f->varlist, MANAGED);
 
-    // The `c` context is now detached from a frame, so nothing would protect
-    // it from garbage collection.  Use the FRM_SPARE(f) as a place to put it.
-    //
-    // !!! See notes in Push_Continuation_With_Core() on how the frame might
-    // be filled directly and bypassing a feed allocation, hence not needing
-    // any GC safety.
-    //
-    Move_Value(FRM_SPARE(f), rootvar);
-
     // It's important we use EVAL_FLAG_DELEGATE_CONTROL because because we
     // have stolen the original frame--there is no longer a complete entity to
     // come back and reinvoke.
+    //
+    // Note: The `c` context is now detached from a frame, so nothing protects
+    // it from garbage collection.  However, Push_Continuation will make a
+    // copy of the "with" argument into the function's frame, so it's safe.
     //
     Push_Continuation_With_Core(
         f->out,
@@ -1850,7 +1845,7 @@ REB_R Encloser_Dispatcher(REBFRM *f)
         EVAL_FLAG_DELEGATE_CONTROL,
         outer,
         SPECIFIED,
-        FRM_SPARE(f)  // the "with" parameter
+        rootvar  // `with` argument, see note above on copy for GC-safety
     );
     return R_CONTINUATION;
 }

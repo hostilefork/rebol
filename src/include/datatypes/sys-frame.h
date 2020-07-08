@@ -995,18 +995,13 @@ inline static REBVAL *D_ARG_Core(REBFRM *f, REBLEN n) {  // 1 for first arg
 // continuation finishes, and its f->out pointer will contain whatever was
 // produced.
 //
-// !!! The with parameter, e.g. to a single-arg function, must be in a GC safe
-// location.  This could perhaps be optimized to avoid a feed allocation by
-// filling a function's frame directly via First_Unspecialized_Arg() and
-// catching any errors there...which would bypass the need for GC safety.
-//
 inline static REBFRM *Push_Continuation_With_Core(
     REBVAL *out,
     REBFRM *f,
     REBFLGS flags,  // EVAL_FLAG_(DELEGATE_CONTROL/DISPATCHER_CATCHES)
     const RELVAL *branch,
     REBSPC *branch_specifier,
-    const REBVAL *with  // See note: Must be in GC-safe location!
+    const REBVAL *with  // gets copied if not END_VALUE, need not be GC-safe
 ){
     f->flags.bits |= flags;
     assert(branch != out and with != out);
@@ -1044,35 +1039,38 @@ inline static REBFRM *Push_Continuation_With_Core(
         return blockframe; }
 
       case REB_ACTION: {
-        REBACT *action = VAL_ACTION(branch);
-        REBNOD *binding = VAL_BINDING(branch);
+        REBDSP lowest_ordered_dsp = DSP;  // not a PATH!, no refinements
 
-        // CONTINUE_WITH when used with a 0-arity function will omit
-        // the WITH parameter.  If an error is desired, that must be
-        // done at a higher level (e.g. see DO of ACTION!)
-        //
-        REBFED *subfeed = Alloc_Feed();
-        Prep_Array_Feed(subfeed,
-            First_Unspecialized_Param(action) == nullptr
-                ? nullptr  // 0-arity throws away `with`
-                : (IS_END(with) ? nullptr : with),
-            EMPTY_ARRAY,  // unused (just leveraging `with` preload)
-            0,
-            SPECIFIED,
-            FEED_MASK_DEFAULT
+        REBCTX *c = Make_Context_For_Action(
+            branch,
+            lowest_ordered_dsp,
+            nullptr  // no binder needed, not running any code
         );
-
-        DECLARE_FRAME (
+        DECLARE_END_FRAME (
             subframe,
-            subfeed,
             EVAL_MASK_DEFAULT
-                | EVAL_FLAG_ALLOCATED_FEED
+                | EVAL_FLAG_FULLY_SPECIALIZED
         );
 
-        Init_Void(out);
-        SET_CELL_FLAG(out, OUT_MARKED_STALE);
+        INIT_LINK_KEYSOURCE(c, NOD(subframe));
+
         Push_Frame(out, subframe);
-        Push_Action(subframe, action, binding);
+        subframe->varlist = CTX_VARLIST(c);
+        SET_SERIES_FLAG(subframe->varlist, STACK_LIFETIME);  // SPC() checks
+        subframe->rootvar = CTX_ARCHETYPE(c);
+        subframe->param = CTX_KEYS_HEAD(c);
+        subframe->arg = FRM_ARGS_HEAD(subframe);
+        subframe->special = subframe->arg;  // signals only typecheck
+
+        FRM_BINDING(subframe) = VAL_BINDING(branch);
+
+        if (NOT_END(with)) {
+            REBVAL *param;
+            REBVAL *first = First_Unspecialized_Arg(&param, subframe);
+            if (first)
+                Move_Value(first, with);
+        }
+
         REBSTR *opt_label = nullptr;
         Begin_Prefix_Action(subframe, opt_label);
         return subframe; }

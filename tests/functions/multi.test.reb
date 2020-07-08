@@ -1,6 +1,6 @@
 ; MULTIPLE RETURNS TESTS
 ;
-; Multiple returns in Ren-C are done in a way very much in like historical
+; Multiple returns in Revolt are done in a way very much in like historical
 ; Rebol, where WORD! or PATH! gets passed in to a routine which is the
 ; variable that is then set by the code.
 ;

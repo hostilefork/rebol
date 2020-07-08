@@ -10,12 +10,12 @@ REBOL [
     Description: {
         The COMPILE usermode function is the front-end to the actual COMPILE*
         native, which interfaces directly with the libtcc API.  The front
-        end's job is basically to do all the work that *can* be done in Rebol,
+        end's job is basically to do the work that *can* be done in Revolt,
         so the amount of low-level C code is minimized.
 
         Among COMPILE's duties:
 
-        * Transform any Rebol FILE! paths into TEXT! via FILE-TO-LOCAL, so
+        * Transform any Revolt FILE! paths into TEXT! via FILE-TO-LOCAL, so
           that the paths contain the expected backslashes on Windows, etc.
 
         * For options that can be a list, make sure any missing options are
@@ -23,11 +23,11 @@ REBOL [
           single-element block.  This makes fewer cases for the C to handle.
 
         * If it's necessary to inject any automatic headers (e.g. to add
-          {#include "rebol.h"} for accessing the libRebol API) then it does
+          {#include "revolt.h"} for accessing the libRevolt API) then it does
           that here, instead of making that decision in the C code.
 
         * Extract embedded header files and library files to the local file
-          system.  These allow a Rebol executable that is distributed as a
+          system.  These allow a Revolt executable that is distributed as a
           single EXE to function as a "standalone" compiler.
 
           !!! ^-- Planned future feature: See README.md.
@@ -52,7 +52,7 @@ compile: function [
             library-path [block! file! text!]
             library [block! file! text!]
             runtime-path [file! text!]
-            librebol-path [file! text!]
+            librevolt-path [file! text!]
             output-type [word!]  ; MEMORY, EXE, DLL, OBJ, PREPROCESS
             output-file [file! text!]
             debug [word! logic!]  ; !!! currently unimplemented
@@ -82,7 +82,7 @@ compile: function [
         library-path: copy []  ; block! of text!s (local directories)
         library: copy []  ; block of text!s (local filenames)
         runtime-path: _  ; sets "CONFIG_TCCDIR" at runtime, text! or blank
-        librebol-path: _  ; alternative to "LIBREBOL_INCLUDE_DIR"
+        librevolt-path: _  ; alternative to "LIBREVOLT_INCLUDE_DIR"
         output-type: _  ; will default to MEMORY
         output-file: _  ; not needed if MEMORY
     ]
@@ -124,7 +124,7 @@ compile: function [
                     ]
                     config/output-type: arg
                 ]
-                'output-file 'runtime-path 'librebol-path [
+                'output-file 'runtime-path 'librevolt-path [
                     config/(key): switch type of arg [
                         file! [arg]
                         text! [local-to-file arg]
@@ -225,17 +225,17 @@ compile: function [
     ; which is generally located in the CONFIG_TCCDIR.
 
     case [
-        "1" = get-env "REBOL_TCC_EXTENSION_32BIT_ON_64BIT" [
+        "1" = get-env "REVOLT_TCC_EXTENSION_32BIT_ON_64BIT" [
             ;
             ; This is the verbatim list of library overrides that `-v` dumps
             ; on 64-bit multilib Travis compiling `int main() {}` with -m32:
             ;
             ;     gcc -v -m32 main.c -o main
             ;
-            ; Otherwise, if you're trying to run a 32-bit Rebol on 64-bits
+            ; Otherwise, if you're trying to run a 32-bit Revolt on 64-bits
             ; then the link step of TCC would try to link to the 64-bit libs.
             ; This rarely comes up, because most people runnning a 32-bit
-            ; Rebol are only doing so because they can't run on 64-bits.  But
+            ; Revolt are only doing so because they can't run on 64-bits.  But
             ; Travis containers are 64-bit, so this helps test 32-bit builds.
             ;
             ; Better suggestions on how to do this are of course welcome.  :-/
@@ -265,7 +265,7 @@ compile: function [
         ;
         ; A bit of digging shows "triplet" might be <architecture>-<OS>-<lib>,
         ; e.g. `x86_64-linux-gnu`, and CONFIG_LDDIR is probably lib.  These
-        ; directories are not automatic when using libtcc.  The Rebol COMPILE
+        ; directories are not automatic when using libtcc.  The Revolt COMPILE
         ; command would hopefully have enough smarts to be at least as good as
         ; the tcc command line tool...for now this works around it enough to
         ; help get the bootstrap demo going.
@@ -287,24 +287,24 @@ compile: function [
     ]
 
     ; If there are any "user natives" mentioned, tell COMPILE* to expose the
-    ; internal libRebol symbols to the compiled code.
+    ; internal libRevolt symbols to the compiled code.
     ;
     ; !!! This can only work for in-memory compiles, e.g. TCC_OUTPUT_MEMORY.
     ; If COMPILE* allowed building an executable on disk (it should!) then
-    ; you would need an actual copy of librebol.a to do this, which if it
-    ; were shipped embedded would basically double the size of the Rebol
+    ; you would need an actual copy of librevolt.a to do this, which if it
+    ; were shipped embedded would basically double the size of the Revolt
     ; executable (since that's the whole interpreter!).  A better option
     ; would be to encap the executable you already have as a copy with the
     ; natives loaded into it.
 
-    librebol: _
+    librevolt: _
 
     compilables: map-each item compilables [
         item: maybe if match [word! path!] :item [get item]
 
         switch type of :item [
             action! [
-                librebol: /librebol
+                librevolt: /librevolt
                 :item
             ]
             text! [
@@ -319,7 +319,7 @@ compile: function [
         ]
     ]
 
-    if librebol [
+    if librevolt [
         insert compilables trim/auto mutable {
             /* TCC's override of <stddef.h> defines int64_t in a way that
              * might not be compatible with glibc's <stdint.h> (which at time
@@ -328,22 +328,22 @@ compile: function [
              *     /usr/include/x86_64-linux-gnu/bits/stdint-intn.h:27:
              *         error: incompatible redefinition of 'int64_t'
              *
-             * Since TCC's stddef.h has what rebol.h needs in it anyway, try
+             * Since TCC's stddef.h has what revolt.h needs in it anyway, try
              * just including that.  Otherwise try getting a newer version of
              * libtcc, a different gcc install, or just disable warnings.)
              */
-            #define LIBREBOL_NO_STDINT
+            #define LIBREVOLT_NO_STDINT
             #include <stddef.h>
-            #define REBOL_IMPLICIT_END  /* TCC can do C99 macros, use them! */
-            #include "rebol.h"
+            #define REVOLT_IMPLICIT_END  /* TCC can do C99 macros, use them! */
+            #include "revolt.h"
         }
 
-        ; We want to embed and ship "rebol.h" automatically.  But as a first
-        ; step, try overriding with the LIBREBOL_INCLUDE_DIR environment
+        ; We want to embed and ship "revolt.h" automatically.  But as a first
+        ; step, try overriding with the LIBREVOLT_INCLUDE_DIR environment
         ; variable, if it wasn't explicitly passed in the options.
 
-        config/librebol-path: default [try any [
-            local-to-file try get-env "LIBREBOL_INCLUDE_DIR"
+        config/librevolt-path: default [try any [
+            local-to-file try get-env "LIBREVOLT_INCLUDE_DIR"
 
             ; Guess it is in the runtime directory (%encap-tcc-resources.reb
             ; puts it into the root of the zip file at the moment)
@@ -351,41 +351,41 @@ compile: function [
             config/runtime-path
         ]]
 
-        ; We are going to test for %rebol.h in the path, so need a FILE!
+        ; We are going to test for %revolt.h in the path, so need a FILE!
         ;
-        switch type of config/librebol-path [
-            text! [config/librebol-path: my local-to-file]
+        switch type of config/librevolt-path [
+            text! [config/librevolt-path: my local-to-file]
             file! []
             blank! [
                 fail [
-                    {LIBREBOL_INCLUDE_DIR currently must be set either as an}
-                    {environment variable or as LIBREBOL-PATH in /OPTIONS so}
-                    {that the TCC extension knows where to find "rebol.h"}
+                    {LIBREVOLT_INCLUDE_DIR currently must be set either as an}
+                    {environment variable or as LIBREVOLT-PATH in /OPTIONS so}
+                    {that the TCC extension knows where to find "revolt.h"}
                     {(e.g. in %make/prep/include)}
                 ]
             ]
             default [
-                fail ["Invalid LIBREBOL_INCLUDE_DIR:" config/librebol-path]
+                fail ["Invalid LIBREVOLT_INCLUDE_DIR:" config/librevolt-path]
             ]
         ]
 
-        if not exists? config/librebol-path/rebol.h [
+        if not exists? config/librevolt-path/revolt.h [
             fail [
-                {Looked for %rebol.h in} config/librebol-path {and did not}
-                {find it.  Check your definition of LIBREBOL_INCLUDE_DIR}
+                {Looked for %revolt.h in} config/librevolt-path {and did not}
+                {find it.  Check your definition of LIBREVOLT_INCLUDE_DIR}
             ]
         ]
 
-        insert config/include-path file-to-local config/librebol-path
+        insert config/include-path file-to-local config/librevolt-path
     ]
 
-    ; Having paths as Rebol FILE! is useful for doing work, but the TCC calls
+    ; Having paths as Revolt FILE! is useful for doing work, but the TCC calls
     ; want local paths.  Convert.
     ;
     config/runtime-path: my file-to-local/full
-    config/librebol-path: <taken-into-account>  ; COMPILE* does not read
+    config/librevolt-path: <taken-into-account>  ; COMPILE* does not read
 
-    result: compile*/(files)/(inspect)/(librebol) compilables config
+    result: compile*/(files)/(inspect)/(librevolt) compilables config
 
     if inspect [
         print "== COMPILE/INSPECT CONFIGURATION =="
@@ -549,7 +549,7 @@ c99: function [
 
 
 bootstrap: function [
-    {Download Rebol sources from GitHub and build using TCC}
+    {Download Revolt sources from GitHub and build using TCC}
 ][
     unzip %. https://codeload.github.com/metaeducation/ren-c/zip/master
 

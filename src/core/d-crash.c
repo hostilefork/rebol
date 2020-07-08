@@ -2,22 +2,22 @@
 //  File: %d-crash.c
 //  Summary: "low level crash output"
 //  Section: debug
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -38,7 +38,7 @@
 //
 //  Panic_Core: C
 //
-// Abnormal termination of Rebol.  The debug build is designed to present
+// Abnormal termination of Revolt.  The debug build is designed to present
 // as much diagnostic information as it can on the passed-in pointer, which
 // includes where a REBSER* was allocated or freed.  Or if a REBVAL* is
 // passed in it tries to say what tick it was initialized on and what series
@@ -113,7 +113,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
             PANIC_BUF_SIZE - strlen(buf)
         );
     }
-    else switch (Detect_Rebol_Pointer(p)) {
+    else switch (Detect_Revolt_Pointer(p)) {
       case DETECTED_AS_UTF8: // string might be empty...handle specially?
         strncat(
             buf,
@@ -195,7 +195,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
 //
 //  panic: native [
 //
-//  "Cause abnormal termination of Rebol (dumps debug info in debug builds)"
+//  "Cause abnormal termination of Revolt (dumps debug info in debug builds)"
 //
 //      reason [text! error!]
 //          "Message to report (evaluation not counted in ticks)"
@@ -235,7 +235,7 @@ REBNATIVE(panic)
 //
 //  panic-value: native [
 //
-//  "Cause abnormal termination of Rebol, with diagnostics on a value cell"
+//  "Cause abnormal termination of Revolt, with diagnostics on a value cell"
 //
 //      value [any-value!]
 //          "Suspicious value to panic on (debug build shows diagnostics)"

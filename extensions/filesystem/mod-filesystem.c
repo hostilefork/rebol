@@ -2,22 +2,22 @@
 //  File: %mod-filesystem.c
 //  Summary: "POSIX/Windows File and Directory Access"
 //  Section: ports
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -64,24 +64,24 @@ REBNATIVE(get_dir_actor_handle)
 }
 
 
-// Options for To_REBOL_Path
+// Options for To_Revolt_Path
 enum {
     PATH_OPT_SRC_IS_DIR = 1 << 0
 };
 
 
 //
-//  To_REBOL_Path: C
+//  To_Revolt_Path: C
 //
-// Convert local-format filename to a Rebol-format filename.  This basically
+// Convert local-format filename to a Revolt-format filename.  This basically
 // means that on Windows, "C:\" is translated to "/C/", backslashes are
 // turned into forward slashes, multiple slashes get turned into one slash.
 // If something is supposed to be a directory, then it is ensured that the
-// Rebol-format filename ends in a slash.
+// Revolt-format filename ends in a slash.
 //
 // To try and keep it straight whether a path has been converted already or
-// not, STRING!s are used to hold local-format filenames, while FILE! is
-// assumed to denote a Rebol-format filename.
+// not, TEXT!s are used to hold local-format filenames, while FILE! is
+// assumed to denote a Revolt-format filename.
 //
 // Allocates and returns a new series with the converted path.
 //
@@ -89,7 +89,7 @@ enum {
 // volume when no root slash was provided.  It was an odd case to support
 // the MSDOS convention of `c:file`.  That is not done here.
 //
-REBSTR *To_REBOL_Path(const RELVAL *string, REBFLGS flags)
+REBSTR *To_Revolt_Path(const RELVAL *string, REBFLGS flags)
 {
     assert(IS_TEXT(string));
 
@@ -163,7 +163,7 @@ restart:;
     }
 
     // If this is supposed to be a directory and the last character is not a
-    // slash, make it one (this is Rebol's rule for FILE!s that are dirs)
+    // slash, make it one (this is Revolt's rule for FILE!s that are dirs)
     //
     if ((flags & PATH_OPT_SRC_IS_DIR) and c != '/') // watch for %/c/ case
         Append_Codepoint(mo->series, '/');
@@ -177,14 +177,14 @@ extern REBVAL *Get_Current_Dir_Value(void);
 
 
 enum {
-    REB_FILETOLOCAL_0 = 0, // make it clearer when using no options
-    REB_FILETOLOCAL_FULL = 1 << 0, // expand path relative to current dir
-    REB_FILETOLOCAL_WILD = 1 << 1, // add on a `*` for wildcard listing
+    REV_FILETOLOCAL_0 = 0, // make it clearer when using no options
+    REV_FILETOLOCAL_FULL = 1 << 0, // expand path relative to current dir
+    REV_FILETOLOCAL_WILD = 1 << 1, // add on a `*` for wildcard listing
 
     // !!! A comment in the R3-Alpha %p-dir.c said "Special policy: Win32 does
     // not want tail slash for dir info".
     //
-    REB_FILETOLOCAL_NO_TAIL_SLASH = 1 << 2 // don't include the terminal slash
+    REV_FILETOLOCAL_NO_TAIL_SLASH = 1 << 2 // don't include the terminal slash
 };
 
 
@@ -246,19 +246,19 @@ void Mold_File_To_Local(REB_MOLD *mo, const RELVAL *file, REBFLGS flags) {
 
         Append_Codepoint(mo->series, OS_DIR_SEP);
     }
-    else if (flags & REB_FILETOLOCAL_FULL) {
+    else if (flags & REV_FILETOLOCAL_FULL) {
         //
         // When full path is requested and the source path was relative (e.g.
         // did not start with `/`) then prepend the current directory.
         //
-        // Get_Current_Dir_Value() comes back in Rebol-format FILE! form, and
+        // Get_Current_Dir_Value() comes back in Revolt-format FILE! form, and
         // it has to be converted to the local-format before being prepended
         // to the local-format file path we're generating.  So recurse.  Don't
-        // use REB_FILETOLOCAL_FULL as that would recurse (we assume a fully
+        // use REV_FILETOLOCAL_FULL as that would recurse (we assume a fully
         // qualified path was returned by Get_Current_Dir_Value())
         //
         REBVAL *lpath = Get_Current_Dir_Value();
-        Mold_File_To_Local(mo, lpath, REB_FILETOLOCAL_0);
+        Mold_File_To_Local(mo, lpath, REV_FILETOLOCAL_0);
         rebRelease(lpath);
     }
 
@@ -267,7 +267,7 @@ void Mold_File_To_Local(REB_MOLD *mo, const RELVAL *file, REBFLGS flags) {
     // segment of the path, i.e. stops after OS_DIR_SEP
     //
     for (; i < len; up = NEXT_CHR(&c, up), ++i) {
-        if (flags & REB_FILETOLOCAL_FULL) {
+        if (flags & REV_FILETOLOCAL_FULL) {
             //
             // While file and directory names like %.foo or %..foo/ are legal,
             // lone %. and %.. have special meaning.  If a file path component
@@ -400,7 +400,7 @@ void Mold_File_To_Local(REB_MOLD *mo, const RELVAL *file, REBFLGS flags) {
     // Some operations on directories in various OSes will fail if the slash
     // is included in the filename (move, delete), so it might not be wanted.
     //
-    if (flags & REB_FILETOLOCAL_NO_TAIL_SLASH) {
+    if (flags & REV_FILETOLOCAL_NO_TAIL_SLASH) {
         REBSIZ n = STR_SIZE(mo->series);
         if (n > mo->offset and *BIN_AT(SER(mo->series), n - 1) == OS_DIR_SEP)
             TERM_STR_LEN_SIZE(mo->series, STR_LEN(mo->series) - 1, n - 1);
@@ -409,7 +409,7 @@ void Mold_File_To_Local(REB_MOLD *mo, const RELVAL *file, REBFLGS flags) {
     // If one is to list a directory's contents, you might want the name to
     // be `c:\foo\*` instead of just `c:\foo` (Windows needs this)
     //
-    if (flags & REB_FILETOLOCAL_WILD)
+    if (flags & REV_FILETOLOCAL_WILD)
         Append_Codepoint(mo->series, '*');
 }
 
@@ -417,8 +417,8 @@ void Mold_File_To_Local(REB_MOLD *mo, const RELVAL *file, REBFLGS flags) {
 //
 //  To_Local_Path: C
 //
-// Convert Rebol-format filename to a local-format filename.  This is the
-// opposite operation of To_REBOL_Path.
+// Convert Revolt-format filename to a local-format filename.  This is the
+// opposite operation of To_Revolt_Path.
 //
 REBSTR *To_Local_Path(const RELVAL *file, REBFLGS flags) {
     DECLARE_MOLD (mo);
@@ -432,7 +432,7 @@ REBSTR *To_Local_Path(const RELVAL *file, REBFLGS flags) {
 //
 //  export local-to-file: native [
 //
-//  {Converts a local system file path TEXT! to a Rebol FILE! path.}
+//  {Converts a local system file path TEXT! to a Revolt FILE! path.}
 //
 //      return: [<opt> file!]
 //          {The returned value should be a valid natural FILE! literal}
@@ -458,7 +458,7 @@ REBNATIVE(local_to_file)
 
     return Init_File(
         D_OUT,
-        To_REBOL_Path(path, REF(dir) ? PATH_OPT_SRC_IS_DIR : 0)
+        To_Revolt_Path(path, REF(dir) ? PATH_OPT_SRC_IS_DIR : 0)
     );
 }
 
@@ -466,7 +466,7 @@ REBNATIVE(local_to_file)
 //
 //  export file-to-local: native [
 //
-//  {Converts a Rebol FILE! path to TEXT! of the local system file path}
+//  {Converts a Revolt FILE! path to TEXT! of the local system file path}
 //
 //      return: [<opt> text!]
 //          {A TEXT! like "\foo\bar" is not a "natural" FILE! %\foo\bar}
@@ -498,10 +498,10 @@ REBNATIVE(file_to_local)
         D_OUT,
         To_Local_Path(
             path,
-            REB_FILETOLOCAL_0
-                | (REF(full) ? REB_FILETOLOCAL_FULL : 0)
-                | (REF(no_tail_slash) ? REB_FILETOLOCAL_NO_TAIL_SLASH : 0)
-                | (REF(wild) ? REB_FILETOLOCAL_WILD : 0)
+            REV_FILETOLOCAL_0
+                | (REF(full) ? REV_FILETOLOCAL_FULL : 0)
+                | (REF(no_tail_slash) ? REV_FILETOLOCAL_NO_TAIL_SLASH : 0)
+                | (REF(wild) ? REV_FILETOLOCAL_WILD : 0)
         )
     );
 }

@@ -2,31 +2,30 @@
 //  File: %mod-debugger.c
 //  Summary: "Native Functions for debugging"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Copyright 2015-2019 Rebol Open Source Contributors
-// REBOL is a trademark of REBOL Technologies
+// Copyright 2015-2019 Revolt Open Source Contributors
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// One goal of Ren-C's debugger is to have as much of it possible written in
-// usermode Rebol code, and be easy to hack on and automate.
+// One goal of Revolt's debugger is to have as much of it possible written in
+// usermode code, and be easy to hack on and automate.
 //
 // This file contains interactive debugging support for breaking and
 // resuming.  The instructions BREAKPOINT and PAUSE are natives which will
 // invoke the CONSOLE function to start an interactive session.  During that
-// time Rebol functions may continue to be called, though there is a sandbox
+// time Revolt functions may continue to be called, though there is a sandbox
 // which prevents the code from throwing or causing errors which will
 // propagate past the breakpoint.  The only way to resume normal operation
 // is with a "resume instruction".

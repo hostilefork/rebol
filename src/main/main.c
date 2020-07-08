@@ -1,26 +1,26 @@
 //
 //  File: %main.c
 //  Summary: "Console application main entry point"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// This contains the main() routine, which uses the libRebol API to start up
+// This contains the main() routine, which uses the libRevolt API to start up
 // an interactive console system for environments that can compile C.
 //
 // On POSIX systems it uses <termios.h> to implement line editing:
@@ -58,8 +58,8 @@
 // debug situations to have access to PROBE() and other internal features.
 //
 #if !defined(DEBUG_MAIN_USING_SYS_CORE)
-    #define REBOL_EXPLICIT_END  // for building w/pre-C99 compilers--see notes
-    #include "rebol.h"  // note: includes pstdint.h and pstdbool.h by default
+    #define REVOLT_EXPLICIT_END  // for building w/pre-C99 compilers--see notes
+    #include "revolt.h"  // note: includes pstdint.h and pstdbool.h by default
 #else
     #undef IS_ERROR  // windows.h has its own definition of this macro
     #include "sys-core.h"
@@ -94,7 +94,7 @@
     //
     // !!! This is not currently exported via EXTERN_C, because the core was
     // building in a dependency on the host.  This created problems for the
-    // libRebol, which needs to be independent of %host-main.c, and may be
+    // libRevolt, which needs to be independent of %host-main.c, and may be
     // used with clients that do not have the HINSTANCE easily available.
     // The best idea for exporting it is probably to have those clients who
     // provide it to inject it into the system object as a HANDLE!, so that

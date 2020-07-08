@@ -2,22 +2,22 @@
 //  File: %n-data.c
 //  Summary: "native functions for data and context"
 //  Section: natives
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -326,7 +326,7 @@ REBNATIVE(use)
 // CLOSURE! that it would DO.  Hence it took advantage of the existing code
 // for tying function locals to a block, and could be relatively short.  This
 // was wasteful in terms of creating an unnecessary function that would only
-// be called once.  The fate of CLOSURE-like semantics is in flux in Ren-C
+// be called once.  The fate of CLOSURE-like semantics is in flux in Revolt
 // (how much automatic-gathering and indefinite-lifetime will be built-in),
 // yet it's also more efficient to just make a native.
 //

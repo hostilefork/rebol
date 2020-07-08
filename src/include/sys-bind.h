@@ -1,32 +1,32 @@
 //
 //  File: %sys-bind.h
 //  Summary: "System Binding Include"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // R3-Alpha had a per-thread "bind table"; a large and sparsely populated hash
 // into which index numbers would be placed, for what index those words would
-// have as keys or parameters.  Ren-C's strategy is that binding information
+// have as keys or parameters.  Revolt's strategy is that binding information
 // is wedged into REBSER nodes that represent the canon words themselves.
 //
 // This would create problems if multiple threads were trying to bind at the
-// same time.  While threading was never realized in R3-Alpha, Ren-C doesn't
+// same time.  While threading was never realized in R3-Alpha, Revolt doesn't
 // want to have any "less of a plan".  So the Reb_Binder is used by binding
 // clients as a placeholder for whatever actual state would be used to augment
 // the information in the canon word series about which client is making a

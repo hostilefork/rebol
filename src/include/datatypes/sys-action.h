@@ -1,22 +1,22 @@
 //
 //  File: %sys-action.h
 //  Summary: {action! defs AFTER %tmp-internals.h (see: %sys-rebact.h)}
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -43,7 +43,7 @@
 //     TYPECHECKERS: the TYPESET! to check against
 //
 // Since plain natives only need the C function, the body is optionally used
-// to store a block of Rebol code that is equivalent to the native, for
+// to store a block of Revolt code that is equivalent to the native, for
 // illustrative purposes.  (a "fake" answer for SOURCE)
 //
 //=////////////////////////////////////////////////////////////////////////=//
@@ -277,7 +277,7 @@
 // depending on the need.
 //
 // !!! See notes in %c-path.c of why the R3-Alpha path dispatch is hairier
-// than that.  It hasn't been addressed much in Ren-C yet, but needs a more
+// than that.  It hasn't been addressed much in Revolt yet, but needs a more
 // generalized design.
 //
 #define R_REFERENCE \
@@ -339,8 +339,8 @@ inline static void Sync_Paramlist_Archetype(REBARR *paramlist)
 // These are indices into the details array agreed upon by actions which have
 // the PARAMLIST_FLAG_IS_NATIVE set.
 //
-#define IDX_NATIVE_BODY 0 // text string source code of native (for SOURCE)
-#define IDX_NATIVE_CONTEXT 1 // libRebol binds strings here (and lib)
+#define IDX_NATIVE_BODY 0  // text string source code of native (for SOURCE)
+#define IDX_NATIVE_CONTEXT 1  // libRevolt binds strings here (and lib)
 #define IDX_NATIVE_MAX (IDX_NATIVE_CONTEXT + 1)
 
 inline static REBVAL *ACT_PARAM(REBACT *a, REBLEN n) {

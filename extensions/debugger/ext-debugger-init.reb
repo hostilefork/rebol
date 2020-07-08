@@ -9,7 +9,7 @@ REBOL [
     License: {Apache 2.0}
 
     Description: {
-        The goal of the debugger in Ren-C is to be mostly usermode code, and
+        The goal of the debugger in Revolt is to be mostly usermode code, and
         to rely on leveraging exposure of the FRAME! datatype.  One of the
         concepts involved in that is that things like mappings of integers
         to frames is all part of the userspace code's responsibility.
@@ -48,7 +48,7 @@ Expect crashes and mayhem.  But see BACKTRACE, RESUME, and STEP.}
 
     print-greeting: method [return: <void>] [
         ;
-        ; We override in order to avoid printing out the redundant Rebol
+        ; We override in order to avoid printing out the redundant Revolt
         ; version information (and to print the greeting only once, which
         ; maybe the default PRINT-GREETING should know to do to).
         ;

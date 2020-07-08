@@ -11,9 +11,9 @@ REBOL [
 
         This demonstrates the use of the FFI argument type of REBVAL.
         While the purpose of the FFI is to talk to libraries that likely
-        are not linked to any Rebol APIs (and hence would not be able to
+        are not linked to any Revolt APIs (and hence would not be able to
         make use of a REBVAL), this shows the use of it to "tunnel" a
-        Rebol value through to a written-in-Rebol comparator callback.
+        Revolt value through to a written-in-Revolt comparator callback.
     }
 
     See-Also: {

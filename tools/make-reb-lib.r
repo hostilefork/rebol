@@ -1,10 +1,10 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
-    Title: "Make libRebol related files (for %rebol.h)"
+    System: "Revolt Language Interpreter and Run-time Environment"
+    Title: "Make libRevolt related files (for %revolt.h)"
     File: %make-reb-lib.r
     Rights: {
         Copyright 2012 REBOL Technologies
-        Copyright 2012-2019 Rebol Open Source Contributors
+        Copyright 2012-2020 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -31,7 +31,7 @@ ver: load %../src/boot/version.r
 === PROCESS %a-lib.h TO PRODUCE DESCRIPTION OBJECTS FOR EACH API ===
 
 ; This leverages the prototype parser, which uses PARSE on C lexicals, and
-; loads Rebol-structured data out of comments in the file.
+; loads Revolt-structured data out of comments in the file.
 ;
 ; Currently only %a-lib.c is searched for RL_API entries.  This makes it
 ; easier to track the order of the API routines and change them sparingly
@@ -62,7 +62,7 @@ emit-proto: func [return: <void> proto] [
         fail [
             proto
             newline
-            "Prototype has bad Rebol function header block in comment"
+            "Prototype has bad Revolt function header block in comment"
         ]
     ]
 
@@ -136,7 +136,7 @@ emit-proto: func [return: <void> proto] [
     ; https://github.com/rebol/rebol-issues/issues/2317
     ;
     append api-objects make object! compose/only [
-        spec: try match block! third header  ; Rebol metadata API comment
+        spec: try match block! third header  ; Revolt metadata API comment
         name: (ensure text! name)
         returns: (ensure text! trim/tail returns)
         paramlist: (ensure block! paramlist)
@@ -158,7 +158,7 @@ src-dir: %../src/core/
 process src-dir/a-lib.c
 
 
-=== GENERATE LISTS USED TO BUILD REBOL.H ===
+=== GENERATE LISTS USED TO BUILD REVOLT.H ===
 
 ; For readability, the technique used is not to emit line-by-line, but to
 ; give a "big picture overview" of the header file.  It is substituted into
@@ -310,33 +310,33 @@ c99-or-c++11-macros: collect [ map-each-api [
 ] ]
 
 
-=== GENERATE REBOL.H ===
+=== GENERATE REVOLT.H ===
 
-; Rather than put too many comments here in the Rebol, err on the side of
-; putting comments in the header itself.  `/* use old C style comments */`
+; Rather than put too many comments in the generating script, err on the side
+; of putting comments in the header itself.  `/* use old C style comments */`
 ; to help cue readers to knowing they're reading generated code and don't
-; edit, since the Rebol codebase at large uses `//`-style comments.
+; edit, since the Revolt C codebase at large uses only `//`-style comments.
 
 e-lib: (make-emitter
-    "Rebol External Library Interface" output-dir/rebol.h)
+    "Revolt External Library Interface" output-dir/revolt.h)
 
 e-lib/emit {
-    #ifndef REBOL_H_1020_0304  /* "include guard" allows multiple #includes */
-    #define REBOL_H_1020_0304  /* numbers in case REBOL_H defined elsewhere */
+    #ifndef REVOLT_H_1020_0304  /* "include guard" allows multiple #includes */
+    #define REVOLT_H_1020_0304  /* numbers in casee REVOLT_H already defined */
 
     /*
      * The goal is to make it possible that the only include file one needs
-     * to make a simple Rebol library client is `#include "rebol.h"`.  Yet
-     * pre-C99 or pre-C++11 compilers will need `#define REBOL_EXPLICIT_END`
+     * to make a simple Revolt library client is `#include "revolt.h"`.  Yet
+     * pre-C99 or pre-C++11 compilers will need `#define REVOLT_EXPLICIT_END`
      * since variadic macros don't work.  They will also need shims for
      * stdint.h and stdbool.h included.
      */
     #include <stdlib.h>  /* for size_t */
     #include <stdarg.h>  /* for va_list, va_start() in inline functions */
-    #if !defined(_PSTDINT_H_INCLUDED) && !defined(LIBREBOL_NO_STDINT)
+    #if !defined(_PSTDINT_H_INCLUDED) && !defined(LIBREVOLT_NO_STDINT)
         #include <stdint.h>  /* for uintptr_t, int64_t, etc. */
     #endif
-    #if !defined(_PSTDBOOL_H_INCLUDED) && !defined(LIBREBOL_NO_STDBOOL)
+    #if !defined(_PSTDBOOL_H_INCLUDED) && !defined(LIBREVOLT_NO_STDBOOL)
         #if !defined(__cplusplus)
             #include <stdbool.h>  /* for bool, true, false (if C99) */
         #endif
@@ -414,7 +414,7 @@ e-lib/emit {
     /*
      * `wchar_t` is a pre-Unicode abstraction, whose size varies per-platform
      * and should be avoided where possible.  But Win32 standardizes it to
-     * 2 bytes in size for UTF-16, and uses it pervasively.  So libRebol
+     * 2 bytes in size for UTF-16, and uses it pervasively.  So libRevolt
      * currently offers APIs (e.g. rebTextWide() instead of rebText()) which
      * support this 2-byte notion of wide characters.
      *
@@ -458,14 +458,14 @@ e-lib/emit {
     typedef void (CLEANUP_CFUNC)(const REBVAL*);
 
     /*
-     * The API maps Rebol's `null` to C's 0 pointer, **but don't use NULL**.
+     * The API maps Revolt's `null` to C's 0 pointer, **but don't use NULL**.
      * Some C compilers define NULL as simply the constant 0, which breaks
      * use with variadic APIs...since they will interpret it as an integer
      * and not a pointer.
      *
      * **It's best to use C++'s `nullptr`**, or a suitable C shim for it,
-     * e.g. `#define nullptr ((void*)0)`.  That helps avoid obscuring the
-     * fact that the Rebol API's null really is C's null, and is conditionally
+     * e.g. `#define nullptr ((void*)0)`.  That helps avoid obscuring the fact
+     * that the Revolt API's null really is C's null, and is conditionally
      * false.  Seeing `rebNull` in source doesn't as clearly suggest this.
      *
      * However, **using NULL is broken, so don't use it**.  This macro is
@@ -475,13 +475,13 @@ e-lib/emit {
         ((REBVAL*)0)
 
     /*
-     * Since a C nullptr (pointer cast of 0) is used to represent the Rebol
+     * Since a C nullptr (pointer cast of 0) is used to represent the Revolt
      * `null` in the API, something different must be used to indicate the
      * end of variadic input.  So a pointer to data is used where the first
      * byte is illegal for starting UTF-8 (a continuation byte, first bit 1,
      * second bit 0) and the second byte is 0.
      *
-     * To Rebol, the first bit being 1 means it's a Rebol node, the second
+     * To Revolt, the first bit being 1 means it's a Revolt node, the second
      * that it is not in the "free" state.  The lowest bit in the first byte
      * clear indicates it doesn't point to a "cell".  The SECOND_BYTE() is
      * where the VAL_TYPE() of a cell is usually stored, and this being 0
@@ -560,7 +560,7 @@ e-lib/emit {
      *
      * For convenience, calls to RL->xxx are wrapped in inline functions:
      */
-    typedef struct rebol_ext_api {
+    typedef struct revolt_ext_api {
         $[Lib-Struct-Fields];
     } RL_LIB;
 
@@ -576,7 +576,7 @@ e-lib/emit {
 
         $[Struct-Call-Inlines]
 
-    #else  /* ...calling Rebol as DLL, or code built into the EXE itself */
+    #else  /* ...calling Revolt as DLL, or code built into the EXE itself */
 
         /*
          * !!! The RL_API macro has to be defined for the external prototypes
@@ -612,7 +612,7 @@ e-lib/emit {
      *
      * The simplicity is an advantage for optimization, but unsafe!  Type
      * checking is non-existent, and there is no protocol for knowing how
-     * many items are in a va_list.  The libRebol API uses rebEND to signal
+     * many items are in a va_list.  The libRevolt API uses rebEND to signal
      * termination, but it is awkward and easy to forget.
      *
      * C89 offers no real help, but C99 (and C++11 onward) standardize an
@@ -624,19 +624,19 @@ e-lib/emit {
      * may be automatically placed on the tail of a call.  If rebEND is used
      * explicitly, this gives a harmless but slightly inefficient repetition.
      */
-    #if !defined(REBOL_EXPLICIT_END)
+    #if !defined(REVOLT_EXPLICIT_END)
       /*
-       * Clients who #include "rebol.h" are not expected to use %sys-core.h
-       * internal APIs (including %sys-core.h gets %rebol.h automatically).
+       * Clients who #include "revolt.h" are not expected to use %sys-core.h
+       * internal APIs (including %sys-core.h gets %revolt.h automatically).
        * But for some debugging scenarios, adding the internal API as an
        * "overlay" gives extra functions for recompiling test code that can
        * do things like invasively pick apart cell structure.  If that is
-       * the case, then this allows %sys-core.h to detect that %rebol.h
+       * the case, then this allows %sys-core.h to detect that %revolt.h
        * was already included and is using explicit ends (the core uses
        * explicit ones, but that is harmlessly redundant for a debug build...
        * each call will just have two rebENDs--one explicit, one implicit).
        */
-      #define REBOL_IMPLICIT_END
+      #define REVOLT_IMPLICIT_END
 
       #if defined (__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
         /* C99 or above */
@@ -645,12 +645,12 @@ e-lib/emit {
       #elif defined (CPLUSPLUS_11)
         /* Custom C++11 or above flag, e.g. to override Visual Studio's lie */
       #else
-        #error "REBOL_EXPLICIT_END must be used prior to C99 or C+++11"
+        #error "REVOLT_EXPLICIT_END must be used prior to C99 or C+++11"
       #endif
 
         $[C99-Or-C++11-Macros]
 
-    #else  /* REBOL_EXPLICIT_END */
+    #else  /* REVOLT_EXPLICIT_END */
 
         /*
          * !!! Some kind of C++ variadic trick using template recursion could
@@ -660,7 +660,7 @@ e-lib/emit {
 
         $[C89-Macros]
 
-    #endif  /* REBOL_EXPLICIT_END */
+    #endif  /* REVOLT_EXPLICIT_END */
 
 
     /*
@@ -675,7 +675,7 @@ e-lib/emit {
      *     frame where the rebMalloc() occured.  This is especially useful
      *     when mixing C code involving allocations with rebValue(), etc.
      *
-     *  3. Memory gets counted in Rebol's knowledge of how much memory the
+     *  3. Memory gets counted in Revolt's knowledge of how much memory the
      *     system is using, for the purposes of triggering GC.
      *
      *  4. Out-of-memory errors on allocation automatically trigger
@@ -699,7 +699,7 @@ e-lib/emit {
     }
     #endif
 
-    #endif  /* REBOL_H_1020_0304 */
+    #endif  /* REVOLT_H_1020_0304 */
 }
 
 e-lib/write-emitted
@@ -710,10 +710,10 @@ e-lib/write-emitted
 ; The form of the API which is exported as a table is declared as a struct,
 ; but there has to be an instance of that struct filled with the actual
 ; pointers to the RL_XXX C functions to be able to hand it to clients.  Only
-; one instance of this table should be linked into Rebol.
+; one instance of this table should be linked into Revolt.
 
 e-table: (make-emitter
-    "REBOL Interface Table Singleton" output-dir/tmp-reb-lib-table.inc)
+    "REVOLT Interface Table Singleton" output-dir/tmp-reb-lib-table.inc)
 
 table-init-items: map-each-api [
     unspaced ["RL_" name]

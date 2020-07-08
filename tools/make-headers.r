@@ -1,10 +1,10 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Generate auto headers"
     File: %make-headers.r
     Rights: {
         Copyright 2012 REBOL Technologies
-        Copyright 2012-2017 Rebol Open Source Contributors
+        Copyright 2012-2017 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -69,7 +69,7 @@ emit-proto: func [
         'RL_API [
             ; Currently the RL_API entries should only occur in %a-lib.c, and
             ; are processed by %make-reb-lib.r.  Their RL_XxxYyy() forms are
-            ; not in the %tmp-internals.h file, but core includes %rebol.h
+            ; not in the %tmp-internals.h file, but core includes %revolt.h
             ; and considers itself to have "non-extension linkage" to the API,
             ; so the calls can be directly linked without a struct.
             ;

@@ -2,22 +2,22 @@
 //  File: %c-function.c
 //  Summary: "support for functions, actions, and routines"
 //  Section: core
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -370,7 +370,7 @@ void Push_Paramlist_Triads_May_Fail(
             // !!! If you say [<with> x /foo y] the <with> terminates and a
             // refinement is started.  Same w/<local>.  Is this a good idea?
             // Note that historically, help hides any refinements that appear
-            // behind a /local, but this feature has no parallel in Ren-C.
+            // behind a /local, but this feature has no parallel in Revolt.
             //
             mode = SPEC_MODE_NORMAL;
 
@@ -869,7 +869,7 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
 //     [foo {doc string :-/} [type!]]
 //     [foo {doc string1 :-/} {doc string2 :-(} [type!]]
 //
-// Ren-C breaks this into two parts: one is the mechanical understanding of
+// Revolt breaks this into two parts: one is the mechanical understanding of
 // MAKE ACTION! for parameters in the evaluator.  Then it is the job
 // of a generator to tag the resulting function with a "meta object" with any
 // descriptions.  As a proxy for the work of a usermode generator, this
@@ -882,7 +882,7 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
 //
 //     func [return: [integer!] {returns an integer}]
 //
-// In Ren-C's case it just means you want a local called return, but the
+// In Revolt's case it just means you want a local called return, but the
 // generator will be "initializing it with a definitional return" for you.
 // You don't have to use it if you don't want to...and may overwrite the
 // variable.  But it won't be a void at the start.
@@ -1273,12 +1273,12 @@ void Get_Maybe_Fake_Action_Body(REBVAL *out, const REBVAL *action)
 //
 // This is the support routine behind both `MAKE ACTION!` and FUNC.
 //
-// Ren-C's schematic is *very* different from R3-Alpha, whose definition of
+// Revolt's schematic is *very* different from R3-Alpha, whose definition of
 // FUNC was simply:
 //
 //     make function! copy/deep reduce [spec body]
 //
-// Ren-C's `make action!` doesn't need to copy the spec (it does not save
+// Revolt's `make action!` doesn't need to copy the spec (it does not save
 // it--parameter descriptions are in a meta object).  The body is copied
 // implicitly (as it must be in order to relativize it).
 //
@@ -1406,7 +1406,7 @@ REBACT *Make_Interpreted_Action_May_Fail(
     // So even though the invocation is outside the mutable section, we have
     // a memory that it was created under those rules.  (It's better to do
     // this based on the frame in effect than by looking at the CONST flag of
-    // the incoming body block, because otherwise ordinary Ren-C functions
+    // the incoming body block, because otherwise ordinary Revolt functions
     // whose bodies were created from dynamic code would have mutable bodies
     // by default--which is not a desirable consequence from merely building
     // the body dynamically.)
@@ -1448,7 +1448,7 @@ REBTYPE(Fail)
 //
 //  Generic_Dispatcher: C
 //
-// A "generic" is what R3-Alpha/Rebol2 had called "ACTION!" (until Ren-C took
+// A "generic" is what R3-Alpha/Rebol2 had called "ACTION!" (until Revolt took
 // that as the umbrella term for all "invokables").  This kind of dispatch is
 // based on the first argument's type, with the idea being a single C function
 // for the type has a switch() statement in it and can handle many different
@@ -1459,7 +1459,7 @@ REBTYPE(Fail)
 // append instruction--where that instruction also handles insert, length,
 // etc. for BLOCK!s.)
 //
-// !!! This mechanism is a very primitive kind of "multiple dispatch".  Rebol
+// !!! This mechanism is a very primitive kind of "multiple dispatch".  Revolt
 // will certainly need to borrow from other languages to develop a more
 // flexible idea for user-defined types, vs. this very limited concept.
 //

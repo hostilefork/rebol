@@ -1,22 +1,22 @@
 //
 //  File: %reb-struct.h
 //  Summary: "Struct to C function"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2014 Atronix Engineering, Inc.
-// Copyright 2014-2019 Rebol Open Source Contributors
+// Copyright 2014-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -38,12 +38,12 @@
 // As with OBJECT! keylists, once a REBFLD schema is created, it may be shared
 // among multiple instances that share that schema.
 //
-// With this model of a C struct in place, Rebol can own the memory underlying
+// With this model of a C struct in palce, Revolt can own memory underlying
 // a structure.  Then it can choose to fill that memory (or leave it
 // uninitialized to be filled), and pass it through to a C function that is 
 // expecting structs--either by pointer or by value.  It can access the
-// structure with operations that do translated reads of the memory into Rebol
-// values, or encode Rebol values as changing the right bytes at the right
+// structure with operations that do translated reads of memory into Revolt
+// values, or encode Revolt values as changing the right bytes at the right
 // offset for a translated write.
 //
 ///// NOTES ///////////////////////////////////////////////////////////////=//
@@ -52,15 +52,15 @@
 //   instability of content pointers may not be a match for the needs of an
 //   FFI interface.  While calling into arbitrary C code with memory pointers
 //   is fundamentally a dicey operation no matter what--there is a need for
-//   some level of pointer locking if memory to mutable Rebol strings is
+//   some level of pointer locking if memory to mutable Revolt strings is
 //   to be given out as raw UTF-8.
 //
 // * Atronix's initial implementation of the FFI used custom C structures to
 //   describe things like the properties of a routine, or the schema of a
 //   struct layout.  This required specialized hooks into the garbage
 //   collector, that indicated locations in those C structs that pointers to
-//   GC-managed elements lived.  Ren-C moved away from this, so that the
-//   descriptors are ordinary Rebol arrays.  It's only a little bit less
+//   GC-managed elements lived.  Revolt moved away from this, so that the
+//   descriptors are ordinary arrays.  It's only overall a little bit less
 //   efficient, and permitted the FFI to be migrated to an extension, so it
 //   would not bring cost to builds that didn't use it (e.g. WASM build)
 //
@@ -248,7 +248,7 @@ inline static ffi_type* SCHEMA_FFTYPE(const RELVAL *schema) {
 //
 // A REBSTU is a singular array, typically holding a BINARY! value of bytes
 // which represent the memory for the struct instance.  (If the structure is
-// actually describing something at an absolute location in memory that Rebol
+// actually describing something at an absolute memory location that Revolt
 // does not control, it will be a HANDLE! with that pointer instead.)
 //
 // The LINK() field of this singular array points to a REBFLD* that describes
@@ -382,7 +382,7 @@ enum {
     // in the DLL that the routine intends to wrap.  If a callback, then
     // it's a fabricated function pointer returned by ffi_closure_alloc,
     // which presents the "thunk"...a C function that other C functions can
-    // call which will then delegate to Rebol to call the wrapped ACTION!.
+    // call which will then delegate to Revolt to call the wrapped ACTION!.
     //
     // Additionally, callbacks poke a data pointer into the HANDLE! with
     // ffi_closure*.  (The closure allocation routine gives back a void* and

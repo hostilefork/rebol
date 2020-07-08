@@ -2,22 +2,22 @@
 //  File: %m-series.c
 //  Summary: "implements REBOL's series concept"
 //  Section: memory
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -123,7 +123,7 @@ void Append_Values_Len(REBARR *a, const REBVAL *head, REBLEN len)
 // BITSET!, VECTOR!...).  Includes the terminator.
 //
 // Use Copy_Array routines (which specify Shallow, Deep, etc.) for greater
-// detail needed when expressing intent for Rebol Arrays.
+// detail needed when expressing intent for Revolt Arrays.
 //
 // The reason this can be used on strings or binaries is because it copies
 // from the head position.  Copying from a non-head position might be in the
@@ -166,7 +166,7 @@ REBSER *Copy_Sequence_Core(REBSER *s, REBFLGS flags)
 // terminator for it.
 //
 // Use Copy_Array routines (which specify Shallow, Deep, etc.) for
-// greater detail needed when expressing intent for Rebol Arrays.
+// greater detail needed when expressing intent for Revolt Arrays.
 //
 // Note: This cannot be used to make a series that will be used in a string
 // *unless* you are sure that the copy is on a correct UTF-8 codepoint

@@ -2,22 +2,22 @@
 //  File: %mod-view.c
 //  Summary: "Beginnings of GUI Interface as an extension"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 Atronix Engineering
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -43,7 +43,7 @@
     #include <shlobj.h>
 
     #ifdef IS_ERROR
-        #undef IS_ERROR //winerror.h defines, Rebol has a different meaning
+        #undef IS_ERROR //winerror.h defines, Revolt has a different meaning
     #endif
 #else
     #if !defined(__cplusplus) && defined(TO_LINUX)
@@ -152,7 +152,7 @@ REBNATIVE(request_file_p)
         // !!! We don't really want to be exposing REBSERs to this level of
         // interface code.  In trying to coax it toward REBVAL-oriented APIs
         // pretend we built the string as a value (perhaps best as a BINARY!
-        // produced by helper Rebol code).  Note that the series is managed
+        // produced by helper Revolt code).  Note that the series is managed
         // once it goes through the Init_Text, so it can't be freed.
         //
         DECLARE_LOCAL (hack);
@@ -293,9 +293,9 @@ REBNATIVE(request_file_p)
                 // rest are files in that directory.  We want to merge them
                 // together to make fully specified paths.
                 //
-                // !!! Note: This was written pre-libRebol, so it is doing
+                // !!! Note: This was written pre-libRevolt, so it is doing
                 // file string appends with wchar when it could be doing it
-                // in embedded Rebol code.  Rewrite if and when this becomes
+                // in embedded Revolt code.  Rewrite if and when this becomes
                 // a priority to update.
                 //
                 REBVAL *dir = rebValue(

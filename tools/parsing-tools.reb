@@ -1,16 +1,14 @@
 REBOL [
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Parsing tools"
     Rights: {
-        Rebol is Copyright 1997-2015 REBOL Technologies
-        REBOL is a trademark of REBOL Technologies
-
-        Ren-C is Copyright 2015-2018 MetaEducation
+        Copyright 2012-2015 Brett Handley
+        Copyright 2015-2020 Revolt Open Source Developers
     }
     License: {
         Licensed under the Apache License, Version 2.0
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
-    Author: "@codebybrett"
     Version: 2.100.0
     Needs: 2.100.100
     Purpose: {

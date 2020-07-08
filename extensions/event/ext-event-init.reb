@@ -10,10 +10,10 @@ REBOL [
         This registers the EVENT! data type and makes the "Event Port".  This
         was previously a part of the interpreter core, and so moving it to an
         extension is a "big deal" as it is no longer intrinsic to the
-        evaluator or the language--you can do Rebol builds without this.
+        evaluator or the language--you can do Revolt builds without this.
 
         (The fact it was called "System Port" hints at how it was thought of
-        as essential to the system... Ren-C doesn't see it that way, as using
+        as essential to the system... Revolt doesn't see it that way, as using
         a service like PARSE embedded in another language may have no need
         for such things).
 

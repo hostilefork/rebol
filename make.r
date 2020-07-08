@@ -1,11 +1,10 @@
 REBOL [
-    Title: "Top-Level Script for building Rebol"
+    System: "Revolt Language Interpreter and Run-time"
+    Title: "Top-Level Script for building Revolt"
     File: %make.r
     Rights: {
-        Rebol 3 Language Interpreter and Run-time Environment
-        "Ren-C" branch @ https://github.com/metaeducation/ren-c
-
-        Copyright 2012-2019 Rebol Open Source Contributors
+        Copyright 2012 REBOL Technologies
+        Copyright 2012-2019 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     Description: {
@@ -29,8 +28,8 @@ else [
 
 === GLOBALS ===
 
-; When you run a Rebol script, the `current-path` is the directory where the
-; script is.  We assume that the Rebol source enlistment's root directory is
+; When you run a Revolt script, the `current-path` is the directory where the
+; script is.  We assume that the Revolt source enlistment's root directory is
 ; where %make.r is found.
 ;
 repo-dir: system/options/current-path
@@ -276,7 +275,7 @@ gen-obj: func [
                 <gnu:-funsigned-char>
  
                 ; MSVC never bumped the __cplusplus version past 1997, even if
-                ; you compile with C++17.  Hence CPLUSPLUS_11 is used by Rebol
+                ; you compile with C++17.  So CPLUSPLUS_11 is used by Revolt
                 ; code as the switch for most C++ behaviors, and we have to
                 ; define that explicitly.
                 ;
@@ -392,7 +391,7 @@ gen-obj: func [
                 <msc:/wd4365> <msc:/wd4245>
                 <gnu:-Wsign-compare>
 
-                ; The majority of Rebol's C code was written with little
+                ; The majority of R3-Alpha's C code was written with little
                 ; attention to overflow in arithmetic.  In many places a
                 ; bigger type is converted into a smaller type without an
                 ; explicit cast.  (REBI64 => SQLUSMALLINT, REBINT => REBYTE).
@@ -431,7 +430,7 @@ gen-obj: func [
                 <msc:/wd4711>
 
                 ; It's useful to know when function pointers are assigned to
-                ; an incompatible type of function pointer.  But Rebol relies
+                ; an incompatible type of function pointer.  But Revolt relies
                 ; on the ability to have a kind of "void*-for-functions", e.g.
                 ; CFUNC, which holds arbitrary function pointers.  There seems
                 ; to be no way to get function pointer type checking allowing
@@ -532,9 +531,9 @@ gen-obj: func [
                 ;   value to the wider type before calling operator '*' to
                 ;   avoid overflow
                 ;
-                ; Overflow issues are widespread in Rebol, and this warning
+                ; Overflow issues were widespread in R3-Alpha, so this warning
                 ; is not particularly high priority in the scope of what the
-                ; project is exploring.  Disable for now.
+                ; Revolt project is exploring.  Disable for now.
                 ;
                 <msc:/wd26451>
 
@@ -542,8 +541,8 @@ gen-obj: func [
                 ;   'enum'
                 ;   xxx is uninitialized.  Always initialize a member...
                 ;
-                ; Ren-C is C, so C++-specific warnings when building as C++
-                ; are not relevant.
+                ; Revolt must build as C, so C++-specific warnings when
+                ; building as C++ are not relevant.
                 ;
                 <msc:/wd26812>
                 <msc:/wd26495>
@@ -667,7 +666,7 @@ extension-class: make object! [
     libraries: _
     ldflags: _
 
-    hook: _  ; FILE! of extension-specific Rebol script to run during rebmake
+    hook: _  ; FILE! of extension-specific Revolt script to run during rebmake
 
     ; Internal Fields
 
@@ -702,7 +701,7 @@ parse-ext-build-spec: function [
         ]
 
         if defined? 'config [
-            do as block! config  ; Note: old Ren-Cs disallowed DO of GROUP!
+            do as block! config  ; Note: old Revolts disallowed DO of GROUP!
         ]
     ]
 
@@ -1339,7 +1338,7 @@ for-each [label list] reduce [
 ][
     print label
     for-each ext list [
-        print collect [  ; CHAR! values don't auto-space in Ren-C PRINT
+        print collect [  ; CHAR! values don't auto-space in Revolt PRINT
             keep ["ext:" ext/name #":" space #"["]
             for-each mod ext/modules [
                 keep to-text mod/name
@@ -1535,7 +1534,7 @@ sort/compare builtin-extensions func [a b] [a/sequence < b/sequence]
 
 vars: reduce [
     reb-tool: make rebmake/var-class [
-        name: {REBOL_TOOL}
+        name: {REVOLT_TOOL}
         if not any [
             'file = exists? value: system/options/boot
             all [
@@ -1546,11 +1545,11 @@ vars: reduce [
                 {r3-make}
                 rebmake/target-platform/exe-suffix
             ]
-        ] [fail "^/^/!! Cannot find a valid REBOL_TOOL !!^/"]
+        ] [fail "^/^/!! Cannot find a valid REVOLT_TOOL !!^/"]
     ]
     make rebmake/var-class [
-        name: {REBOL}
-        value: {$(REBOL_TOOL) -qs}
+        name: {REVOLT}
+        value: {$(REVOLT_TOOL) -qs}
     ]
     make rebmake/var-class [
         name: {T}
@@ -1566,18 +1565,18 @@ prep: make rebmake/entry-class [
     target: 'prep ; phony target
 
     commands: collect-lines [
-        keep [{$(REBOL)} tools-dir/make-natives.r]
-        keep [{$(REBOL)} tools-dir/make-headers.r]
-        keep [{$(REBOL)} tools-dir/make-boot.r
+        keep [{$(REVOLT)} tools-dir/make-natives.r]
+        keep [{$(REVOLT)} tools-dir/make-headers.r]
+        keep [{$(REVOLT)} tools-dir/make-boot.r
             unspaced [{OS_ID=} system-config/id]
             {GIT_COMMIT=$(GIT_COMMIT)}
         ]
-        keep [{$(REBOL)} tools-dir/make-reb-lib.r
+        keep [{$(REVOLT)} tools-dir/make-reb-lib.r
             unspaced [{OS_ID=} system-config/id]
         ]
 
         for-each ext all-extensions [
-            keep [{$(REBOL)} tools-dir/prep-extension.r
+            keep [{$(REVOLT)} tools-dir/prep-extension.r
                 unspaced [{MODULE=} ext/name]
                 unspaced [{SRC=extensions/} switch type of ext/source [
                     file! [ext/source]
@@ -1591,7 +1590,7 @@ prep: make rebmake/entry-class [
                 ;
                 ; This puts a "per-extension" script into the commands to
                 ; run on prep.  It runs after the core prep, so that it can
-                ; assume things like %rebol.h are available.  (That is
+                ; assume things like %revolt.h are available.  (That is
                 ; necessary for things like the TCC extension being able to
                 ; compile in const data for the header, and tables of API
                 ; functions to make available with `tcc_add_symbol()`)
@@ -1599,13 +1598,13 @@ prep: make rebmake/entry-class [
                 hook-script: file-to-local/full (
                     repo-dir/extensions/(ext/directory)/(ext/hook)
                 )
-                keep [{$(REBOL)} hook-script
+                keep [{$(REVOLT)} hook-script
                     unspaced [{OS_ID=} system-config/id]
                 ]
             ]
         ]
 
-        keep [{$(REBOL)} tools-dir/make-boot-ext-header.r
+        keep [{$(REVOLT)} tools-dir/make-boot-ext-header.r
             unspaced [
                 {EXTENSIONS=} delimit ":" map-each ext builtin-extensions [
                     to text! ext/name
@@ -1613,7 +1612,7 @@ prep: make rebmake/entry-class [
             ]
         ]
 
-        keep [{$(REBOL)} src-dir/main/prep-main.reb]
+        keep [{$(REVOLT)} src-dir/main/prep-main.reb]
     ]
     depends: reduce [
         reb-tool

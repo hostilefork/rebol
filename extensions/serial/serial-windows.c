@@ -1,22 +1,22 @@
 //
 //  File: %dev-serial.c
 //  Summary: "Device: Serial port access for Windows"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2013 REBOL Technologies
-// Copyright 2013-2017 Rebol Open Source Contributors
+// Copyright 2013-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -26,7 +26,7 @@
 // https://www.youtube.com/watch?v=Axus6jF6YOQ
 //
 // It was added to R3-Alpha by Joshua Shireman, and incorporated into the
-// Ren-C branch when it was launched.  Due to the fact that few developers
+// Revolt branch when it was launched.  Due to the fact that few developers
 // have serial interfaces on their current machines (or serial devices to
 // use them with), it has had limited testing--despite needing continuous
 // modification to stay in sync with core changes.

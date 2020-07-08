@@ -2,22 +2,22 @@
 //  File: %m-stack.c
 //  Summary: "data and function call stack implementation"
 //  Section: memory
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -181,8 +181,8 @@ void Shutdown_Frame_Stack(void)
 //
 //  Get_Context_From_Stack: C
 //
-// Generally speaking, Rebol does not have a "current context" in effect; as
-// should you call an `IF` in a function body, there is now a Rebol IF on the
+// Generally speaking, Rebols do not have a "current context" in effect; as
+// should you call an `IF` in a function body, there is now a Revolt IF on the
 // stack.  But the story for ACTION!s that are implemented in C is different,
 // as they have one Rebol action in effect while their C code is in control.
 //

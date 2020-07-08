@@ -2,7 +2,7 @@ REBOL [
     Title: {TCC Output of Files on Disk Test}
     Description: {
         The initial integration of TCC only allowed for in-memory compilation
-        of a string of C test as the implementation of a function that Rebol
+        of a string of C test as the implementation of a function that Revolt
         could call.  It was later extended to allow the creation of OBJ and
         EXE files on disk.
 

@@ -1,31 +1,31 @@
 //
 //  File: %sys-array.h
 //  Summary: {Definitions for REBARR}
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// A "Rebol Array" is a series of REBVAL values which is terminated by an
+// A "Revolt Array" is a series of REBVAL values which is terminated by an
 // END marker.  In R3-Alpha, the END marker was itself a full-sized REBVAL
 // cell...so code was allowed to write one cell past the capacity requested
 // when Make_Array() was called.  But this always had to be an END.
 //
-// In Ren-C, there is an implicit END marker just past the last cell in the
+// In Revolt, there is an implicit END marker just past the last cell in the
 // capacity.  Allowing a SET_END() on this position could corrupt the END
 // signaling slot, which only uses a bit out of a Reb_Header sized item to
 // signal.  Use TERM_ARRAY_LEN() to safely terminate arrays and respect not
@@ -492,7 +492,7 @@ inline static RELVAL *VAL_ARRAY_TAIL(const RELVAL *v)
 //
 // The best thing to do with it is probably to rewrite the use cases to
 // not need it.  But at least "AT HEAD" helps communicate what the equivalent
-// operation in Rebol would be...and you know it's not just giving back the
+// operation in Revolt would be...and you know it's not just giving back the
 // head because it's taking an index.  So  it looks weird enough to suggest
 // looking here for what the story is.
 //

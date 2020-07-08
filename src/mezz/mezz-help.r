@@ -1,5 +1,5 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "REBOL 3 Mezzanine: Help"
     Rights: {
         Copyright 2012 REBOL Technologies
@@ -325,7 +325,7 @@ help: function [
         return
     ]
 
-    ; The HELP mechanics for ACTION! are more complex in Ren-C due to the
+    ; The HELP mechanics for ACTION! are more complex in Revolt due to the
     ; existence of function composition tools like SPECIALIZE, CHAIN, ADAPT,
     ; HIJACK, etc.  Rather than keep multiple copies of the help strings,
     ; the relationships are maintained in META-OF information on the ACTION!

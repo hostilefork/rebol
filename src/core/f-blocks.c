@@ -2,22 +2,22 @@
 //  File: %f-blocks.c
 //  Summary: "primary block series support functions"
 //  Section: functional
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -342,7 +342,7 @@ REBARR *Copy_Rerelativized_Array_Deep_Managed(
 //
 //  Alloc_Tail_Array: C
 //
-// Append a REBVAL-size slot to Rebol Array series at its tail.
+// Append a REBVAL-size slot to Revolt Array series at its tail.
 // Will use existing memory capacity already in the series if it
 // is available, but will expand the series if necessary.
 // Returns the new value for you to initialize.

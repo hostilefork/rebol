@@ -1,5 +1,5 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "REBOL 3 Boot Sys: Port and Scheme Functions"
     Rights: {
         Copyright 2012 REBOL Technologies
@@ -148,7 +148,7 @@ make-port*: function [
                     ; !!! This code was also broken in R3-Alpha, because the
                     ; captured content in PARSE of a URL! was a URL! and not
                     ; a STRING!, and so the attempt to convert `s1` to TUPLE!
-                    ; would always fail.  Ren-C permits this conversion.
+                    ; would always fail.  Revolt permits this conversion.
 
                     if not empty? trim s1 [
                         attempt [s1: to tuple! s1]

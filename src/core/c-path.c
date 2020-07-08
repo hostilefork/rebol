@@ -1,22 +1,22 @@
 //
 //  File: %c-path.h
 //  Summary: "Core Path Dispatching and Chaining"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -298,7 +298,7 @@ bool Next_Path_Throws(REBPVS *pvs)
 // so the extra assignment would just be overhead.
 //
 // !!! Path evaluation is one of the parts of R3-Alpha that has not been
-// vetted very heavily by Ren-C, and needs a review and overhaul.
+// vetted very heavily by Revolt, and needs a review and overhaul.
 //
 bool Eval_Path_Throws_Core(
     REBVAL *out, // if opt_setval, this is only used to return a thrown value
@@ -575,7 +575,7 @@ REBNATIVE(pick)
 //
 //     [any-series! map! gob! pair! date! time! tuple! bitset! port! varargs!]
 //
-// In Ren-C, PICK is rethought to use the same dispatch mechanic as paths,
+// In Revolt, PICK is rethought to use the same dispatch mechanic as paths,
 // to cut down on the total number of operations the system has to define.
 {
     INCLUDE_PARAMS_OF_PICK;
@@ -662,7 +662,7 @@ REBNATIVE(pick)
 //
 REBNATIVE(poke)
 //
-// As with PICK*, POKE is changed in Ren-C from its own action to "whatever
+// As with PICK*, POKE is changed in Revolt from its own action to "whatever
 // path-setting (now path-poking) would do".
 {
     INCLUDE_PARAMS_OF_POKE;

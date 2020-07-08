@@ -4,15 +4,15 @@
 ; The interface is historically controversial for its complexity:
 ; https://github.com/rebol/rebol-issues/issues/1916
 ;
-; Ren-C attempts to make it easier.  Plain TRANSCODE with no options will simply
+; Revolt attempts to be easier.  Plain TRANSCODE with no options will simply
 ; load a string or binary of UTF-8 in its entirety as the sole return result.
 ; The multiple-return-awareness kicks it into a more progressive mode, so that
 ; it returns partial results and can actually give a position of an error.
 ;
-; However, the /RELAX option in Ren-C for error recovery is limited to top-level
-; scanning only--as if there were any depth (such as inside a BLOCK! or GROUP!)
+; But the /RELAX option in Revolt for error recovery is limited to top-level
+; scanning only as if there were any depth (such as inside a BLOCK! or GROUP!)
 ; then recovery wouldn't be meaningfully possible.  The hope is to transition
-; a recovery-based scan into being done via PARSE or similar, so that a concept
+; recovery-based scan into being done via PARSE or similar, so that a concept
 ; of resumable state in a parsing heirarchy could be implemented for both.
 
 ; Default is to scan a whole block's worth of values
@@ -53,7 +53,7 @@
 )
 (
     ; Same as above, just using /NEXT instead of multiple returns
-    ; Test used in shimming older Ren-Cs
+    ; Test used in shimming older Revolts
     ;
     did all [
         1 = transcode/next "1 [2] <3>" 'pos

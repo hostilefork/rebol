@@ -220,7 +220,7 @@
     did parse "x" [thru [xset] end]
 )]
 
-; self-modifying rule, not legal in Ren-C if it's during the parse
+; self-modifying rule, not legal in Revolt if it's during the parse
 
 (error? trap [
     not parse "abcd" rule: ["ab" (remove back tail of rule) "cd" end]
@@ -332,7 +332,7 @@
 
 
 ; As alternatives to using SET-WORD! to set the parse position and GET-WORD!
-; to get the parse position, Ren-C has MARK and SEEK.  One ability this
+; to get the parse position, Revolt has MARK and SEEK.  One ability this
 ; gives is to mark a variable without having it be a SET-WORD! and thus
 ; gathered by FUNCTION.  It also allows seeking to integer positions.
 ;
@@ -475,7 +475,7 @@
 ; !!! R3-Alpha introduced a controversial "must make progress" rule, where
 ; something like an empty string does not make progress on a string parse
 ; so even if it doesn't fail, it fails the whole parse.  Red has all of
-; these tests pass.  Ren-C is questioning the progress rule, believing the
+; these tests pass.  Revolt is questioning the progress rule, believing the
 ; benefit of infinite-loop-avoidance is not worth the sacrifice of logic.
 [
     (not parse "ab" [to [""] "ab" end])

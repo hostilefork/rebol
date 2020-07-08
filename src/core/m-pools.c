@@ -2,22 +2,22 @@
 //  File: %m-pools.c
 //  Summary: "memory allocation pool management"
 //  Section: memory
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -29,14 +29,14 @@
 // Unless they've been explicitly marked as fixed-size, series have a dynamic
 // component.  But they also have a fixed-size component that is allocated
 // from a memory pool of other fixed-size things.  This is called the "Node"
-// in both Rebol and Red terminology.  It is an item whose pointer is valid
+// in both Revolt and Red terminology.  It is an item whose pointer is valid
 // for the lifetime of the object, regardless of resizing.  This is where
 // header information is stored, and pointers to these objects may be saved
 // in REBVAL values; such that they are kept alive by the garbage collector.
 //
 // The more complicated thing to do memory pooling of is the variable-sized
 // portion of a series (currently called the "series data")...as series sizes
-// can vary widely.  But a trick Rebol has is that a series might be able to
+// can vary widely.  But a trick R3-Alpha had is that series might be able to
 // take advantage of being given back an allocation larger than requested.
 // They can use it as reserved space for growth.
 //
@@ -53,7 +53,7 @@
 //
 // R3-Alpha included some code to assist in debugging client code using series
 // such as by initializing the memory to garbage values.  Given the existence
-// of modern tools like Valgrind and Address Sanitizer, Ren-C instead has a
+// of modern tools like Valgrind and Address Sanitizer, Revolt instead has a
 // mode in which pools are not used for data allocations, but going through
 // malloc and free.  You can enable this by setting the environment variable
 // R3_ALWAYS_MALLOC to 1.
@@ -78,8 +78,8 @@
 // whose clients do not need to remember the size of the allocation to pass
 // into free().
 //
-// One motivation behind using such an allocator in Rebol is to allow it to
-// keep knowledge of how much memory the system is using.  This means it can
+// One motivation behind using such an allocator is to allow it to preserve
+// the knowledge of how much memory the system is using.  This means it can
 // decide when to trigger a garbage collection, or raise an out-of-memory
 // error before the operating system would, e.g. via 'ulimit':
 //
@@ -135,7 +135,7 @@ void *Alloc_Mem(size_t size)
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Free_Mem is a wrapper over free(), that subtracts from a total count that
-// Rebol can see how much memory was released.  This information assists in
+// Revolt can see how much memory was released.  This information assists in
 // deciding when it is necessary to run a garbage collection, or when to
 // impose a quota.
 //
@@ -166,12 +166,12 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 {
     // R3-Alpha had a "0-8 small string pool".  e.g. a pool of allocations for
     // payloads 0 to 8 bytes in length.  These are not technically possible in
-    // Ren-C's pool, because it requires 2*sizeof(void*) for each node at the
+    // Revolt's pool, because it requires 2*sizeof(void*) for each node at the
     // minimum...because instead of just the freelist pointer, it has a
     // standardized header (0 when free).
     //
     // This is not a problem, since all such small strings would also need
-    // REBSERs...and Ren-C has a better answer to embed the payload directly
+    // REBSERs...and Revolt has a better answer to embed the payload directly
     // into the REBSER.  This wouldn't apply if you were trying to do very
     // small allocations of strings that did not have associated REBSERs..
     // but those don't exist in the code.
@@ -371,7 +371,7 @@ void Shutdown_Pools(void)
         );
 
         printf(
-            "Memory accounting imbalance: Rebol internally tracks how much\n"
+            "Memory accounting imbalance: Revolt internally tracks how much\n"
             "memory it uses to know when to garbage collect, etc.  For\n"
             "some reason this accounting did not balance to zero on exit.\n"
             "Run under Valgrind with --leak-check=full --track-origins=yes\n"
@@ -398,7 +398,7 @@ void Fill_Pool(REBPOL *pool)
     if (seg == NULL) {
         panic ("Out of memory error during Fill_Pool()");
 
-        // Rebol's safe handling of running out of memory was never really
+        // R3-Alpha's safe handling of running out of memory was never really
         // articulated.  Yet it should be possible to run a fail()...at least
         // of a certain type...without allocating more memory.  (This probably
         // suggests a need for pre-creation of the out of memory objects,
@@ -1209,7 +1209,7 @@ void Free_Unmanaged_Series(REBSER *s)
 //
 //  Assert_Pointer_Detection_Working: C
 //
-// Check the conditions that are required for Detect_Rebol_Pointer() and
+// Check the conditions that are required for Detect_Revolt_Pointer() and
 // Endlike_Header() to work, and throw some sample cases at it to make sure
 // they give the right answer.
 //
@@ -1220,11 +1220,11 @@ void Assert_Pointer_Detection_Working(void)
     uintptr_t protected_flag = CELL_FLAG_PROTECTED;
     assert(THIRD_BYTE(protected_flag) == 0x80);
 
-    assert(Detect_Rebol_Pointer("") == DETECTED_AS_UTF8);
-    assert(Detect_Rebol_Pointer("asdf") == DETECTED_AS_UTF8);
+    assert(Detect_Revolt_Pointer("") == DETECTED_AS_UTF8);
+    assert(Detect_Revolt_Pointer("asdf") == DETECTED_AS_UTF8);
 
-    assert(Detect_Rebol_Pointer(EMPTY_ARRAY) == DETECTED_AS_SERIES);
-    assert(Detect_Rebol_Pointer(BLANK_VALUE) == DETECTED_AS_CELL);
+    assert(Detect_Revolt_Pointer(EMPTY_ARRAY) == DETECTED_AS_SERIES);
+    assert(Detect_Revolt_Pointer(BLANK_VALUE) == DETECTED_AS_CELL);
 
     // The system does not really intentionally "free" any cells, but they
     // can happen in bad memory locations.  Along with CELL_FLAG_PROTECED and
@@ -1239,14 +1239,14 @@ void Assert_Pointer_Detection_Working(void)
         NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
         | FLAG_KIND_BYTE(REB_T_TRASH)
         | FLAG_MIRROR_BYTE(REB_T_TRASH);
-    assert(Detect_Rebol_Pointer(freed_cell) == DETECTED_AS_FREED_CELL);
+    assert(Detect_Revolt_Pointer(freed_cell) == DETECTED_AS_FREED_CELL);
   #endif
 
     DECLARE_LOCAL (end_cell);
     SET_END(end_cell);
-    assert(Detect_Rebol_Pointer(end_cell) == DETECTED_AS_END);
-    assert(Detect_Rebol_Pointer(END_NODE) == DETECTED_AS_END);
-    assert(Detect_Rebol_Pointer(rebEND) == DETECTED_AS_END);
+    assert(Detect_Revolt_Pointer(end_cell) == DETECTED_AS_END);
+    assert(Detect_Revolt_Pointer(END_NODE) == DETECTED_AS_END);
+    assert(Detect_Revolt_Pointer(rebEND) == DETECTED_AS_END);
 
     // An Endlike_Header() can use the NODE_FLAG_MANAGED bit however it wants.
     // But the canon END_NODE is not managed, which was once used for a trick
@@ -1255,9 +1255,9 @@ void Assert_Pointer_Detection_Working(void)
     assert(not (END_NODE->header.bits & NODE_FLAG_MANAGED));
 
     REBSER *ser = Make_Series(1, sizeof(char));
-    assert(Detect_Rebol_Pointer(ser) == DETECTED_AS_SERIES);
+    assert(Detect_Revolt_Pointer(ser) == DETECTED_AS_SERIES);
     Free_Unmanaged_Series(ser);
-    assert(Detect_Rebol_Pointer(ser) == DETECTED_AS_FREED_SERIES);
+    assert(Detect_Revolt_Pointer(ser) == DETECTED_AS_FREED_SERIES);
 }
 
 
@@ -1268,7 +1268,7 @@ void Assert_Pointer_Detection_Working(void)
 //
 // Note: This was useful in R3-Alpha for finding corruption from bad memory
 // writes, because a write past the end of a node destroys the pointer for the
-// next free area.  The Always_Malloc option for Ren-C leverages the faster
+// next free area.  R3_ALWAYS_MALLOC option for Revolt leverages the faster
 // checking built into Valgrind or Address Sanitizer for the same problem.
 // However, a call to this is kept in the debug build on init and shutdown
 // just to keep it working as a sanity check.

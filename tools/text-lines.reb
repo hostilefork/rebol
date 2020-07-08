@@ -1,14 +1,15 @@
 REBOL [
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Text Lines"
     Version: 1.0.0
     Rights: {
         Copyright 2015 Brett Handley
+        Copyright 2015-2020 Revolt Open Source Developers
     }
     License: {
         Licensed under the Apache License, Version 2.0
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
-    Author: "Brett Handley"
     Purpose: {Functions operating on lines of text.}
 ]
 
@@ -133,7 +134,7 @@ text-line-of: function [
         any [
             to newline cursor:
 
-            ; IF deprecated in Ren-C, but :(...) with logic not available
+            ; IF deprecated in Revolt, but :(...) with logic not available
             ; in the bootstrap build.
             ;
             if (lesser? index of cursor idx)

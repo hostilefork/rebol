@@ -2,30 +2,30 @@
 //  File: %f-extension.c
 //  Summary: "support for extensions"
 //  Section: functional
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2018 Rebol Open Source Contributors
+// Copyright 2012-2018 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// !!! Extensions in Ren-C are a redesign from extensions in R3-Alpha.  They
+// !!! Extensions in Revolt are a redesign from extensions in R3-Alpha.  They
 // are a work in progress (and need documentation and cleanup), but have
 // been a proof-of-concept for the core idea to be able to write code that
-// looks similar to Rebol natives, but can be loaded from a DLL making calls
-// back into the executable...or alternately, built directly into the Rebol
+// looks similar to Revolt natives, but can be loaded from a DLL making calls
+// back into the executable...or alternately, built directly into the Revolt
 // interpreter itself based on a configuration switch.
 //
 // See the %extensions/ directory for some current (evolving) examples.
@@ -33,11 +33,11 @@
 
 #include "sys-core.h"
 
-// Building Rebol as a library may still entail a desire to ship that library
+// Building Revolt as a library may still entail a desire to ship that library
 // with built-in extensions (e.g. building libr3.js wants to have JavaScript
 // natives as an extension).  So there is no meaning to "built-in extensions"
 // for a library otherwise...as every client will be making their own EXE, and
-// there's no way to control their build process from Rebol's build process.
+// there's no way to control their build process from Revolt's build process.
 //
 // Hence, the generated header for boot extensions is included here--to allow
 // clients to get access to those extensions through an API.
@@ -76,7 +76,7 @@ REBNATIVE(builtin_extensions)
 //
 // rebStartup() should not initialize these extensions, because it might not
 // be the right ordering.  Command-line processing or other code that uses
-// Rebol may need to make decisions on when to initialize them.  So this
+// Revolt may need to make decisions on when to initialize them.  So this
 // function merely returns the built-in extensions, which can be loaded with
 // the LOAD-EXTENSION function.
 {
@@ -126,7 +126,7 @@ REBNATIVE(load_extension)
     PUSH_GC_GUARD(path);
 
     // See IDX_COLLATOR_MAX for collated block contents, which include init
-    // and shutdown functions, as well as native specs and Rebol script
+    // and shutdown functions, as well as native specs and Revolt script
     // source, plus the REBNAT functions for each native.
     //
     REBARR *details;
@@ -462,7 +462,7 @@ REBVAL *rebCollateExtension_internal(
 // datatypes that could be operated on was fixed as part of the declaration
 // in %generics.r (though R3-Alpha called them "actions").
 //
-// Ren-C attempts to streamline the core so it can be used for more purposes,
+// Revolt attempts to streamline the core so it can be used for more purposes,
 // where suppport code for GOB! (or IMAGE!, or VECTOR!) may be redundant or
 // otherwise wasteful.  These types are moved to extensions, which may be
 // omitted from the build (or optionally loaded as DLLs).   That means that

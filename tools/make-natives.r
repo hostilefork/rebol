@@ -1,5 +1,5 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Generate native specifications"
     Rights: {
         Copyright 2012 REBOL Technologies
@@ -72,7 +72,7 @@ print "------ Generate tmp-generics.r"
 clear output-buffer
 
 append output-buffer {REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Action function specs"
     Rights: {
         Copyright 2012 REBOL Technologies

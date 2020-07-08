@@ -1,9 +1,9 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
-    Title: "Rebol datatypes and their related attributes"
+    System: "Revolt Language Interpreter and Run-time Environment"
+    Title: "Revolt datatypes and their related attributes"
     Rights: {
         Copyright 2012 REBOL Technologies
-        Copyright 2012-2019 Rebol Open Source Developers
+        Copyright 2012-2019 Revolt Open Source Developers
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -288,9 +288,9 @@ get-word    "the value of a word (variable)"
 ; </ANY-GET> (except for ISSUE!)
 
 
-; ACTION! is the "OneFunction" type in Ren-C https://forum.rebol.info/t/596
+; ACTION! is the "OneFunction" type in Revolt https://forum.rebol.info/t/596
 
-action      "an invokable Rebol subroutine"
+action      "an invokable Revolt subroutine"
             action      +       +       +       []
 
 ; ============================================================================

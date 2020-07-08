@@ -20,7 +20,7 @@
 
         if refinement? params/1 [
             comment {
-                Ren-C allows LOGIC! to control parameterless refinements and
+                Revolt allows LOGIC! to control parameterless refinements and
                 canonizes to either null or the refinement name itself.  But
                 it does not allow BLANK!.  This makes a BLOCK!-style apply
                 using positions non-viable.  We OPT all nones here.

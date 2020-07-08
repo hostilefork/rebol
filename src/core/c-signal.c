@@ -1,22 +1,22 @@
 //
 //  File: %c-signal.c
 //  Summary: "Evaluator Interrupt Signal Handling"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -32,8 +32,8 @@
 // https://en.wikipedia.org/wiki/Unix_signal
 //
 // Guarding against errors being longjmp'd when an evaluation is in effect
-// isn't the only time these signals are processed.  Rebol's Process_Signals
-// currently happens during I/O, such as printing output.  As a consequence,
+// isn't the only time these signals are processed.  R3-Alpha Process_Signals
+// would happen during I/O, such as printing output.  As a consequence,
 // a Ctrl-C can be picked up and then triggered during an Out_Value, jumping
 // the stack from there.
 //
@@ -59,7 +59,7 @@
 // every step.  If it was, then it would always call this routine--regardless
 // of the Eval_Count.
 //
-// While a broader review of how signals would work in Ren-C is pending, it
+// While a broader review of how signals would work in Revolt is pending, it
 // seems best to avoid checking two things each step.  So only the Eval_Count
 // is checked, and places that set Eval_Signals set it to 1...to have the
 // same effect as if it were being checked.  Then if the Eval_Signals are

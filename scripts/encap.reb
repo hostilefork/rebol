@@ -1,9 +1,8 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Host Script and Resource Embedding Services ('encapping')"
     Rights: {
-        Copyright 2017 Rebol Open Source Contributors
-        REBOL is a trademark of REBOL Technologies
+        Copyright 2017-2020 Revolt Open Source Contributors
     }
     License: {
         Licensed under the Apache License, Version 2.0
@@ -38,10 +37,10 @@ REBOL [
         resource logic of the OS.
 
         This can be done with OS-specific tools or system calls, but the
-        advantage of writing it standalone as Rebol is that it reduces the
+        advantage of writing it standalone as Revolt is that it reduces the
         dependencies.  It allows encapping of executables built on a platform
         different than the one you are running on.  So attempts are made
-        here to manipulate the published formats with Rebol code itself.
+        here to manipulate the published formats with Revolt code itself.
 
         For formats not supported currently by the encapper, the simple
         appending strategy is used.
@@ -62,7 +61,7 @@ REBOL [
 ; names requires a pre-pass to find it, hence is a little bit convoluted.
 ;
 elf-format: context [
-    encap-section-name: ".rebol.encap.1"
+    encap-section-name: ".revolt.encap.1"
 
     ; (E)LF overall header properties read or written during parse
 
@@ -542,7 +541,7 @@ elf-format: context [
 ; https://msdn.microsoft.com/en-us/library/windows/desktop/ms680547(v=vs.85).aspx
 ;
 pe-format: context [
-    encap-section-name: ".rebolE"  ; Limited to 8 bytes
+    encap-section-name: ".revoltE"  ; Limited to 8 bytes
 
     buf: _
     u16: u32: uintptr: _
@@ -554,7 +553,7 @@ pe-format: context [
 
     ; Note: `uintptr-64-le` uses a signed interpretation (+/-) even though it
     ; is supposed to be an unsigned integer the size of a platform pointer in
-    ; the actual format (C's <stdint.h> `uintptr_t`).  That's because Ren-C
+    ; the actual format (C's <stdint.h> `uintptr_t`).  That's because Revolt
     ; inherited R3-Alpha's INTEGER! which can hold 64-bit values but is
     ; interpreted as signed.  Hence positive values can only go up to 63 bits.
     ; If arithmetic is not needed and values are merely read and written back
@@ -1140,7 +1139,10 @@ pe-format: context [
         return (head of exe-data | elide reset)
     ]
 
-    update-embedding: specialize 'update-section [section-name: encap-section-name]
+    update-embedding: specialize 'update-section [
+        section-name: encap-section-name
+    ]
+
     get-embedding: function [
         return: [<opt> binary!]
         file [file!]
@@ -1235,25 +1237,25 @@ encap: function [
         [file!]
     spec "Single script to embed, directory to zip with main.reb, or dialect"
         [file! block!]
-    /rebol "Path to a Rebol to encap instead of using the current one"
+    /revolt "Path to a Revolt to encap instead of using the current one"
         [any-value!]
 ][
     if block? spec [
         fail "The spec dialect for encapping has not been defined yet"
     ]
 
-    rebol: default [system/options/boot]
-    either ".exe" = base-name: skip tail of rebol -4 [
-        out-rebol-path: join
-            copy/part rebol (index of base-name) - 1
+    revolt: default [system/options/boot]
+    either ".exe" = base-name: skip tail of revolt -4 [
+        out-revolt-path: join
+            copy/part revolt (index of base-name) - 1
             "-encap.exe"
     ][
-        out-rebol-path: join rebol "-encap"
+        out-revolt-path: join revolt "-encap"
     ]
 
-    print ["Encapping from original executable:" rebol]
+    print ["Encapping from original executable:" revolt]
 
-    executable: read in-rebol-path
+    executable: read in-revolt-path
 
     print ["Original executable is" length of executable "bytes long."]
 
@@ -1300,15 +1302,15 @@ encap: function [
         generic-format/update-embedding executable compressed
     ]
 
-    print ["Writing executable with encap, size, signature to" out-rebol-path]
+    print ["Writing executable with encap, size, signature:" out-revolt-path]
 
-    write out-rebol-path executable
+    write out-revolt-path executable
 
     print ["Output executable written with total size" length of executable]
 
     ; !!! Currently only test the extraction for single-file, easier.
     ;
-    if single-script and [embed != extracted: get-encap out-rebol-path] [
+    if single-script and [embed != extracted: get-encap out-revolt-path] [
         print ["Test extraction size:" length of extracted]
         print ["Embedded bytes" mold embed]
         print ["Extracted bytes" mold extracted]
@@ -1316,30 +1318,30 @@ encap: function [
         fail "Test extraction of embedding did not match original data."
     ]
 
-    return out-rebol-path
+    return out-revolt-path
 ]
 
 
 get-encap: function [
     return: [blank! binary! block!]
         {Blank if no encapping found, binary if single file, block if archive}
-    rebol-path [file!]
+    revolt-path [file!]
         {The executable to search for the encap information in}
 ][
     trap [
-        read/part rebol-path 1
+        read/part revolt-path 1
     ] then (func [e <with> return] [
         print [e]
-        print ["Can't check for embedded code in Rebol path:" rebol-path]
+        print ["Can't check for embedded code in Revolt path:" revolt-path]
         return blank
     ])
 
     compressed-data: any [
-        elf-format/get-embedding rebol-path
+        elf-format/get-embedding revolt-path
             |
-        pe-format/get-embedding rebol-path
+        pe-format/get-embedding revolt-path
             |
-        generic-format/get-embedding rebol-path
+        generic-format/get-embedding revolt-path
     ] else [
         return blank
     ]

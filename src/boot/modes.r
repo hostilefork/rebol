@@ -1,5 +1,5 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Port modes"
     Rights: {
         Copyright 2012 REBOL Technologies

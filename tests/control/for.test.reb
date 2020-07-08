@@ -1,6 +1,6 @@
 ; functions/control/for.r
 
-; One design aspect of FOR which was introduced in Ren-C is the idea that
+; One design aspect of FOR which was introduced in Revolt is the idea that
 ; it should not be possible to give a start/end/bump combination that in and
 ; of itself will cause an infinite loop.  This is accomplished by determining
 ; the direction of iteration based on comparing the start and end points...

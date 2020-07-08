@@ -428,7 +428,7 @@ typedef int boolean;
 #include <sys/types.h>
 #endif
 
-// #include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
+// #include <stdio.h>  // !!! No <stdio.h> in Revolt release builds
 
 /*
  * We need memory copying and zeroing functions, plus strncpy().
@@ -1675,7 +1675,7 @@ EXTERN(void) jpeg_destroy_decompress JPP((j_decompress_ptr cinfo));
 
 /* Standard data source and destination managers: stdio streams. */
 /* Caller is responsible for opening the file before and closing after. */
-// !!! No <stdio.h> in Ren-C release builds
+// !!! No <stdio.h> in Revolt release builds
 //EXTERN(void) jpeg_stdio_dest JPP((j_compress_ptr cinfo, FILE * outfile));
 //EXTERN(void) jpeg_stdio_src JPP((j_decompress_ptr cinfo, FILE * infile));
 
@@ -2819,7 +2819,7 @@ typedef struct backing_store_struct {
 #else
   /* For a typical implementation with temp files, we need: */
   //
-  // !!! No <stdio.h> in Ren-C release builds.  This is actually okay here
+  // !!! No <stdio.h> in Revolt release builds.  This is actually okay here
   // because this backing store is never used...it just does normal
   // memory allocation and assumes virtual memory will handle it
   //

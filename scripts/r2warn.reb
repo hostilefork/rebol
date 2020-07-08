@@ -1,9 +1,9 @@
 REBOL [
-    System: "Rebol 3 (Ren-C Branch)"
-    Title: "Warnings for Rebol2 users who are using Ren-C"
+    System: "Revolt Interpreter and Run-Time"
+    Title: "Warnings for Rebol2 users who are using Revolt"
     Homepage: https://trello.com/b/l385BE7a/porting-guide
     Rights: {
-        Copyright 2012-2018 Rebol Open Source Contributors
+        Copyright 2012-2018 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -11,7 +11,7 @@ REBOL [
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
     Description: {
-        These are warnings for Rebol2 (or Red) programmers using Ren-C.
+        These are warnings for Rebol2 (or Red) programmers using Revolt.
         The goal is to notice things that are likely mistakes and offer more
         guidance than just a missing word or odd behavior.
     }
@@ -140,13 +140,13 @@ unless: checked [
         right: take right
         if (unset? 'left) or [not group? right] or [block? first look] [
             fail 'look [
-                "UNLESS has been repurposed in Ren-C as an infix operator"
+                "UNLESS has been repurposed in Revolt as an infix operator"
                 "which defaults to the left hand side, unless the right"
                 "side has a value which overrides it.  You may use IF-NOT"
                 "as a replacement, or even define UNLESS: :LIB/IF-NOT,"
                 "though actions like OR, DEFAULT, etc. are usually better"
                 "replacements for the intents that UNLESS was used for."
-                "!!! NOTE: `if not` as two words isn't the same in Ren-C,"
+                "!!! NOTE: `if not` as two words isn't the same in Revolt,"
                 "as `if not x = y` is read as `if (not x) = y` since `=`"
                 "completes its left hand side.  Be careful rewriting."
             ]
@@ -170,7 +170,7 @@ switch: checked [
 
                     {You may have meant to use a LIT-WORD! / LIT-PATH!} LF
 
-                    {SWITCH in Ren-C evaluates its match clauses.  But to}
+                    {SWITCH in Revolt evaluates its match clauses.  But to}
                     {help catch old uses, only datatype lookups enabled.}
                     {SWITCH: :LIB/SWITCH overrides.}
                 ]
@@ -201,7 +201,7 @@ selfless?: deprecated [
 unset!: deprecated [
     https://trello.com/c/rmsTJueg
 
-    {UNSET! is not a datatype in Ren-C, please read about NULL}
+    {UNSET! is not a datatype in Revolt, please read about VOID! and NULL}
 ]
 
 true?: deprecated [
@@ -213,14 +213,14 @@ false?: deprecated [
 ]
 
 none?: none!: none: deprecated [
-    {NONE is reserved in Ren-C for future use}
+    {NONE is reserved in Revolt for future use}
     {(It will act like NONE-OF, e.g. NONE [a b] => ALL [not a not b])}
     {_ is now a "BLANK! literal", with BLANK? test and BLANK the word.}
     {If running in <r3-legacy> mode, old NONE meaning is available.}
 ]
 
 type?: deprecated [
-    {TYPE? is reserved in Ren-C for future use}
+    {TYPE? is reserved in Revolt for future use}
     {(Though not fixed in stone, it may replace DATATYPE?)}
     {TYPE OF is the current replacement, with no TYPE-OF/WORD}
     {Use soft quotes, e.g. SWITCH TYPE OF 1 [:INTEGER! [...]]}
@@ -237,7 +237,7 @@ found?: deprecated [
 op?: deprecated [
     https://trello.com/c/mfqTGmcv
 
-    {OP? can't work in Ren-C because there are no "infix ACTION!s"}
+    {OP? can't work in Revolt because there are no "infix ACTION!s"}
     {See ENFIX? and SET/ENFIX for more information.}
 ]
 
@@ -248,7 +248,7 @@ also: checked [
             not semiquoted? 'branch
 
             fail 'branch [
-                {ALSO serves a different purpose in Ren-C, so use ELIDE for}
+                {ALSO serves a different purpose in Revolt, so use ELIDE for}
                 {old-ALSO-like tasks.}
                 {See: https://trello.com/c/Y03HJTY4}
             ]
@@ -260,7 +260,7 @@ also: checked [
 compress: decompress: deprecated [
     https://trello.com/c/Bl6Znz0T
 
-    {COMPRESS and DECOMPRESS are deprecated in Ren-C, in favor of the}
+    {COMPRESS and DECOMPRESS are deprecated in Revolt, in favor of the}
     {DEFLATE/INFLATE natives and GZIP/GUNZIP natives.}
 ]
 
@@ -268,8 +268,8 @@ clos: closure: deprecated [
     https://forum.rebol.info/t/234
 
     {All ACTION!s (such as made with FUNC, FUNCTION, METH, METHOD)}
-    {have "specific binding", so closure is not needed for that.  The}
-    {indefinite survival of args is on the back burner for Ren-C.}
+    {have "specific binding", so closure is not needed for that.  In Revolt,}
+    {currently arguments have indefinite survival if referenced.}
 ]
 
 exit: deprecated [

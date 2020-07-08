@@ -1,14 +1,13 @@
 //
 //  File: %mod-javascript.c
-//  Summary: "Support for calling Javascript from Rebol in Emscripten build"
+//  Summary: "Support for calling Javascript from Revolt in Emscripten build"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Copyright 2018-2019 Rebol Open Source Contributors
-// REBOL is a trademark of REBOL Technologies
+// Copyright 2018-2020 Revolt Open Source Contributors
 //
 // See README.md and CREDITS.md for more information.
 //
@@ -52,9 +51,9 @@
 //   synchronously finished.  The only way around this would be if you could
 //   use `await` (you can't...and also it would limit error handling)
 //
-// * We used to block the main thread while Rebol code for a promise was
+// * We used to block the main thread while Revolt code for a promise was
 //   running on the worker.  But it's rude to lock up the main thread while
-//   Rebol is running long operations (JS might want to repaint or do some
+//   Revolt is running long operations (JS might want to repaint or do some
 //   other handling in parallel) -or- it might want to ask for cancellation.
 //   So another way needs to be found.
 //
@@ -122,7 +121,7 @@
 
 //=//// DEBUG_JAVASCRIPT_EXTENSION TOOLS //////////////////////////////////=//
 //
-// Ren-C has a very aggressive debug build.  Turning on all the debugging
+// Revolt has a very aggressive debug build.  Turning on all the debugging
 // means a prohibitive experience in emscripten--not just in size and speed of
 // the build products, but the compilation can wind up taking a long time--or
 // not succeeding at all).
@@ -231,7 +230,7 @@ inline static void* Pointer_From_Heapaddr(heapaddr_t addr)
 static void cleanup_js_object(const REBVAL *v) {
     heapaddr_t id = Heapaddr_From_Pointer(VAL_HANDLE_VOID_POINTER(v));
 
-    // The GC can be triggered when we're running Rebol code on either the
+    // The GC can be triggered when we're running Revolt code on either the
     // GUI thread or worker thread (in the USE_PTHREADS build).  If we're on
     // the worker we have to ask the main thread to remove the table entry
     // for the native.  We can do it asynchronously assuming that all these
@@ -261,8 +260,8 @@ static void cleanup_js_object(const REBVAL *v) {
 // !!! This aspect is overkill for something that can only happen once on
 // the stack at a time.  Review.
 //
-// !!! Future designs may translate that object into Rebol so it could
-// be caught by Rebol, but for now we assume a throw originating from
+// !!! Future designs may translate that object into Revolt so it could
+// be caught by Revolt, but for now we assume a throw originating from
 // JavaScript code may only be caught by JavaScript code.
 //
 
@@ -274,7 +273,7 @@ inline static heapaddr_t Frame_Id_For_Frame_May_Outlive_Call(REBFRM* f) {
 
 //=//// JS-NATIVE PER-ACTION! DETAILS /////////////////////////////////////=//
 //
-// All Rebol ACTION!s that claim to be natives have to provide a BODY field
+// All Revolt ACTION!s that claim to be natives have to provide a BODY field
 // for source, and an ANY-CONTEXT! that indicates where any API calls will
 // be bound while that native is on the stack.  For now, if you're writing
 // any JavaScript native it will presume binding in the user context.
@@ -306,10 +305,10 @@ REB_R JavaScript_Dispatcher(REBFRM *f);
 //=//// GLOBAL PROMISE STATE //////////////////////////////////////////////=//
 //
 // Several promises can be requested sequentially, and so they queue up in
-// a linked list.  If Rebol were multithreaded, we would be able to start
+// a linked list.  If Revolt were multithreaded, we would be able to start
 // those threads and run them while the MAIN were still going...but since it
 // is not, we have to wait until the MAIN is idle and isn't making any calls
-// into libRebol.
+// into libRevolt.
 //
 
 enum Reb_Promise_State {
@@ -608,13 +607,13 @@ void RunPromise(void)
 #endif
 
 
-// The protocol for JavaScript returning Rebol API values to Rebol is to do
+// The protocol for JavaScript returning Revolt API values to Revolt is to do
 // so with functions that either "resolve" (succeed) or "reject" (e.g. fail).
 // Even non-async functions use the callbacks, so that they can signal a
 // failure bubbling up out of them as distinct from success.
 //
 // Those callbacks always happen on the main thread.  But the code that wants
-// the result may be Rebol running on the worker, or yielded emterpreter code
+// the result may be Revolt running on the worker, or yielded emterpreter code
 // that can't actually process the value yet.  So the values are stored in
 // a table associated with the call frame's ID.  This pulls that out into the
 // PG_Native_Result variable.
@@ -700,14 +699,14 @@ EXTERN_C void RL_rebSignalRejectNative_internal(intptr_t frame_id) {
     // So the js_awaiter_invoker() is not on the stack, this is an async
     // resolution even if the throw was called directly like that.
     //
-    // In the long term it may be possible for Rebol constructs like
+    // In the long term it may be possible for Revolt constructs like
     // TRAP or CATCH to intercept a JavaScript-thrown error.  If they
     // did they may ask for more work to be done on the GUI so it would
     // need to be in idle for that (otherwise the next thing it ran
     // could always be assumed as the result to the await).
     //
-    // But if the Rebol construct could catch a JS throw, it would need
-    // to convert it somehow to a Rebol value.  That conversion would
+    // But if the Revolt construct could catch a JS throw, it would need
+    // to convert it somehow to a Revolt value.  That conversion would
     // have to be done right now--or there'd have to be some specific
     // protocol for coming back and requesting it.
     //
@@ -718,9 +717,9 @@ EXTERN_C void RL_rebSignalRejectNative_internal(intptr_t frame_id) {
     // lifetime lasts long enough to not conflate IDs in the table).
     //
     // Note: We don't want to fall through to the main thread's message
-    // pump so long as any code is running on the worker that's using Rebol
+    // pump so long as any code is running on the worker that's using Revolt
     // features.  A stray setTimeout() message might get processed while
-    // the R_THROW is being unwound, and use a Rebol API which would
+    // the R_THROW is being unwound, and use a Revolt API which would
     // be contentious with running code on another thread.  Block, and
     // it should be unblocked to let the catch() clause run.
     //
@@ -732,7 +731,7 @@ EXTERN_C void RL_rebSignalRejectNative_internal(intptr_t frame_id) {
 
     // * The JavaScript was running on the GUI thread
     // * What is raised to JavaScript is always a JavaScript error, even if
-    //   it is a proxy error for something that happened in a Rebol call.
+    //   it is a proxy error for something that happened in a Revolt call.
     // * We leave the error in the table.
     //
     /* Sync_Native_Result(frame_id); */
@@ -913,14 +912,14 @@ REB_R JavaScript_Dispatcher(REBFRM *f)
     if (PG_Native_State == NATIVE_STATE_REJECTED) {
         //
         // !!! Ultimately we'd like to make it so JavaScript code catches the
-        // unmodified error that was throw()'n out of the JavaScript, or if
-        // Rebol code calls javascript that calls Rebol that errors...it would
+        // unmodified error that was throw()'n out of the JavaScript.  Or if
+        // Revolt code calls javascript that calls Rebol that errors, it would
         // "tunnel" the error through and preserve the identity as best it
         // could.  But for starters, the transformations are lossy.
 
         PG_Native_State = NATIVE_STATE_NONE;
 
-        // !!! The GetNativeError_internal() code calls libRebol to build the
+        // !!! The GetNativeError_internal() code calls libRevolt to build the
         // error, via `reb.Value("make error!", ...)`.  But this means that
         // if the evaluator has had a halt signaled, that would be the code
         // that would convert it to a throw.  For now, the halt signal is
@@ -1031,8 +1030,8 @@ REBNATIVE(js_native)
 
     // The generation of the function called by JavaScript.  It takes no
     // arguments, as giving it arguments would make calling it more complex
-    // as well as introduce several issues regarding mapping legal Rebol
-    // names to names for JavaScript parameters.  libRebol APIs must be used
+    // as well as introduce several issues regarding mapping legal Revolt
+    // names to names for JavaScript parameters.  libRevolt APIs must be used
     // to access the arguments out of the frame.
 
     DECLARE_MOLD (mo);
@@ -1040,7 +1039,7 @@ REBNATIVE(js_native)
 
     Append_Ascii(mo->series, "let f = ");  // variable we store function in
 
-    // A JS-AWAITER can only be triggered from Rebol on the worker thread as
+    // A JS-AWAITER can only be triggered from Revolt on the worker thread as
     // part of a rebPromise().  Making it an async function means it will
     // return an ES6 Promise, and allows use of the AWAIT JavaScript feature
     // inside the body:
@@ -1055,9 +1054,9 @@ REBNATIVE(js_native)
     if (REF(awaiter))
         Append_Ascii(mo->series, "async ");
 
-    // We do not try to auto-translate the Rebol arguments into JS args.  It
+    // We do not try to auto-translate the Revolt arguments into JS args.  It
     // would make calling it more complex, and introduce several issues of
-    // mapping Rebol names to legal JavaScript identifiers.  reb.Arg() or
+    // mapping Revolt names to legal JavaScript identifiers.  reb.Arg() or
     // reb.ArgR() must be used to access the arguments out of the frame.
     //
     Append_Ascii(mo->series, "function () {");
@@ -1072,7 +1071,7 @@ REBNATIVE(js_native)
     REBYTE id_buf[60];  // !!! Why 60?  Copied from MF_Integer()
     REBINT len = Emit_Integer(id_buf, native_id);
 
-    // Rebol cannot hold onto JavaScript objects directly, so there has to be
+    // Revolt cannot hold onto JavaScript objects directly, so there has to be
     // a table mapping some numeric ID (that we *can* hold onto) to the
     // corresponding JS function entity.
     //
@@ -1094,9 +1093,9 @@ REBNATIVE(js_native)
     // would be bad--what if they ran the function right after declaring it?)
     //
     // Badly formed JavaScript can cause an error which we want to give back
-    // to Rebol.  Since we're going to give it back to Rebol anyway, we go
+    // to Revolt.  Since we're going to give it back to Revolt anyway, we go
     // ahead and have the code we run on the main thread translate the JS
-    // error object into a Rebol error, so that the handle can be passed
+    // error object into a Revolt error, so that the handle can be passed
     // back (proxying the JS error object and receiving it in this C call
     // would be more complex).
     //
@@ -1158,13 +1157,13 @@ REBNATIVE(js_native)
 //          [<opt> integer! text! void!]
 //      source "JavaScript code as a text string" [text!]
 //      /local "Evaluate in local scope (as opposed to global)"
-//      /value "Return a Rebol value"
+//      /value "Return a Revolt value"
 //  ]
 //
 REBNATIVE(js_eval_p)
 //
 // Note: JS-EVAL is a higher-level routine built on this JS-EVAL* native, that
-// can accept a BLOCK! with escaped-in Rebol values, via JS-DO-DIALECT-HELPER.
+// can accept a BLOCK! with escaped Revolt values, via JS-DO-DIALECT-HELPER.
 // In order to make that code easier to change without having to recompile and
 // re-ship the JS extension, it lives in a separate script.
 //

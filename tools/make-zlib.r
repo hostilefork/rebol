@@ -1,8 +1,8 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Make sys-zlib.h and u-zlib.c"
     Rights: {
-        Copyright 2012-2018 Rebol Open Source Contributors
+        Copyright 2012-2018 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -81,7 +81,7 @@ disable-user-includes: function [
             ] else [
                 insert line unspaced [{//} space]
                 append line unspaced [
-                    space {/* REBOL: see make-zlib.r */}
+                    space {/* REVOLT: see make-zlib.r */}
                 ]
             ]
         ] 
@@ -338,7 +338,7 @@ disable-user-includes header-lines
 
 insert header-lines [
     {}
-    {// Ren-C}
+    {// Revolt}
     {#define NO_DUMMY_DECL 1}
     {#define Z_PREFIX 1}
     {#define ZLIB_CONST}

@@ -2,22 +2,22 @@
 //  File: %t-tuple.c
 //  Summary: "tuple datatype"
 //  Section: datatypes
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -58,7 +58,7 @@ REB_R MAKE_Tuple(
     REBYTE *vp = VAL_TUPLE(out);
 
     // !!! Net lookup parses IP addresses out of `tcp://93.184.216.34` or
-    // similar URL!s.  In Rebol3 these captures come back the same type
+    // similar URL!s.  In R3-Alpha these captures come back the same type
     // as the input instead of as STRING!, which was a latent bug in the
     // network code of the 12-Dec-2012 release:
     //
@@ -310,7 +310,7 @@ void MF_Tuple(REB_MOLD *mo, const REBCEL *v, bool form)
 //
 //  REBTYPE: C
 //
-// !!! The TUPLE type from Rebol is something of an oddity, plus written as
+// !!! The TUPLE type from R3-Alpha is something of an oddity, plus written as
 // more-or-less spaghetti code.  It is likely to be replaced with something
 // generalized better, but is grudgingly kept working in the meantime.
 //

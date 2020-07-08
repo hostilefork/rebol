@@ -2,22 +2,22 @@
 //  File: %mod-network.c
 //  Summary: "network port interface"
 //  Section: ports
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -257,7 +257,7 @@ static REB_R Transport_Actor(
 
             // !!! R3-Alpha would take req->actual and advance the tail of
             // the actual input binary here (the req only had byte access,
-            // and could not keep the BINARY! up to date).  Ren-C tries to
+            // and could not keep the BINARY! up to date).  Revolt tries to
             // operate with the binary in a valid state after every change.
             //
             ASSERT_SERIES_TERM(VAL_BINARY(port_data));
@@ -312,7 +312,7 @@ static REB_R Transport_Actor(
             // !!! R3-Alpha didn't have a working READ/PART for networking; it
             // would just accrue data as each chunk came in.  The inability
             // to limit the read length meant it was difficult to implement
-            // network protocols.  Ren-C has R3-Alpha's behavior if no /PART
+            // network protocols.  Revolt has R3-Alpha's behavior if no /PART
             // is specified.
             //
             req->length = UINT32_MAX;  // signal "read as much as you can"

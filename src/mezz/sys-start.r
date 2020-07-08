@@ -1,9 +1,9 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "REBOL 3 Boot Sys: Startup"
     Rights: {
         Copyright 2012 REBOL Technologies
-        Copyright 2012-2017 Rebol Open Source Contributors
+        Copyright 2012-2017 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -31,7 +31,7 @@ REBOL [
 ]
 
 finish-init-core: func [
-    "Completes the boot sequence for Ren-C core."
+    "Completes the boot sequence for Revolt core."
     return: <void>
     boot-mezz [block!]
         {Mezzanine code loaded as part of the boot block in Startup_Core()}

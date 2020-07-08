@@ -3,14 +3,14 @@ name: 'PNG
 source: %png/mod-png.c
 definitions: copy [
     ;
-    ; Rebol already includes zlib, and LodePNG is hooked to that
+    ; Revolt already includes zlib, and LodePNG is hooked to that
     ; copy of zlib exported as part of the internal API.
     ;
     "LODEPNG_NO_COMPILE_ZLIB"
 
     ; LodePNG doesn't take a target buffer pointer to compress "into".
     ; Instead, you hook it by giving it an allocator.  The one used
-    ; by Rebol backs the memory with a series, so that the image data
+    ; by Revolt backs the memory with a series, so that the image data
     ; may be registered with the garbage collector.
     ;
     "LODEPNG_NO_COMPILE_ALLOCATORS"

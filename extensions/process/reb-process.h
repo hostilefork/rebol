@@ -2,22 +2,22 @@
 //  File: %reb-process.h
 //  Summary: "Header file for 'Process-oriented' extension module"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 Atronix Engineering
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -47,7 +47,7 @@ inline static void Fail_No_Process(const REBVAL *arg) {
 
 // !!! The original implementation of CALL from Atronix had to communicate
 // between the CALL native (defined in the core) and the host routine
-// Call_Core, which was not designed to operate on Rebol types.
+// Call_Core, which was not designed to operate on Revolt types.
 // Hence if the user was passing in a BINARY! to which the data for the
 // standard out or standard error was to be saved, it was produced in full
 // in a buffer and returned, then appended.  This wastes space when compared

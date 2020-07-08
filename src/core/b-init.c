@@ -2,38 +2,38 @@
 //  File: %b-init.c
 //  Summary: "initialization functions"
 //  Section: bootstrap
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// The primary routine for starting up Rebol is Startup_Core().  It runs the
+// The primary routine for starting up Revolt is Startup_Core().  It runs the
 // bootstrap in phases, based on processing various portions of the data in
 // %tmp-boot-block.r (which is the aggregated code from the %mezz/*.r files,
 // packed into one file as part of the build preparation).
 //
-// As part of an effort to lock down the memory usage, Ren-C added a parallel
-// Shutdown_Core() routine which would gracefully exit Rebol, with assurances
+// As part of an effort to lock down the memory usage, Revolt added a parallel
+// Shutdown_Core() routine which would gracefully exit, with some assurance
 // that all accounting was done correctly.  This includes being sure that the
 // number used to track memory usage for triggering garbage collections would
 // balance back out to exactly zero.
 //
 // (Release builds can instead close only vital resources like files, and
-// trust the OS exit() to reclaim memory more quickly.  However Ren-C's goal
+// trust the OS exit() to reclaim memory more quickly.  However Revolt's goal
 // is to be usable as a library that may be initialized and shutdown within
 // a process that's not exiting, so the ability to clean up is important.)
 //
@@ -163,7 +163,7 @@ void Set_Stack_Limit(void *base, uintptr_t bounds) {
 //
 //  Startup_True_And_False: C
 //
-// !!! Rebol is firm on TRUE and FALSE being WORD!s, as opposed to the literal
+// !!! Rebol was firm on TRUE and FALSE being WORD!s, as opposed to literal
 // forms of logical true and false.  Not only does this frequently lead to
 // confusion, but there's not consensus on what a good literal form would be.
 // R3-Alpha used #[true] and #[false] (but often molded them as looking like
@@ -527,7 +527,7 @@ REBVAL *Make_Native(
 //
 // Create native functions.  In R3-Alpha this would go as far as actually
 // creating a NATIVE native by hand, and then run code that would call that
-// native for each function.  Ren-C depends on having the native table
+// native for each function.  Revolt depends on having the native table
 // initialized to run the evaluator (for instance to test functions against
 // the UNWIND native's FUNC signature in definitional returns).  So it
 // "fakes it" just by calling a C function for each item...and there is no
@@ -941,7 +941,7 @@ static void Init_Contexts_Object(void)
 // memory pools would need protection from one thread to share any series with
 // others, due to contention between reading and writing.
 //
-// Ren-C kept the separation, but if threading were to be a priority it would
+// Revolt kept the separation, but if threading were to be a priority it would
 // likely be approached a different way.  A nearer short-term feature would be
 // "isolates", where independent interpreters can be loaded in the same
 // process, just not sharing objects with each other.
@@ -1021,8 +1021,8 @@ void Startup_Task(void)
 //
 //  Startup_Base: C
 //
-// The code in "base" is the lowest level of Rebol initialization written as
-// Rebol code.  This is where things like `+` being an infix form of ADD is
+// The code in "base" is the lowest level of Revolt initialization written as
+// Revolt code.  This is where things like `+` being an infix form of ADD is
 // set up, or FIRST being a specialization of PICK.  It's also where the
 // definition of the locals-gathering FUNCTION currently lives.
 //
@@ -1059,7 +1059,7 @@ static void Startup_Base(REBARR *boot_base)
 //
 //  Startup_Sys: C
 //
-// The SYS context contains supporting Rebol code for implementing "system"
+// The SYS context contains supporting Revolt code for implementing "system"
 // features.  The code has natives, generics, and the definitions from
 // Startup_Base() available for its implementation.
 //
@@ -1069,7 +1069,7 @@ static void Startup_Base(REBARR *boot_base)
 // The sys context has a #define constant for the index of every definition
 // inside of it.  That means that you can access it from the C code for the
 // core.  Any work the core C needs to have done that would be more easily
-// done by delegating it to Rebol can use a function in sys as a service.
+// done by delegating it to Revolt can use a function in sys as a service.
 //
 static void Startup_Sys(REBARR *boot_sys) {
     RELVAL *head = ARR_HEAD(boot_sys);
@@ -1156,11 +1156,11 @@ static REBVAL *Startup_Mezzanine(BOOT_BLK *boot)
 // functions are unavailable at certain phases.
 //
 // Though most of the initialization is run as C code, some portions are run
-// in Rebol.  For instance, GENERIC is a function registered very early on in
+// in Revolt.  For instance, GENERIC is a function registered very early on in
 // the boot process, which is run from within a block to register more
 // functions.
 //
-// At the tail of the initialization, `finish-init-core` is run.  This Rebol
+// At the tail of the initialization, `finish-init-core` is run.  This Revolt
 // function lives in %sys-start.r.   It should be "host agnostic" and not
 // assume things about command-line switches (or even that there is a command
 // line!)  Converting the code that made such assumptions ongoing.

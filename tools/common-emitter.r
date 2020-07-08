@@ -1,8 +1,8 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Common Code for Emitting Text Files"
     Rights: {
-        Copyright 2016-2018 Rebol Open Source Contributors
+        Copyright 2016-2018 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -162,7 +162,7 @@ cscape: function [
             |
             newline
             [
-                ; IF deprecated in Ren-C, but :(...) with logic not available
+                ; IF deprecated in Revolt, but :(...) with logic not available
                 ; in the bootstrap build.
                 ;
                 if (did all [not nonwhite | removed])
@@ -293,7 +293,7 @@ make-emitter: function [
             **
             **  REBOL [R3] Language Interpreter and Run-time Environment
             **  Copyright 2012 REBOL Technologies
-            **  Copyright 2012-2018 Rebol Open Source Contributors
+            **  Copyright 2012-2018 Revolt Open Source Contributors
             **  REBOL is a trademark of REBOL Technologies
             **  Licensed under the Apache License, Version 2.0
             **
@@ -322,12 +322,12 @@ make-emitter: function [
     else [
         e/emit mold/only compose/deep [
             REBOL [
-                System: "REBOL [R3] Language Interpreter and Run-time Environment"
+                System: "Revolt Language Interpreter and Run-time Environment"
                 Title: (title)
                 File: (stem)
                 Rights: {
                     Copyright 2012 REBOL Technologies
-                    Copyright 2012-2018 Rebol Open Source Contributors
+                    Copyright 2012-2018 Revolt Open Source Contributors
                     REBOL is a trademark of REBOL Technologies
                 }
                 License: {

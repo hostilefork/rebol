@@ -2,22 +2,21 @@
 //  File: %mod-tcc.c
 //  Summary: {Implementation of "user natives" using an embedded C compiler}
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2016 Atronix Engineering
-// Copyright 2016-2019 Rebol Open Source Contributors
-// REBOL is a trademark of REBOL Technologies
+// Copyright 2016-2019 Revolt Open Source Contributors
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,7 +26,7 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// A user native is an ACTION! whose body is not a Rebol block, but a textual
+// A user native is an ACTION! whose body is not a Revolt block, but a textual
 // string of C code.  It is compiled on the fly by TCC, using the libtcc API.
 //
 // https://github.com/metaeducation/tcc/blob/mob/libtcc.h
@@ -151,7 +150,7 @@ static void Error_Reporting_Hook(
 }
 
 
-// This calls a TCC API that takes a string on an optional Rebol TEXT! value
+// This calls a TCC API that takes a string on an optional Revolt TEXT! value
 // found in the config.
 //
 // Note the COMPILE usermode front end standardizes FILE! paths into TEXT!
@@ -275,7 +274,7 @@ REB_R Pending_Native_Dispatcher(REBFRM *f) {
     // the IDX_NATIVE_CONTEXT is set), this will fail.  Hence the COMPILE
     // native's implementation needs to be factored out into a reusable C
     // function that gets called here.  -or- some better way of getting at the
-    // known correct COMPILE Rebol function has to be done (NAT_VALUE() is
+    // known correct COMPILE Revolt function has to be done (NAT_VALUE() is
     // not in extensions yet, and may not be, so no NAT_VALUE(compile).)
     //
     rebElide("compile [", action, "]", rebEND);
@@ -299,7 +298,7 @@ REB_R Pending_Native_Dispatcher(REBFRM *f) {
 //
 //      return: "Function value, will be compiled on demand or by COMPILE"
 //          [action!]
-//      spec "Rebol parameter definitions (similar to FUNCTION's spec)"
+//      spec "Revolt parameter definitions (similar to FUNCTION's spec)"
 //          [block!]
 //      source "C source of the native implementation"
 //          [text!]
@@ -384,7 +383,7 @@ REBNATIVE(make_native)
 //      compilables [block!] "Should be just TEXT! and user native ACTION!s"
 //      config [object!] "Vetted and simplified form of /OPTIONS block"
 //      /inspect "Return the C source code as text, but don't compile it"
-//      /librebol "Connect symbols to running EXE libRebol (rebValue(), etc.)"
+//      /librevolt "Connect symbols to this EXE libRevolt (rebValue(), etc.)"
 //      /files "COMPILABLES is a list of TEXT! specifying local filenames"
 //  ]
 //
@@ -510,7 +509,7 @@ REBNATIVE(compile_p)
         // generally preallocated, and there's no need to say in advance how
         // large the buffer needs to be.  It then can pass the pointer to TCC
         // and discard the data without ever making a TEXT! (as it would need
-        // to if it were a client of the "external" libRebol API).
+        // to if it were a client of the "external" libRevolt API).
         //
         DECLARE_MOLD (mo);  // Note: mold buffer is UTF-8
         Push_Mold(mo);
@@ -530,10 +529,10 @@ REBNATIVE(compile_p)
                 RELVAL *source = ARR_AT(details, IDX_NATIVE_BODY);
                 RELVAL *linkname = ARR_AT(details, IDX_TCC_NATIVE_LINKNAME);
 
-                // !!! REBFRM is not exported by libRebol, though it could be
+                // !!! REBFRM is not exported by libRevolt, though it could be
                 // opaquely...and there could be some very narrow routines for
                 // interacting with it (such as picking arguments directly by
-                // value).  But transformations would be needed for Rebol arg
+                // value).  But transformations would be needed for Revolt arg
                 // names to make valid C, as with to-c-name...and that's not
                 // something to expose to the average user.  Hence rebArg()
                 // gives a solution that's more robust, albeit slower than
@@ -596,16 +595,16 @@ REBNATIVE(compile_p)
     // We could export just one symbol ("RL" for the Ext_Lib RL_LIB table) and
     // tell the API to use indirect calls like RL->rebXXX with #define REB_EXT
     // but it's more efficient to use direct calls.  There aren't that many
-    // entry points for the libRebol API, so just expose their symbols.
+    // entry points for the libRevolt API, so just expose their symbols.
     //
     // It is technically possible for ELF binaries to "--export-dynamic" (or
     // -rdynamic in CMake) and make executables embed symbols for functions
     // in them "like a DLL".  However, we would like to make API symbols for
-    // Rebol available to the dynamically loaded code on all platforms, so
+    // Revolt available to the dynamically loaded code on all platforms, so
     // this uses `tcc_add_symbol()` to work the same way on Windows/Linux/OSX
     //
     // !!! Not only is it technically possible to export symbols dynamically,
-    // the build configuration for Rebol as a lib seems to force it, at least
+    // the build configuration for Revolt as a lib seems to force it, at least
     // on linux.  If you add a prototype like:
     //
     //    int Probe_Core_Debug(const REBVAL *v, char* file, int line);
@@ -618,13 +617,13 @@ REBNATIVE(compile_p)
     // On Windows it doesn't do this, but on the other hand it doesn't seem
     // *able* to do it.  It can only see tcc_add_symbol() exported symbols.
     //
-    if (REF(librebol)) {
+    if (REF(librevolt)) {
         //
         // .inc file contains calls for each function in %a-lib.c like:
         //
         // Add_API_Symbol_Helper(state, "RL_rebX", cast(CFUNC*, &RL_rebX));
         //
-        #include "tmp-librebol-symbols.inc"
+        #include "tmp-librevolt-symbols.inc"
     }
 
     if (output_type == TCC_OUTPUT_MEMORY) {

@@ -1,11 +1,11 @@
 REBOL [
-    Title: "REBOL 3 TLS Client 1.0 - 1.2 Protocol Scheme"
+    Title: "Revolt TLS Client 1.0 - 1.2 Protocol Scheme"
     Name: tls
     Type: module
     Version: 0.7.0
     Rights: {
         Copyright 2012 Richard "Cyphre" Smolak (TLS 1.0)
-        Copyright 2012-2018 Rebol Open Source Developers
+        Copyright 2012-2020 Revolt Open Source Developers
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -43,7 +43,7 @@ REBOL [
         improving.  (Keeping it running in an ever-evolving cryptographic
         environment is nearly a full time job for someone in and of itself.)
         However, it does serve as a starting point for anyone interested in
-        hacking on a better answer in usermode Rebol.
+        hacking on a better answer in usermode Revolt.
     }
     Notes: {
         At time of writing (Sept 2018), TLS 1.0 and TLS 1.1 are in the process
@@ -255,10 +255,10 @@ make-tls-error: func [
 ;
 ; https://security.stackexchange.com/a/31057
 ;
-; Yet it's a good, short, real-world case to look at through a Rebol lens.
+; Yet it's a good, short, real-world case to look at through a Revolt lens.
 
 parse-asn: function [
-    {Create a legible Rebol-structured BLOCK! from an ASN.1 BINARY! encoding}
+    {Create a legible Revolt-structured BLOCK! from an ASN.1 BINARY! encoding}
 
     return: [<opt> block!]
     data [binary!]

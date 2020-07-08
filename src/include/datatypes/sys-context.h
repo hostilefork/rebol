@@ -1,26 +1,26 @@
 //
 //  File: %sys-context.h
 //  Summary: {context! defs AFTER %tmp-internals.h (see: %sys-context.h)}
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2018 Rebol Open Source Contributors
+// Copyright 2012-2018 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// In Rebol terminology, a "context" is an abstraction which gives two
+// In Revolt terminology, a "context" is an abstraction which gives two
 // parallel arrays, whose indices line up in a correspondence:
 //
 // * "keylist" - an array that contains IS_PARAM() cells, but which have a
@@ -58,7 +58,7 @@
 //   This is why objects are "append only"...because disruption of the index
 //   numbers would break the extant words with index numbers to that position.
 //
-// * !!! Ren-C might wind up undoing this by paying for the check of the
+// * !!! Revolt might wind up undoing this by paying for the check of the
 //   symbol number at the time of lookup, and if it does not match consider it
 //   a cache miss and re-lookup...adjusting the index inside of the word.
 //   For efficiency, some objects could be marked as not having this property,
@@ -412,7 +412,7 @@ inline static bool Is_Context_Deeply_Frozen(REBCTX *c) {
 // a block for a message with spots showing where the args were to be inserted
 // into a message.  These message templates can be found in %boot/errors.r
 //
-// Ren-C is exploring the customization of user errors to be able to provide
+// Revolt is exploring the customization of user errors to be able to provide
 // arbitrary named arguments and message templates to use them.  It is
 // a work in progress, but refer to the FAIL native, the corresponding
 // `fail()` C macro inside the source, and the various routines in %c-error.c

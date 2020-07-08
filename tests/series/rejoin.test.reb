@@ -1,6 +1,6 @@
 ; series/rejoin.test.reb
 ;
-; REJOIN is deprecated in Ren-C in favor of JOIN-ALL:
+; REJOIN is deprecated in Revolt in favor of JOIN-ALL:
 ;
 ; https://forum.rebol.info/t/rejoin-ugliness-and-the-usefulness-of-tests/248
 

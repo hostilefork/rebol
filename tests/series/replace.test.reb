@@ -26,7 +26,7 @@
 ;    ('a/b/c/h/i/d/e = replace 'a/b/g/h/i/d/e 'g/h/i 'c)
 ;
 ; That's not what Rebol2 does, and not consistent with BLOCK! replacement
-; Ren-C doesn't allow REPLACE on paths in any case--they are immutable, one
+; Revolt doesn't allow REPLACE on paths in any case--they are immutable, one
 ; must convert to a block and back (the conversion may fail as not all blocks
 ; can become paths)
 
@@ -55,7 +55,7 @@
 
 ;((make hash! [x a b [a B]]) = replace/case make hash! [a B a b [a B]] [a B] 'x)
 
-; REPLACE null behavior (Ren-C only, as only it has null)
+; REPLACE null behavior (Revolt only, as only it has null)
 ; https://forum.rebol.info/t/null-first-class-values-and-safety/895/2
 
 ([3 4] = replace copy [3 0 4] 0 null)
@@ -68,7 +68,7 @@
 (#{300040} = replace copy #{300040} null #{10002000})
 (#{20002000} = replace/all copy #{1000200010002000} #{1000} null)
 
-; REPLACE/DEEP - /DEEP not (yet?) implemented in Ren-C
+; REPLACE/DEEP - /DEEP not (yet?) implemented in Revolt
 
 ;([1 2 3 [8 5]] = replace/deep [1 2 3 [4 5]] [lit 4] 8)
 ;([1 2 3 [4 8 9]] = replace/deep [1 2 3 [4 5]] [lit 5] [8 9])
@@ -77,7 +77,7 @@
 ;([1 2 a 4 5] = replace/deep [1 2 3 4 5] [lit 8 | lit 4 | lit 3] 'a)
 ;([a g h c d] = replace/deep [a b c d] ['b | 'd] [g h])
 
-; REPLACE/DEEP/ALL - /DEEP not (yet?) implemented in Ren-C
+; REPLACE/DEEP/ALL - /DEEP not (yet?) implemented in Revolt
 
 ;([1 8 3 [4 8]] = replace/deep/all [1 2 3 [4 2]] [lit 2] 8)
 ;([1 8 9 3 [4 8 9]] = replace/deep/all [1 2 3 [4 5]] [lit 5 | lit 2] [8 9])
@@ -99,7 +99,7 @@
 ;("AbrACAdAbrA" == replace/all "abracadabra" [s: ["a" | "c"]] does [uppercase s/1])
 ;("a-babAA-" = replace/case/all "aAbbabAAAa" ["Ab" | "Aa"] "-")
 
-; REPLACE/CASE/DEEP - /DEEP not (yet?) implemented in Ren-C
+; REPLACE/CASE/DEEP - /DEEP not (yet?) implemented in Revolt
 
 ;([x A x B [x A x B]] = replace/case/deep/all [a A b B [a A b B]] ['a | 'b] 'x)
 ;((lit (x A x B (x A x B))) = replace/case/deep/all lit (a A b B (a A b B)) ['a | 'b] 'x)

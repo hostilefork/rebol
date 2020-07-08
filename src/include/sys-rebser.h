@@ -1,22 +1,22 @@
 //
 //  File: %sys-rebser.h
 //  Summary: {any-series! defs BEFORE %tmp-internals.h (see: %sys-series.h)}
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -118,7 +118,7 @@
     0 // helps locate places that want to say "no flags"
 
 
-// Detect_Rebol_Pointer() uses the fact that this bit is 0 for series headers
+// Detect_Revolt_Pointer() uses the fact that this bit is 0 for series headers
 // to discern between REBSER, REBVAL, and END.  If push comes to shove that
 // could be done differently, and this bit retaken.
 //
@@ -191,7 +191,7 @@
 
 //=//// SERIES_FLAG_IS_STRING /////////////////////////////////////////////=//
 //
-// Indicates the series holds a UTF-8 encoded string.  Ren-C strings follow
+// Indicates the series holds a UTF-8 encoded string.  Revolt strings follow
 // the "UTF-8 Everywhere" manifesto, where they are not decoded into a fixed
 // number of bytes per character array, but remain in UTF8 at all times:
 //
@@ -706,7 +706,7 @@ union Reb_Series_Misc {
     // When binding words into a context, it's necessary to keep a table
     // mapping those words to indices in the context's keylist.  R3-Alpha
     // had a global "binding table" for the spellings of words, where
-    // those spellings were not garbage collected.  Ren-C uses REBSERs
+    // those spellings were not garbage collected.  Revolt uses REBSERs
     // to store word spellings, and then has a hash table indexing them.
     //
     // So the "binding table" is chosen to be indices reachable from the
@@ -963,7 +963,7 @@ struct Reb_Series {
 
 // These are series implementation details that should not be used by most
 // code.  But in order to get good inlining, they have to be in the header
-// files (of the *internal* API, not of libRebol).  Generally avoid it.
+// files (of the *internal* API, not of libRevolt).  Generally avoid it.
 //
 // !!! Can't `assert((w) < MAX_SERIES_WIDE)` without triggering "range of
 // type makes this always false" warning; C++ build could sense if it's a

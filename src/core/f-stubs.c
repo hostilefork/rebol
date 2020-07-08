@@ -2,22 +2,22 @@
 //  File: %f-stubs.c
 //  Summary: "miscellaneous little functions"
 //  Section: functional
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -281,7 +281,7 @@ REBVAL *Init_Any_Series_At_Core(
     //     Add 1 extra for terminator.
     //
     // One advantage of making all binaries terminate in 0 is that it means
-    // that if they were valid UTF-8, they could be aliased as Rebol strings,
+    // that if they were valid UTF-8, they could be aliased as Revolt strings,
     // which are zero terminated.  For now, it's the rule.
     //
     ASSERT_SERIES_TERM(s);
@@ -326,7 +326,7 @@ REBVAL *Init_Any_String_At(
     //     Add 1 extra for terminator.
     //
     // One advantage of making all binaries terminate in 0 is that it means
-    // that if they were valid UTF-8, they could be aliased as Rebol strings,
+    // that if they were valid UTF-8, they could be aliased as Revolt strings,
     // which are zero terminated.  For now, it's the rule.
     //
     ASSERT_SERIES_TERM(SER(s));

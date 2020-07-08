@@ -2,22 +2,22 @@
 //  File: %t-binary.c
 //  Summary: "BINARY! datatype"
 //  Section: datatypes
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -236,7 +236,7 @@ static REBSER *Make_Binary_BE64(const REBVAL *arg)
 //     TO BINARY! ...
 //
 // !!! MAKE and TO were not historically very clearly differentiated in
-// Rebol, and so often they would "just do the same thing".  Ren-C ultimately
+// Rebol, and so often they would "just do the same thing".  Revolt ultimately
 // will seek to limit the synonyms/polymorphism, e.g. MAKE or TO BINARY! of a
 // BINARY! acting as COPY, in favor of having the user call COPY explicilty.
 //
@@ -325,9 +325,9 @@ REB_R MAKE_Binary(
         //
         // !!! R3-Alpha make definitions didn't have to be a single value
         // (they are for compatibility between construction syntax and MAKE
-        // in Ren-C).  So the positional syntax was #[binary! #{0001} 2]...
+        // in Revolt).  So the positional syntax was #[binary! #{0001} 2]...
         // while #[binary [#{0001} 2]] would join the pieces together in order
-        // to produce #{000102}.  That behavior is not available in Ren-C.
+        // to produce #{000102}.  That behavior is not available in Revolt.
 
         if (VAL_ARRAY_LEN_AT(def) != 2)
             goto bad_make;

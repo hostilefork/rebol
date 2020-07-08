@@ -6,7 +6,7 @@
 #include "sys-jpg.h"
 
 // setjmp and longjmp are used as the error reporting hook.  It's not clear
-// if this choice was made by Rebol or if the original file used it.
+// if this choice was made by Revolt or if the original file used it.
 //
 #include <setjmp.h>
 

@@ -1,22 +1,22 @@
 //
 //  File: %sys-typeset.h
 //  Summary: {Definitions for Typeset Values}
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -160,7 +160,7 @@ inline static bool EQUAL_TYPESET(const REBCEL *v1, const REBCEL *v2) {
 //=//// PARAMETER CLASS ///////////////////////////////////////////////////=//
 //
 // R3-Alpha called parameter cells that were used to make keys "unwords", and
-// their VAL_TYPE() dictated their parameter behavior.  Ren-C saw them more
+// their VAL_TYPE() dictated their parameter behavior.  Revolt saw them more
 // as being like TYPESET!s with an optional symbol, which made the code easier
 // to understand and less likely to crash, which would happen when the special
 // "unwords" fell into any context that would falsely interpret their bindings
@@ -449,7 +449,7 @@ inline static void Typecheck_Refinement_And_Canonize(
     else if (Is_Typeset_Invisible(param)) {
         //
         // Refinements that don't have a corresponding argument are in a
-        // sense LOGIC!-based.  But for convenience, Ren-C canonizes them as
+        // sense LOGIC!-based.  But for convenience, Revolt canonizes them as
         // either a NULL or a refinement-style PATH!--providing logical
         // false/true behavior while making it easier to chain them, e.g.
         //

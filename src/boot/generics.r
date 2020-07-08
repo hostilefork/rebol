@@ -1,9 +1,9 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Generic function interface definitions"
     Rights: {
         Copyright 2012 REBOL Technologies
-        Copyright 2012-2018 Rebol Open Source Contributors
+        Copyright 2012-2018 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -22,7 +22,7 @@ REBOL [
         the the dispatch.  This is how common verbs like APPEND or ADD are
         currently implemented.
 
-        !!! The dispatch model in Rebol, and how it might be extended beyond
+        !!! The dispatch model in R3-Alpha, and how it might be extended past
         the list here (to either more generics, or to user-defined datatypes)
         was not fleshed out, and needs to get attention at some point.
     }
@@ -492,7 +492,7 @@ modify: generic [
 ]
 
 ; This action seems to only be dispatched to *native* ports, and only as part
-; of the WAKE-UP function.  It used to have the name UPDATE, but for Ren-C it
+; of the WAKE-UP function.  It used to have the name UPDATE, but for Revolt it
 ; was felt this term would be better applied as a complement to DEFAULT.
 ; There were no apparent user-facing references in the repo, but it turns out
 ; to be important it can be called something else.  For now, it's given a

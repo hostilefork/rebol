@@ -1,5 +1,5 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "REBOL 3 Boot Sys: Encoder and Decoder"
     Rights: {
         Copyright 2012 REBOL Technologies

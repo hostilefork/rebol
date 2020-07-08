@@ -2,26 +2,26 @@
 //  File: %l-scan.c
 //  Summary: "lexical analyzer for source to binary translation"
 //  Section: lexical
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Rebol's lexical scanner was implemented as hand-coded C, as opposed to
+// R3-Alpha's lexical scanner was implemented as hand-coded C, as opposed to
 // using a more formal grammar and generator.  This makes the behavior hard
 // to formalize, though some attempts have been made to do so:
 //
@@ -33,7 +33,7 @@
 // https://github.com/red/red/blob/master/lexer.r
 //
 // It would likely be desirable to bring more formalism and generativeness
-// to Rebol's scanner; though the current method of implementation was
+// to Revolt's scanner; though the current method of implementation was
 // ostensibly chosen for performance.
 //
 
@@ -609,7 +609,7 @@ static const REBYTE *Skip_Tag(const REBYTE *cp)
 //  Update_Error_Near_For_Line: C
 //
 // The NEAR information in an error is typically expressed in terms of loaded
-// Rebol code.  Scanner errors have historically used the NEAR not to tell you
+// Revolt code.  Scanner errors historically used the NEAR not to tell you
 // where the LOAD that is failing is in Rebol, but to form a string of the
 // "best place" to report the textual error.
 //
@@ -865,7 +865,7 @@ static REBLEN Prescan_Token(SCAN_STATE *ss)
 //
 // Find the beginning and end character pointers for the next token in the
 // scanner state.  If the scanner is being fed variadically by a list of UTF-8
-// strings and REBVAL pointers, then any Rebol values encountered will be
+// strings and REBVAL pointers, then any Revolt values encountered will be
 // spliced into the array being currently gathered by pushing them to the data
 // stack (as tokens can only be located in UTF-8 strings encountered).
 //
@@ -873,7 +873,7 @@ static REBLEN Prescan_Token(SCAN_STATE *ss)
 // leading whitespace that was pending in the buffer.  `ss->end` will hold the
 // conclusion at a delimiter.  The calculated token will be returned.
 //
-// The TOKEN_XXX type returned will correspond directly to a Rebol datatype
+// The TOKEN_XXX type returned will correspond directly to a Revolt datatype
 // if it isn't an ANY-ARRAY! (e.g. TOKEN_INTEGER for INTEGER! or TOKEN_STRING
 // for STRING!).  When a block or group delimiter is found it will indicate
 // that, e.g. TOKEN_BLOCK_BEGIN will be returned to indicate the scanner
@@ -964,7 +964,7 @@ static enum Reb_Token Locate_Token_May_Push_Mold(
             return TOKEN_END;  // ...so end of utf-8 input was *the* end
 
         const void *p = va_arg(*ss->feed->vaptr, const void*);
-        if (not p or Detect_Rebol_Pointer(p) != DETECTED_AS_UTF8) {
+        if (not p or Detect_Revolt_Pointer(p) != DETECTED_AS_UTF8) {
             //
             // If it's not a UTF-8 string we don't know how to handle it.
             // Don't want to repeat complex value decoding logic here, so
@@ -1035,8 +1035,8 @@ static enum Reb_Token Locate_Token_May_Push_Mold(
           case LEX_DELIMIT_RETURN:
           delimit_return: {
             //
-            // !!! Ren-C is attempting to rationalize and standardize Rebol
-            // on line feeds only.  If for some reason we wanted a tolerant
+            // !!! Revolt is attempting to rationalize and standardize Rebol
+            // to use only line feeds.  If for some reason we want a tolerant
             // mode, that tolerance would go here.  Note that this code does
             // not cover the case of CR that are embedded inside multi-line
             // string literals.
@@ -2677,7 +2677,7 @@ void Shutdown_Scanner(void)
 //
 REBNATIVE(transcode)
 //
-// R3-Alpha's TRANSCODE would return a length 2 BLOCK!.  Ren-C uses multiple
+// R3-Alpha's TRANSCODE would return a length 2 BLOCK!.  Revolt uses multiple
 // return values, and operates in a reduced case where if you ask for only
 // one return value then it assumes you want the entire thing transcoded...
 // but if you ask for 2 it assumes you want partial and 3 assumes you would
@@ -2873,7 +2873,7 @@ const REBYTE *Scan_Issue(RELVAL *out, const REBYTE *cp, REBLEN len)
                 and LEX_SPECIAL_COLON != c
 
                 // !!! R3-Alpha didn't allow #<< or #>>, but this was used
-                // in things like pdf-maker.r - and Red allows it.  Ren-C
+                // in things like pdf-maker.r - and Red allows it.  Revolt
                 // aims to make ISSUE!s back into strings, so allow it here.
                 //
                 and LEX_SPECIAL_GREATER != c

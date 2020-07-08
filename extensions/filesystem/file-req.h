@@ -28,7 +28,7 @@ inline static struct devreq_file* ReqFile(REBREQ *req) {
     return cast(struct devreq_file*, Req(req));
 }
 
-extern REBVAL *File_Time_To_Rebol(REBREQ *file);
+extern REBVAL *File_Time_To_Revolt(REBREQ *file);
 extern REBVAL *Query_File_Or_Dir(const REBVAL *port, REBREQ *file);
 
 #ifdef TO_WINDOWS

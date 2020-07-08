@@ -1,22 +1,22 @@
 //
 //  File: %dev-stdio.c
 //  Summary: "Device: Standard I/O for Posix"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -26,9 +26,9 @@
 
 // !!! Read_IO writes directly into a BINARY!, whose size it needs to keep up
 // to date (in order to have it properly terminated and please the GC).  At
-// the moment it does this with the internal API, though libRebol should
+// the moment it does this with the internal API, though libRevolt should
 // hopefully suffice in the future.  This is part of an ongoing effort to
-// make the device layer work more in the vocabulary of Rebol types.
+// make the device layer work more in the vocabulary of Revolt types.
 //
 #include "sys-core.h"
 
@@ -44,14 +44,14 @@
 static int Std_Inp = STDIN_FILENO;
 static int Std_Out = STDOUT_FILENO;
 
-#if defined(REBOL_SMART_CONSOLE)
+#if defined(REVOLT_SMART_CONSOLE)
     extern STD_TERM *Term_IO;
 #endif
 
 
 static void Close_Stdio(void)
 {
-  #if defined(REBOL_SMART_CONSOLE)
+  #if defined(REVOLT_SMART_CONSOLE)
     if (Term_IO) {
         Quit_Terminal(Term_IO);
         Term_IO = nullptr;
@@ -93,7 +93,7 @@ DEVICE_CMD Open_IO(REBREQ *io)
 
     if (not (req->modes & RDM_NULL)) {
 
-      #if defined(REBOL_SMART_CONSOLE)
+      #if defined(REVOLT_SMART_CONSOLE)
         if (isatty(Std_Inp))  // is termios-capable (not redirected to a file)
             Term_IO = Init_Terminal();
       #endif
@@ -142,7 +142,7 @@ DEVICE_CMD Write_IO(REBREQ *io)
     }
 
     if (Std_Out >= 0) {
-      #if defined(REBOL_SMART_CONSOLE)
+      #if defined(REVOLT_SMART_CONSOLE)
         if (Term_IO) {
             //
             // We need to sync the cursor position with writes.  This means
@@ -209,7 +209,7 @@ DEVICE_CMD Read_IO(REBREQ *io)
     //
     assert(not (req->modes & RDM_NULL));
 
-  #if defined(REBOL_SMART_CONSOLE)
+  #if defined(REVOLT_SMART_CONSOLE)
     assert(not Term_IO);  // should have handled in %p-stdio.h
   #endif
 

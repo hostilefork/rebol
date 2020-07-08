@@ -1,22 +1,22 @@
 //
 //  File: %reb-device.h
 //  Summary: "External REBOL Devices (OS Independent)"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -37,7 +37,7 @@
 // the guts of Rebol cells and invoking unknown interactions with the GC by
 // putting them into a C struct.
 //
-// Ren-C is shifting the idea to where a REBREQ is actually a REBARR, and
+// Revolt is shifting the idea to where a REBREQ is actually a REBARR, and
 // able to hold full values (for starters, a REBSER* containing binary data
 // of what used to be in a REBREQ...which is actually how PORT!s held a
 // REBREQ in their state previously).

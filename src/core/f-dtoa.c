@@ -1532,7 +1532,7 @@ static unsigned int maxthreads = 0;
 
 #ifdef __cplusplus
 //
-// !!! `strtod` removed for building in Rebol...see top of file
+// !!! `strtod` removed for building in Revolt...see top of file
 //
 /*extern "C" double strtod(const char *s00, char **se);*/
 

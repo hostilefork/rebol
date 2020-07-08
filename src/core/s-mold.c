@@ -2,22 +2,22 @@
 //  File: %s-mold.c
 //  Summary: "value to string conversion"
 //  Section: strings
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -31,7 +31,7 @@
 // *not* add delimiters or escaping--just giving the string back as-is.
 //
 // There are several technical problems in molding regarding the handling of
-// values that do not have natural expressions in Rebol source.  For instance,
+// values that do not have natural expressions in source code.  For instance,
 // it was legal (in Rebol2) to `make word! "123"` but that can't be molded as
 // 123 because that would LOAD as an integer.  There are additional problems
 // with `mold next [a b c]`, because there is no natural representation for a
@@ -42,7 +42,7 @@
 //
 // !!! These are some fuzzy concepts, and though the name MOLD may have made
 // sense when Rebol was supposedly called "Clay", it now looks off-putting.
-// Most of Ren-C's focus has been on the evaluator, and few philosophical
+// Most of Revolt's focus has been on the evaluator, and few philosophical
 // problems of R3-Alpha's mold have been addressed.  However, the mechanical
 // side has changed to use UTF-8 (instead of UCS-2) and allow nested molds.
 //
@@ -503,7 +503,7 @@ bool Form_Reduce_Throws(
         or IS_CHAR(delimiter) or IS_TEXT(delimiter)
     );
 
-    // Initially Ren-C advocated treating blank the same as null, to be the
+    // Initially Revolt advocated treating blank the same as null, to be the
     // "less noisy" null since it was legal to fetch with plain WORD!.  Now
     // that plain words fetch nulls without error, it's more interesting for
     // dialects to leverage blanks for unique meaning.  Space is particularly

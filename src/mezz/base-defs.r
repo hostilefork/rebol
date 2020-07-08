@@ -1,5 +1,5 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "REBOL 3 Boot Base: Other Definitions"
     Rights: {
         Copyright 2012 REBOL Technologies
@@ -514,10 +514,6 @@ print: func* [
 
 
 decode-url: _ ; set in sys init
-
-; used only by Ren-C++ as a test of how to patch the lib context prior to
-; boot at the higher levels.
-test-rencpp-low-level-hook: _
 
 internal!: make typeset! [
     handle!

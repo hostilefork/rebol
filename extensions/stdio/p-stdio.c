@@ -2,22 +2,22 @@
 //  File: %p-console.c
 //  Summary: "console port interface"
 //  Section: ports
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2020 Rebol Open Source Contributors
+// Copyright 2012-2020 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -32,14 +32,14 @@ EXTERN_C REBDEV Dev_StdIO;
 
 #include "readline.h"
 
-#if defined(REBOL_SMART_CONSOLE)
+#if defined(REVOLT_SMART_CONSOLE)
     extern STD_TERM *Term_IO;
     STD_TERM *Term_IO = nullptr;
 #endif
 
 // The history mechanism is deliberately separated out from the line-editing
 // mechanics.  The I/O layer is only supposed to emit keystrokes and let the
-// higher level code (ultimately usermode Rebol) make decisions on what to
+// higher level code (ultimately usermode Revolt) make decisions on what to
 // do with that.  No key is supposed to have an intrinsic "behavior".
 //
 #define MAX_HISTORY  300   // number of lines stored
@@ -48,7 +48,7 @@ int Line_History_Index;  // Current position in the line history
 #define Line_Count \
     rebUnboxInteger("length of", Line_History, rebEND)
 
-#if defined(REBOL_SMART_CONSOLE)
+#if defined(REVOLT_SMART_CONSOLE)
 
 extern REBVAL *Read_Line(STD_TERM *t);
 
@@ -63,7 +63,7 @@ extern REBVAL *Read_Line(STD_TERM *t);
 // Otherwise it will return a TEXT! of the read-in string.
 //
 // !!! Read_Line is a transitional step as a C version of what should move to
-// be usermode Rebol, making decisions about communication with the terminal
+// be usermode Revolt, making decisions about communication with the terminal
 // on a keystroke-by-keystroke basis.
 //
 REBVAL *Read_Line(STD_TERM *t)
@@ -287,7 +287,7 @@ REBVAL *Read_Line(STD_TERM *t)
     return line;
 }
 
-#endif  // if defined(REBOL_SMART_CONSOLE)
+#endif  // if defined(REVOLT_SMART_CONSOLE)
 
 
 //
@@ -336,7 +336,7 @@ REB_R Console_Actor(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
         if (Req(req)->modes & RDM_NULL)
             return rebValue("copy #{}", rebEND);
 
-      #if defined(REBOL_SMART_CONSOLE)
+      #if defined(REVOLT_SMART_CONSOLE)
         if (Term_IO) {  // e.g. no redirection (Term_IO is null if so)
             REBVAL *result = Read_Line(Term_IO);
             if (rebDid("void?", rebQ1(result), rebEND)) {  // HALT received

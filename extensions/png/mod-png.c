@@ -2,22 +2,22 @@
 //  File: %mod-lodepng.c
 //  Summary: "Native Functions for cryptography"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -31,7 +31,7 @@
 //
 // LodePNG is an encoder/decoder that is also a single source file and header
 // file...but has some community of users and receives bugfixes.  So for
-// simplicity, Ren-C went ahead and removed %u-png.c to use LodePNG for
+// simplicity, Revolt went ahead and removed %u-png.c to use LodePNG for
 // decoding and PNG file identification as well.
 //
 // Note: LodePNG is known to be slower than the more heavyweight "libpng"
@@ -54,7 +54,7 @@
 // `#define LODEPNG_NO_COMPILE_ALLOCATORS` (set in %lodepng/make-spec.reb)
 //
 // Use rebMalloc(), because the memory can be later rebRepossess()'d into a
-// Rebol BINARY! value without making a new buffer and copying.
+// Revolt BINARY! value without making a new buffer and copying.
 //
 //=////////////////////////////////////////////////////////////////////////=//
 
@@ -71,7 +71,7 @@ void lodepng_free(void* ptr)
 //=//// HOOKS TO REUSE REBOL'S ZLIB ///////////////////////////////////////=//
 //
 // By default, LodePNG will build its own copy of zlib functions for compress
-// and decompress.  However, Rebol already has zlib built in.  So we ask
+// and decompress.  However, Revolt already has zlib built in.  So we ask
 // LodePNG not to compile its own copy, and pass function pointers to do
 // the compression and decompression in via the LodePNGState.
 //
@@ -92,7 +92,7 @@ static unsigned rebol_zlib_decompress(
     // knowledge it has about the scanlines.  But it's passed in as "out"
     // pointer parameters in case you update it (?)
     //
-    // Rebol's decompression was not written for the caller to provide
+    // R3-Alpha's decompression was not written for the caller to provide
     // a buffer, though COMPRESS/INTO or DECOMPRESS/INTO would be useful.
     // So consider it.  But for now, free the buffer and let the logic of
     // zlib always make its own.
@@ -148,7 +148,7 @@ REBNATIVE(identify_png_q)
     LodePNGState state;
     lodepng_state_init(&state);
 
-    // use the zlib already built into Rebol for DECOMPRESS, inflate()
+    // use the zlib already built into Revolt for DECOMPRESS, inflate()
     //
     state.decoder.zlibsettings.custom_zlib = rebol_zlib_decompress;
 
@@ -201,7 +201,7 @@ REBNATIVE(decode_png)
     LodePNGState state;
     lodepng_state_init(&state);
 
-    // use the zlib already built into Rebol for DECOMPRESS, inflate()
+    // use the zlib already built into Revolt for DECOMPRESS, inflate()
     //
     state.decoder.zlibsettings.custom_zlib = rebol_zlib_decompress;
 
@@ -233,7 +233,7 @@ REBNATIVE(decode_png)
     // `state` can contain potentially interesting information, such as
     // metadata (key="Software" value="REBOL", for instance).  Currently this
     // is just thrown away, but it might be interesting to have access to.
-    // Because Rebol_Malloc() was used to make the strings, they could easily
+    // Because rebMalloc() was used to make the strings, they could easily
     // be Rebserize()'d and put in an object.
     //
     lodepng_state_cleanup(&state);
@@ -284,7 +284,7 @@ REBNATIVE(encode_png)
     LodePNGState state;
     lodepng_state_init(&state);
 
-    // use the zlib already built into Rebol for DECOMPRESS, deflate()
+    // use the zlib already built into Revolt for DECOMPRESS, deflate()
     //
     state.encoder.zlibsettings.custom_zlib = rebol_zlib_compress;
 

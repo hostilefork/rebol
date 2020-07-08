@@ -1,5 +1,5 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "REBOL 3 HTTP protocol scheme"
     Rights: {
         Copyright 2012 REBOL Technologies
@@ -743,7 +743,7 @@ sys/make-scheme [
                 ; confusing, the http port's "state" reused the name for an
                 ; enumeration of what mode it was currently in.  To make the
                 ; code easier to follow (for however long it remains relevant,
-                ; which may not be long), Ren-C changed this to "mode".
+                ; which may not be long), Revolt changed this to "mode".
                 ;
                 mode: 'inited
 

@@ -10,7 +10,7 @@ REBOL [
         The FFI was not initially implemented with any usermode code.  But
         just as with the routines in the SYS context, there's opportunity for
         replacing some of the non-performance-critical C that does parsing and
-        processing into Rebol.  This is especially true since FFI was changed
+        processing into Revolt.  This is especially true since FFI was changed
         to use fewer specialized structures to represent ROUTINE! and
         STRUCT!, instead using arrays...to permit it to be factored into an
         extension.
@@ -63,7 +63,7 @@ make-callback: function [
 ][
     r-args: copy []
 
-    ; !!! TBD: Use type mappings to mark up the types of the Rebol arguments,
+    ; !!! TBD: Use type mappings to mark up the types of the Revolt arguments,
     ; so that HELP will show useful types.
     ;
     arg-rule: [

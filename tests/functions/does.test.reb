@@ -1,4 +1,4 @@
-; Note that DOES in Ren-C differs from R3-Alpha's DOES:
+; Note that DOES in Revolt differs from R3-Alpha's DOES:
 ;
 ; * Unlike FUNC [] [...], the DOES [...] has no RETURN
 ; * It soft-quotes its argument

@@ -1,22 +1,22 @@
 //
 //  File: %sys-nulled.h
 //  Summary: "NULL definitions (transient evaluative cell--not a DATATYPE!)"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -25,7 +25,7 @@
 // false.  But null isn't an "ANY-VALUE!", and can't be stored in BLOCK!s that
 // are seen by the user.
 //
-// The libRebol API takes advantage of this by actually using C's concept of
+// The libRevolt API takes advantage of this by actually using C's concept of
 // a null pointer to directly represent the optional state.  By promising this
 // is the case, clients of the API can write `if (value)` or `if (!value)`
 // and be sure that there's not some nonzero address of a "null-valued cell".

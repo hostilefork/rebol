@@ -1,22 +1,22 @@
 //
 //  File: %sys-core.h
 //  Summary: "Single Complete Include File for Using the Internal Api"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -64,17 +64,17 @@
 //
 // Historically, Rebol source did not include the external library, because it
 // was assumed the core would never want to use the less-privileged and higher
-// overhead API.  However, libRebol now operates on REBVAL* directly (though
+// overhead API.  However, libRevolt now operates on REBVAL* directly (though
 // opaque to clients).  It has many conveniences, and is the preferred way to
 // work with isolated values that need indefinite duration.
 //
-#include <stdlib.h>  // size_t and other types used in rebol.h
+#include <stdlib.h>  // size_t and other types used in revolt.h
 #include "pstdint.h"  // polyfill <stdint.h> for pre-C99/C++11 compilers
 #include "pstdbool.h"  // polyfill <stdbool.h> for pre-C99/C++11 compilers
-#if !defined(REBOL_IMPLICIT_END)
-    #define REBOL_EXPLICIT_END  // ensure core compiles with pre-C99/C++11
+#if !defined(REVOLT_IMPLICIT_END)
+    #define REVOLT_EXPLICIT_END  // ensure core compiles with pre-C99/C++11
 #endif
-#include "rebol.h"
+#include "revolt.h"
 
 // assert() is enabled by default; disable with `#define NDEBUG`
 // http://stackoverflow.com/a/17241278

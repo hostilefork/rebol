@@ -1,21 +1,21 @@
 //
 //  File: %sys-feed.h
 //  Summary: {Accessors and Argument Pushers/Poppers for Function Call Frames}
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Copyright 2018-2019 Rebol Open Source Contributors
+// Copyright 2018-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -181,7 +181,7 @@ STATIC_ASSERT(FEED_FLAG_CONST == CELL_FLAG_CONST);
 
 // Ordinary Rebol internals deal with REBVAL* that are resident in arrays.
 // But a va_list can contain UTF-8 string components or special instructions
-// that are other Detect_Rebol_Pointer() types.  Anyone who wants to set or
+// that are other Detect_Revolt_Pointer() types.  Anyone who wants to set or
 // preload a frame's state for a va_list has to do this detection, so this
 // code has to be factored out to just take a void* (because a C va_list
 // cannot have its first parameter in the variadic, va_list* is insufficient)
@@ -218,7 +218,7 @@ inline static const RELVAL *Detect_Feed_Pointer_Maybe_Fetch(
 
     TRASH_POINTER_IF_DEBUG(feed->value);  // should be assigned below
 
-    if (not p) {  // libRebol's null/<opt> (IS_NULLED prohibited in CELL case)
+    if (not p) {  // libRevolt's null/<opt> (IS_NULLED illegal in CELL case)
 
         if (QUOTING_BYTE(feed) == 0)
             panic ("Cannot directly splice nulls...use rebQ(), rebXxxQ()");
@@ -231,7 +231,7 @@ inline static const RELVAL *Detect_Feed_Pointer_Maybe_Fetch(
         SET_CELL_FLAG(&feed->fetched, FETCHED_MARKED_TEMPORARY);
         feed->value = &feed->fetched;
 
-    } else switch (Detect_Rebol_Pointer(p)) {
+    } else switch (Detect_Revolt_Pointer(p)) {
 
       case DETECTED_AS_UTF8: {
         REBDSP dsp_orig = DSP;

@@ -11,13 +11,13 @@ REBOL [
 
     Rights: [
         "Copyright (C) 2011 Andreas Bolka <a AT bolka DOT at>"
-        "Copyright (C) 2018 Rebol Open Source Developers"
+        "Copyright (C) 2018 Revolt Open Source Developers"
     ]
 
     License: {
         Licensed under the terms of the Apache License, Version 2.0
 
-        The zmqext REBOL 3 extension uses the ØMQ library, the use of which is
+        The zmqext Revolt extension uses the ØMQ library, the use of which is
         granted under the terms of the GNU Lesser General Public License
         (LGPL), Version 3.
     }

@@ -2,22 +2,22 @@
 //  File: %t-integer.c
 //  Summary: "integer datatype"
 //  Section: datatypes
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -102,7 +102,7 @@ REB_R TO_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 // of unambiguous source.  So the string "-1" will raise an error if you try
 // to convert it unsigned.  (For this, use `abs to-integer "-1"`.)
 //
-// Because Rebol's INTEGER! uses a signed REBI64 and not an unsigned
+// Because R3-Alpha's INTEGER! uses a signed REBI64 and not an unsigned
 // REBU64, a request for unsigned interpretation is limited to using
 // 63 of those bits.  A range error will be thrown otherwise.
 //
@@ -132,7 +132,7 @@ void Value_To_Int64(REBVAL *out, const REBVAL *value, bool no_sign)
 
         // !!! While historical Rebol TO INTEGER! of BINARY! would interpret
         // the bytes as a big-endian form of their internal representations,
-        // wanting to futureproof for BigNum integers has changed Ren-C's
+        // wanting to futureproof for BigNum integers has changed Revolt's
         // point of view...delegating that highly parameterized conversion
         // to operations currently called ENBIN and DEBIN.
         //

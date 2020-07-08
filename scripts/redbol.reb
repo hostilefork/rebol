@@ -1,9 +1,9 @@
 REBOL [
-    System: "Rebol 3 (Ren-C Branch)"
+    System: "Revolt Interpreter and Language Run-Time"
     Title: "Rebol2 and Red Compatibility Shim"
     Homepage: https://trello.com/b/l385BE7a/porting-guide
     Rights: {
-        Copyright 2012-2019 Rebol Open Source Contributors
+        Copyright 2012-2019 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -11,10 +11,10 @@ REBOL [
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
     Description: {
-        This module attempts to adapt Ren-C so that basic functionality will
+        This module attempts to adapt Revolt so that basic functionality will
         respond similarly to the compatible subset of Rebol2 and Red.
 
-        The current lack of a GUI in Ren-C means that this will only be
+        The current lack of a GUI in Revolt means that this will only be
         useful for command-line scripts and utilities.  However, it serves as
         a test of the system's flexibility, as well as a kind of "living
         documentation" of the nuances of what has been changed.
@@ -24,7 +24,7 @@ REBOL [
         was able to be folded in with this one--not possible, *yet*)
     }
     Notes: {
-        * Ren-C does not allow the mutation of PATH!.  You can JOIN a path to
+        * Revolt does not allow the mutation of PATH!.  You can JOIN a path to
           make a new one, and FOREACH a path to enumerate one, but you can't
           APPEND or INSERT into them.  Calling code that expects to do these
           kinds of mutations needs to be changed to do them on BLOCK! and
@@ -96,7 +96,7 @@ any-object?: emulate [:any-context?]
 
 
 
-; Refinement arguments in Ren-C are conveyed via the refinement value itself:
+; Refinement arguments in Revolt are conveyed via the refinement value itself:
 ;
 ; https://trello.com/c/DaVz9GG3/
 ;
@@ -146,7 +146,7 @@ rewrite-spec-and-body: helper [
             ; Refinements with multiple arguments are no longer allowed, and
             ; there weren't many of those so it's not a big deal.  But there
             ; are *many* instances of the non-refinement usage of /LOCAL.
-            ; These translate in Ren-C to the <local> tag.
+            ; These translate in Revolt to the <local> tag.
             ;
             if refinement = 'local [
                 change spec <local>
@@ -203,7 +203,7 @@ rewrite-spec-and-body: helper [
             ; Red missing refinements are #[false], or #[true] if present
             ; Rebol2 and Red arguments to unused refinements are #[none]
             ; Since there's no agreement, Redbol goes with the Rebol2 way,
-            ; since NONE! is closer to Ren-C's NULL for unused refinements.)
+            ; since NONE! is closer to Revolt's NULL for unused refinements.)
 
             insert body compose/deep [
                 (argument): :(refinement)
@@ -236,7 +236,7 @@ rewrite-spec-and-body: helper [
     ]
 ]
 
-; If a Ren-C function suspects it is running code that may happen more than
+; If a Revolt function suspects it is running code that may happen more than
 ; once (e.g. a loop or function body) it marks that parameter `<const>`.
 ; That prevents casual mutations.
 ;
@@ -286,7 +286,7 @@ redbol-function: function: emulate [
         body: copy body
         rewrite-spec-and-body spec body
 
-        ; The shift in Ren-C is to remove the refinements from FUNCTION, and
+        ; The shift in Revolt is to remove the refinements from FUNCTION, and
         ; put everything into the spec dialect...marked with <tags>
         ;
         if with [
@@ -307,7 +307,7 @@ apply: emulate [
     ; `APPEND/ONLY/DUP A B 2` => `apply :append [a b none none true true 2]`
     ;
     ; This made the apply call aware of the ordering of refinements in the
-    ; spec, which is not supposed to be a thing.  So Ren-C's APPLY requires
+    ; spec, which is not supposed to be a thing.  So Revolt's APPLY requires
     ; you to account for any refinements in your call by naming them in the
     ; path that you are applying, then the array should have exactly that
     ; number of arguments: https://trello.com/c/P2HCcu0V
@@ -368,12 +368,12 @@ to-rebol-file: emulate [:local-to-file]
 why?: emulate [does [lib/why]]  ; not exported yet, :why not bound
 
 null: emulate [
-    make char! 0  ; NUL in Ren-C https://en.wikipedia.org/wiki/Null_character
+    make char! 0  ; NUL in Revolt https://en.wikipedia.org/wiki/Null_character
 ]
 
-; Ren-C's VOID! is nearly identical to UNSET!, but the concept is that
+; Revolt's VOID! is nearly identical to UNSET!, but the concept is that
 ; *variables* are "unset", not *values*.  So the name is different.  An
-; "unset" value is one that holds VOID!.
+; "unset" value is one that is effectively NULL.
 ;
 ; https://forum.rebol.info/t/947
 ;
@@ -418,7 +418,7 @@ comment: emulate [
 
 value?: emulate [
     func [
-        {See SET? in Ren-C: https://trello.com/c/BlktEl2M}
+        {See SET? in Revolt: https://trello.com/c/BlktEl2M}
         value
     ][
         either any-word? :value [set? value] [true]  ; bizarre.  :-/
@@ -499,15 +499,15 @@ get: emulate [
 ]
 
 ; R3-Alpha and Rebol2's DO was effectively variadic.  If you gave it an
-; action, it could "reach out" to grab arguments from after the call.  Ren-C
-; replaced this functionality with EVAL:
+; action, it could "reach out" to grab arguments from after the call.  Revolt
+; replaced this functionality with REEVAL:
 ;
-; https://forum.rebol.info/t/meet-the-eval-native/311
+; https://forum.rebol.info/t/meet-the-reevaluate-reeval-native/311
 ;
 ; !!! This code contains an early and awkward attempt at emulating the old
 ; DO behavior for functions in userspace, through an early version of
-; variadics.  Ren-C is aiming to have functions that make "writing your own
-; EVAL-like-thing" easier.
+; variadics.  Revolt is aiming to have functions that make "writing your own
+; DO-like-thing" easier.
 ;
 do: emulate [
     function [
@@ -667,9 +667,9 @@ enblock-devoid: chain [:devoid | :enblock]
 
 compose: emulate [
     function [
-        value "Ren-C composes ANY-ARRAY!: https://trello.com/c/8WMgdtMp"
+        value "Revolt composes ANY-ARRAY!: https://trello.com/c/8WMgdtMp"
             [any-value!]
-        /deep "Ren-C recurses into PATH!s: https://trello.com/c/8WMgdtMp"
+        /deep "Revolt recurses into PATH!s: https://trello.com/c/8WMgdtMp"
         /only
         /into "https://forum.rebol.info/t/stopping-the-into-virus/705"
             [any-array! any-string! binary!]
@@ -689,7 +689,7 @@ compose: emulate [
             ;    == unset!
             ;
             ;    rebol2> compose [(either true [] [])]
-            ;    == []  ; would be a #[void] in Ren-C
+            ;    == []  ; would be a #[void] in Revolt
             ;
             predicate: either only [:enblock-devoid] [:devoid]
         ]
@@ -788,8 +788,8 @@ redbol-form: form: emulate [
                 ;    "The 53-bit significand precision gives from 15 to 17
                 ;     significant decimal digits precision"
                 ;
-                ; Rebol2 printed 15 digits after the decimal point.  R3-Alpha gave
-                ; 16 digits...as does Red and seemingly JavaScript.
+                ; Rebol2 printed 15 digits after the decimal point.  R3-Alpha
+                ; gave 16 digits...as does Red and seemingly JavaScript.
                 ;
                 ;     rebol2>> 1 / 3
                 ;     == 0.333333333333333
@@ -841,7 +841,7 @@ redbol-form: form: emulate [
 print: emulate [
     func [
         return: <void>
-        value [any-value!]  ; Ren-C only takes TEXT!, BLOCK!, BLANK!, CHAR!
+        value [any-value!]  ; Revolt only takes TEXT!, BLOCK!, BLANK!, CHAR!
     ][
         write-stdout case [
             block? :value [spaced value]
@@ -853,7 +853,7 @@ print: emulate [
 
 quit: emulate [
     function [
-        /return "Ren-C is variadic, 0 or 1 arg: https://trello.com/c/3hCNux3z"
+        /return "Revolt is variadic, 0/1 arg: https://trello.com/c/3hCNux3z"
             [<opt> any-value!]
     ][
         applique 'quit [
@@ -876,7 +876,7 @@ has: emulate [
     ]
 ]
 
-; OBJECT is a noun-ish word; Ren-C tried HAS for a while and did not like it.
+; OBJECT is a noun-ish word; Revolt tried HAS for a while and did not like it.
 ; A more generalized version of CONSTRUCT is being considered:
 ;
 ; https://forum.rebol.info/t/has-hasnt-worked-rethink-construct/1058
@@ -921,7 +921,7 @@ break: emulate [
         fail 'return [
             {++ and -- are not in the Redbol layer by default, as they were}
             {not terribly popular to begin with...but also because `--` is}
-            {a very useful and easy-to-type dumping construct in Ren-C, that}
+            {a very useful and easy-to-type dumping construct in Revolt, that}
             {comes in very handy when debugging Redbol.  Implementations of}
             {++ and -- are available in %redbol.reb if you need them.}
             {See also ME and MY: https://trello.com/c/8Bmwvwya}
@@ -1022,8 +1022,8 @@ and: emulate [enfixed :intersect]
 or: emulate [enfixed :union]
 xor: emulate [enfixed :difference]
 
-; Ren-C NULL means no branch ran, Rebol2 this is communicated by #[none]
-; Ren-C #[void] when branch ran w/null result, Rebol2 would call that #[unset]
+; Revolt NULL means no branch ran, Rebol2 this is communicated by #[none]
+; Revolt #[void] when branch ran w/null result, Rebol2 calls that #[unset]
 ;
 devoider: helper [
     func [action [action!]] [
@@ -1042,7 +1042,7 @@ if: emulate [devoider :if]
 unless: emulate [devoider adapt 'if [condition: not :condition]]
 case: emulate [devoider :case]
 
-switch: emulate [  ; Ren-C evaluates cases: https://trello.com/c/9ChhSWC4/
+switch: emulate [  ; Revolt evaluates cases: https://trello.com/c/9ChhSWC4/
     enclose (augment 'switch [
         /default "Default case if no others are found"
             [block!]
@@ -1337,7 +1337,7 @@ read: emulate [
 ; means some files depended on being able to LOAD characters that were
 ; arbitrary bytes, representing the first 255 characters of unicode.
 ;
-; Red, R3-Alpha, and Ren-C are UTF-8-based by default.  However, this means
+; Red, R3-Alpha, and Revolt are UTF-8-based by default.  However, this means
 ; that some Rebol2 scripts which depend on reading Latin1 files will fail.
 ; One example is %pdf-maker.r, which embeds a Latin1 font metrics file as
 ; compressed data in the script itself.
@@ -1385,7 +1385,7 @@ hijack 'lib/transcode enclose copy :lib/transcode function [f [frame!]] [
 
 
 call: emulate [
-    :call*  ; brings back the /WAIT switch (Ren-C waits by default)
+    :call*  ; brings back the /WAIT switch (Revolt waits by default)
 ]
 
 

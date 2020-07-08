@@ -17,7 +17,7 @@ Rebol [
         0.1.7  21-Jun-2017  {related commits are now automatically "not notable"}
         0.1.8  21-Jun-2017  {Fix related links}
     ]
-    license: {Apache License 2.0}  ; Same as Rebol 3
+    license: {Apache License 2.0}  ; Same as R3-Alpha
     exports: [make-changes-file make-changes-block get-git-log]
 ]
 
@@ -53,7 +53,7 @@ url: [
 ;
 
 get-git-log: function [
-    {Return Rebolised block of Ren/C `git log`}
+    {Return Rebolised block of Revolt `git log`}
 ][
     git-log: make text! 0
     call/shell/output "git log --pretty=format:'[commit: {%h} author: {%an} email: {%ae} date-string: {%ai} summary: {%s}]'" git-log

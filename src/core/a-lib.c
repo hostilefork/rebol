@@ -2,26 +2,26 @@
 //  File: %a-lib.c
 //  Summary: "Lightweight Export API (REBVAL as opaque type)"
 //  Section: environment
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// This is the "external" API, and %rebol.h contains its exported
+// This is the "external" API, and %revolt.h contains its exported
 // definitions.  That file (and %make-reb-lib.r which generates it) contains
 // comments and notes which will help understand it.
 //
@@ -34,7 +34,7 @@
 //
 // Also, due to the nature of REBNOD (see %sys-node.h), it's possible to feed
 // the scanner with a list of pointers that may be to UTF-8 strings or to
-// Rebol values.  The behavior is to "splice" in the values at the point in
+// Revolt values.  The behavior is to "splice" in the values at the point in
 // the scan that they occur, e.g.
 //
 //     REBVAL *item1 = ...;
@@ -73,7 +73,7 @@
 // a table, e.g. `#define rebXxxYyy interface_struct->rebXxxYyy`.  This means
 // paying a slight performance penalty to dereference that API per call, but
 // it keeps API clients from depending on the conventional C linker...so that
-// DLLs can be "linked" against a Rebol EXE.
+// DLLs can be "linked" against a Revolt EXE.
 //
 // (It is not generically possible to export symbols from an executable, and
 // just in general there's no cross-platform assurances about how linking
@@ -112,7 +112,7 @@ void RL_rebEnterApi_internal(void) {
 //
 // It also has the benefit of helping interface with client code that has
 // been stylized to use malloc()-ish hooks to produce data, when the eventual
-// target of that data is a Rebol series.  It does this without exposing
+// target of that data is a Revolt series.  It does this without exposing
 // REBSER* internals to the external API, by allowing one to "rebRepossess()"
 // the underlying series as a BINARY! REBVAL*.
 //
@@ -318,7 +318,7 @@ REBVAL *RL_rebRepossess(void *ptr, size_t size)
 //  Startup_Api: C
 //
 // RL_API routines may be used by extensions (which are invoked by a fully
-// initialized Rebol core) or by normal linkage (such as from within the core
+// initialized Revolt core) or by normal linkage (such as from within the core
 // itself).  A call to rebStartup() won't be needed in the former case.  So
 // setup code that is needed to interact with the API needs to be done by the
 // core independently.
@@ -358,9 +358,9 @@ void RL_rebStartup(void)
 //
 //  rebShutdown: RL_API
 //
-// Shut down a Rebol interpreter initialized with rebStartup().
+// Shut down a Revolt interpreter initialized with rebStartup().
 //
-// The `clean` parameter tells whether you want Rebol to release all of its
+// The `clean` parameter tells whether you want Revolt to release all of its
 // memory accrued since initialization.  If you pass false, then it will
 // only do the minimum needed for data integrity (it assumes you are planning
 // to exit the process, and hence the OS will automatically reclaim all
@@ -405,7 +405,7 @@ void RL_rebShutdown(bool clean)
 //  rebTick: RL_API
 //
 // If the executable is built with tick counting, this will return the tick
-// without requiring any Rebol code to run (which would disrupt the tick).
+// without requiring any Revolt code to run (which would disrupt the tick).
 //
 uintptr_t RL_rebTick(void)
 {
@@ -419,11 +419,11 @@ uintptr_t RL_rebTick(void)
 
 //=//// VALUE CONSTRUCTORS ////////////////////////////////////////////////=//
 //
-// These routines are for constructing Rebol values from C primitive types.
+// These routines are for constructing Revolt values from C primitive types.
 // The general philosophy is that this stay limited.  Hence there is no
 // constructor for making DATE! directly (one is expected to use MAKE DATE!
 // and pass in parts that were constructed from integers.)  This also avoids
-// creation of otherwise useless C structs, while the Rebol function designs
+// creation of otherwise useless C structs, while the Revolt function designs
 // are needed to create the values from the interpreter itself.
 //
 // * There's no function for returning a null pointer, because C's notion of
@@ -686,7 +686,7 @@ const void *RL_rebArgR(unsigned char quotes, const void *p, va_list *vaptr)
     UNUSED(quotes);
     const char *name = cast(const char*, p);
     const void *p2 = va_arg(*vaptr, const void*);
-    if (Detect_Rebol_Pointer(p2) != DETECTED_AS_END)
+    if (Detect_Revolt_Pointer(p2) != DETECTED_AS_END)
         fail ("rebArg() isn't actually variadic, it's arity-1");
 
     REBSTR *spelling = Intern_UTF8_Managed(
@@ -724,7 +724,7 @@ REBVAL *RL_rebArg(unsigned char quotes, const void *p, va_list *vaptr)
 
 //=//// EVALUATIVE EXTRACTORS /////////////////////////////////////////////=//
 //
-// The libRebol API evaluative routines are all variadic, and call the
+// The libRevolt API evaluative routines are all variadic, and call the
 // evaluator on multiple pointers.  Each pointer may be:
 //
 // - a REBVAL*
@@ -732,7 +732,7 @@ REBVAL *RL_rebArg(unsigned char quotes, const void *p, va_list *vaptr)
 // - a REBSER* that represents an "API instruction"
 //
 // There isn't a separate concept of routines that perform evaluations and
-// ones that extract C fundamental types out of Rebol values.  Hence you
+// ones that extract C fundamental types out of Revolt values.  Hence you
 // don't have to say:
 //
 //      REBVAL *value = rebValue("1 +", some_rebol_integer);
@@ -743,7 +743,7 @@ REBVAL *RL_rebArg(unsigned char quotes, const void *p, va_list *vaptr)
 //
 //      int sum = rebUnboxInteger("1 +", some_rebol_integer);
 //
-// The default evaluators splice Rebol values "as-is" into the feed.  This
+// The default evaluators splice Revolt values "as-is" into the feed.  This
 // means that any evaluator active types (like WORD!, ACTION!, GROUP!...)
 // will run.  This can be mitigated with rebQ, but to make it easier for
 // some cases variants like `rebValueQ()` and `rebUnboxIntegerQ()` are provided
@@ -789,7 +789,7 @@ static void Run_Va_May_Fail_Core(
         // !!! Being able to THROW across C stacks is necessary in the general
         // case (consider implementing QUIT or HALT).  Probably need to be
         // converted to a kind of error, and then re-converted into a THROW
-        // to bubble up through Rebol stacks?  Development on this is ongoing.
+        // to bubble up through Revolt stacks?  Development is ongoing.
         //
         fail (Error_No_Catch_For_Throw(out));
     }
@@ -1166,7 +1166,7 @@ unsigned int RL_rebSpellIntoWide(
 // !!! Unlike with rebSpell(), there is not an alternative for getting
 // the size in UTF-16-encoded characters, just the LENGTH OF result.  While
 // that works for UCS-2 (where all codepoints are two bytes), it would not
-// work if Rebol supported UTF-16.  Which it may never do in the core or
+// work if Revolt supported UTF-16.  Which it may never do in the core or
 // API (possible solutions could include usermode UTF-16 conversion to binary,
 // and extraction of that with rebBytes(), then dividing the size by 2).
 //
@@ -1196,7 +1196,7 @@ REBWCHAR *RL_rebSpellWide(
 //
 // !!! Caller must allocate a buffer of the returned size + 1.  It's not clear
 // if this is a good idea; but this is based on a longstanding convention of
-// zero termination of Rebol series, including binaries.  Review.
+// zero termination of Revolt series, including binaries.  Review.
 //
 size_t RL_rebBytesInto(
     unsigned char quotes,  // `#define FooQ(...) Foo(1, __VA_LIST__, rebEND)`
@@ -1317,12 +1317,12 @@ unsigned char *RL_rebBytes(
 // The third exceptio nmode is for JavaScript, where an emscripten build would
 // have to painstakingly emulate setjmp/longjmp.  Using inline JavaScript to
 // catch and throw is more efficient, and also provides the benefit of API
-// clients being able to use normal try/catch of a RebolError instead of
+// clients being able to use normal try/catch of a RevoltError instead of
 // having to go through rebRescue().
 //
 // !!! Currently only the setjmp()/longjmp() form is emulated.  Clients must
-// either explicitly TRAP errors within their Rebol code calls, or use the
-// rebRescue() abstraction to catch the setjmp/longjmp failures.  Rebol
+// either explicitly TRAP errors within their Revolt code calls, or use the
+// rebRescue() abstraction to catch the setjmp/longjmp failures.  Revolt
 // THROW and CATCH cannot be thrown across an API call barrier--it will be
 // handled as an uncaught throw and raised as an error.
 //
@@ -1461,7 +1461,7 @@ REBVAL *RL_rebRescueWith(
 // because that would create unsafe situations.
 //
 // !!! Halting, exceptions, and stack overflows are all areas where the
-// computing world in general doesn't have great answers.  Ren-C is nothing
+// computing world in general doesn't have great answers.  Revolt is nothing
 // special in this regard, and more thought needs to be put into it!
 //
 void RL_rebHalt(void)
@@ -1491,7 +1491,7 @@ bool RL_rebWasHalting(void)
 
 //=//// API "INSTRUCTIONS" ////////////////////////////////////////////////=//
 //
-// The evaluator API takes further advantage of Detect_Rebol_Pointer() when
+// The evaluator API takes further advantage of Detect_Revolt_Pointer() when
 // processing variadic arguments to do things more efficiently.
 //
 // All instructions must be handed *directly* to an evaluator feed.  That
@@ -1549,10 +1549,10 @@ static const void *rebSpliceQuoteAdjuster_internal(
     // just calling rebQ(value) to get a quote on a single value.  Sense
     // that situation and make it faster.
     //
-    if (not p or Detect_Rebol_Pointer(p) == DETECTED_AS_CELL) {
+    if (not p or Detect_Revolt_Pointer(p) == DETECTED_AS_CELL) {
         const REBVAL *first = REIFY_NULL(VAL(p));  // save pointer
         p = va_arg(*vaptr, const void*);  // advance next pointer (fast!)
-        if (p and Detect_Rebol_Pointer(p) == DETECTED_AS_END) {
+        if (p and Detect_Revolt_Pointer(p) == DETECTED_AS_END) {
             a = Alloc_Singular(NODE_FLAG_MANAGED);
             CLEAR_SERIES_FLAG(a, MANAGED);  // see notes above on why we lied
             Move_Value(ARR_SINGLE(a), first);
@@ -1729,7 +1729,7 @@ void RL_rebRelease(const REBVAL *v)
 // Variant of rebDeflateAlloc() which adds a zlib envelope...which is a 2-byte
 // header and 32-bit ADLER32 CRC at the tail.
 //
-// !!! TBD: Clients should be able to use a plain Rebol call to ZDEFLATE and
+// !!! TBD: Clients should be able to use a plain Revolt call to ZDEFLATE and
 // be able to get the data back using something like rebRepossess.  That
 // would eliminate this API.
 //
@@ -1749,7 +1749,7 @@ void *RL_rebZdeflateAlloc(
 // Variant of rebInflateAlloc() which assumes a zlib envelope...checking for
 // the 2-byte header and verifying the 32-bit ADLER32 CRC at the tail.
 //
-// !!! TBD: Clients should be able to use a plain Rebol call to ZINFLATE and
+// !!! TBD: Clients should be able to use a plain Revolt call to ZINFLATE and
 // be able to get the data back using something like rebRepossess.  That
 // would eliminate this API.
 //
@@ -1933,7 +1933,7 @@ REBNATIVE(api_transient)
     //  unsigned. The interpretation of these types is determined by
     //  individual operators."
     //
-    // :-/  Well, which is it?  R3-Alpha integers were signed 64-bit, Ren-C is
+    // :-/  Well, which is it?  R3-Alpha integer was signed 64-bit, Revolt is
     // targeting arbitrary precision...use signed as status quo for now.
     //
     return Init_Integer(D_OUT, cast(intptr_t, a));  // ...or, `uintptr_t` ??
@@ -1950,7 +1950,7 @@ REBNATIVE(api_transient)
 // to an EXE (in a generic way).  So the table is passed to them, in that
 // extension's DLL initialization function.
 //
-// !!! Note: if Rebol is built as a DLL or LIB, the story is different.
+// !!! Note: if Revolt is built as a DLL or LIB, the story is different.
 //
 extern RL_LIB Ext_Lib;
 #include "tmp-reb-lib-table.inc" // declares Ext_Lib

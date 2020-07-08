@@ -1,22 +1,22 @@
 //
 //  File: %mod-console.c
-//  Summary: "Read/Eval/Print Loop (REPL) Skinnable Console for Rebol"
+//  Summary: "Read/Eval/Print Loop (REPL) Skinnable Console for Revolt"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Copyright 2016-2019 Rebol Open Source Contributors
+// Copyright 2016-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -54,7 +54,7 @@
 //
 // For console applications, we assume that the program starts with user
 // interrupting enabled by default...so we have to ask for it not to be when
-// it would be bad to have the Rebol stack interrupted--during startup, or
+// it would be bad to have the Revolt stack interrupted--during startup, or
 // when in the "kernel" of the host console.
 //
 // (Note: If halting is done via Ctrl-C, technically it may be set to be
@@ -210,13 +210,13 @@ void Enable_Halting(void)
 //
 static REBVAL *Run_Sandboxed_Group(REBVAL *group) {
     //
-    // DON'T ADD ANY MORE LIBREBOL CODE HERE.  If this is a user-requested
-    // evaluation, then any extra libRebol code run here will wind up being
+    // DON'T ADD ANY MORE LIBREVOLT CODE HERE.  If this is a user-requested
+    // evaluation, then any extra libRevolt code run here will wind up being
     // shown in a TRACE.  The only thing that's acceptable to see in the
     // backtrace is the GROUP! itself that we are running.  (If we didn't
     // want that, getting rid of it would take some magic).
     //
-    // So don't add superfluous libRebol calls here, except to debug.
+    // So don't add superfluous libRevolt calls here, except to debug.
     //
     return rebQuoteInterruptible(group, rebEND);  // ownership gets proxied
 }
@@ -374,7 +374,7 @@ REBNATIVE(console)
             // Restore custom DO and APPLY hooks, but only if it was a GROUP!
             // initially (indicating running code initiated by the user).
             //
-            // (We do not want to trace/debug/instrument Rebol code that the
+            // (We do not want to trace/debug/instrument Revolt code that the
             // console is using to implement *itself*, which it does with
             // BLOCK! Same for Trace_Level seen by PARSE.
             //

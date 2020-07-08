@@ -1,22 +1,22 @@
 //
 //  File: %readline-windows.c
 //  Summary: "Simple readline() line input handler"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2020 Rebol Open Source Contributors
+// Copyright 2012-2020 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -39,9 +39,9 @@
 #include <stdint.h>
 #include "reb-c.h"
 
-#include "readline.h"  // will define REBOL_SMART_CONSOLE (if not C89)
+#include "readline.h"  // will define REVOLT_SMART_CONSOLE (if not C89)
 
-#if defined(REBOL_SMART_CONSOLE)
+#if defined(REVOLT_SMART_CONSOLE)
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -76,8 +76,8 @@
 
     // Codepoints 0xD800 to 0xDFFF are reserved for "UTF-16 surrogates".
     // It is technically possible for UTF-8 or UCS-4 to encode these directly,
-    // they aren't supposed to...and Ren-C prohibits loading them.  (It should
-    // also prevent saving them, but does not currently.)
+    // they aren't supposed to...and Revolt prohibits loading them.  (It
+    // should also prevent casually saving them, but does not currently.)
     //
     // Windows Terminal API sends DWORD "unicode" characters, which means high
     // codepoints are done as two events.  We have to piece that together.
@@ -286,7 +286,7 @@ STD_TERM *Init_Terminal(void)
 
     // !!! Ultimately, we want to be able to recover line history from a
     // file across sessions.  It makes more sense for the logic doing that
-    // to be doing it in Rebol.  For starters, we just make it fresh.
+    // to be doing it in Revolt.  For starters, we just make it fresh.
     //
     Line_History = rebValue("[{}]");  // current line is empty string
     rebUnmanage(Line_History);  // allow Line_History to live indefinitely
@@ -912,7 +912,7 @@ REBVAL *Try_Get_One_Console_Event(STD_TERM *t, bool buffered)
 
     // If an `e` is not generated, then the input record will be thrown out
     // and we will start over.  Branches generating `e` values are expected to
-    // consume the input records that they translated to Rebol "events".
+    // consume the input records that they translated to Revolt "events".
     //
     if (t->in != t->in_tail)
         ++t->in;
@@ -1007,7 +1007,7 @@ static void Term_Insert_Char(STD_TERM *t, uint32_t c)
 //
 //  Term_Insert: C
 //
-// Inserts a Rebol value (TEXT!, CHAR!) at the current cursor position.
+// Inserts a Revolt value (TEXT!, CHAR!) at the current cursor position.
 // This is made complicated because we have to sync our internal knowledge
 // with what the last line in the terminal is showing...which means mirroring
 // its logic regarding cursor position, newlines, backspacing.
@@ -1053,7 +1053,7 @@ void Term_Insert(STD_TERM *t, const REBVAL *v) {
         rebRelease(v_no_tab);  // null-tolerant
 
         // Go ahead with the OS-level write, in case it can do some processing
-        // of that asynchronously in parallel with the following Rebol code.
+        // of that asynchronously in parallel with the following Revolt code.
         //
         WRITE_UTF8(encoded, encoded_size);
         rebFree(encoded);

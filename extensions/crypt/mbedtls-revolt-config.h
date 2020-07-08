@@ -1,17 +1,17 @@
 // !!! This file started from a snapshot of the default mbedTLS `config.h`
-// circa Apr-2020.  It was edited to add or remove switches for Rebol.
+// circa Apr-2020.  It was edited to add or remove switches for Revolt.
 //
 // To remove a flag that is enabled by default, change:
 //
 //     #define MBEDTLS_SOME_SWITCH_ENABLED_BY_DEFAULT
 //  =>
-//     // REBDISABLE #define MBEDTLS_SOME_SWITCH_ENABLED_BY_DEFAULT
+//     // REVDISABLE #define MBEDTLS_SOME_SWITCH_ENABLED_BY_DEFAULT
 //
 // To add a flag that is disabled by default, change:
 //
 //     //#define MBEDTLS_SOME_SWITCH_DISABLED_BY_DEFAULT
 //  =>
-//     #define MBEDTLS_SOME_SWITCH_DISABLED_BY_DEFAULT  // REBENABLE
+//     #define MBEDTLS_SOME_SWITCH_DISABLED_BY_DEFAULT  // REVENABLE
 //
 // This should make it relatively easy to sync up the configuration with a
 // subsequent release of `config.h`!
@@ -20,10 +20,10 @@
 //
 // MBEDTLS_SHA256_SMALLER could use a 0.5k implementation instead of 2.0k
 // at the cost of about 30% of performance.  It's the kind of tradeoff that
-// might be interesting for Rebol builds to offer (e.g. an extension setting
+// might be interesting for Revolt builds to offer (e.g. an extension setting
 // when SHA256 is its own extension).
 //
-// MBEDTLS_AESNI_C was enabled by default but is REBDISABLE'd.  It would add
+// MBEDTLS_AESNI_C was enabled by default but is REVDISABLE'd.  It would add
 // support for native 64-bit instructions that could make AES a bit faster,
 // at the cost of a larger executable and more files to include and link in.
 // This option does not appear to work on Windows...in any case, it's not
@@ -255,7 +255,7 @@
  */
 //#define MBEDTLS_PLATFORM_EXIT_ALT
 //#define MBEDTLS_PLATFORM_TIME_ALT
-#if defined(NDEBUG)  // REBENABLE
+#if defined(NDEBUG)  // REVENABLE
     #define MBEDTLS_PLATFORM_FPRINTF_ALT
     #define MBEDTLS_PLATFORM_PRINTF_ALT
     #define MBEDTLS_PLATFORM_SNPRINTF_ALT
@@ -289,7 +289,7 @@
  *
  * Uncomment to get errors on using deprecated functions and features.
  */
-#define MBEDTLS_DEPRECATED_REMOVED  // REBENABLE
+#define MBEDTLS_DEPRECATED_REMOVED  // REVENABLE
 
 /**
  * \def MBEDTLS_CHECK_PARAMS
@@ -342,7 +342,7 @@
  * Uncomment to enable validation of application-controlled parameters.
  */
 #if !defined(NDEBUG)
-    #define MBEDTLS_CHECK_PARAMS  // REBENABLE (in debug build)
+    #define MBEDTLS_CHECK_PARAMS  // REVENABLE (in debug build)
 #endif
 
 /**
@@ -358,7 +358,7 @@
  * Uncomment to allow MBEDTLS_PARAM_FAILED() to call `assert`.
  */
 #if !defined(NDEBUG)
-    #define MBEDTLS_CHECK_PARAMS_ASSERT  // REBENABLE (in debug build)
+    #define MBEDTLS_CHECK_PARAMS_ASSERT  // REVENABLE (in debug build)
 #endif
 
 /* \} name SECTION: System support */
@@ -870,7 +870,7 @@
  *       library may modify the way the ECDH context layout is configured
  *       and may modify the layout of the new context type.
  */
-// REBDISABLE #define MBEDTLS_ECDH_LEGACY_CONTEXT
+// REVDISABLE #define MBEDTLS_ECDH_LEGACY_CONTEXT
 
 /**
  * \def MBEDTLS_ECDSA_DETERMINISTIC
@@ -906,7 +906,7 @@
  *      MBEDTLS_TLS_PSK_WITH_3DES_EDE_CBC_SHA
  *      MBEDTLS_TLS_PSK_WITH_RC4_128_SHA
  */
-// REBDISABLE #define MBEDTLS_KEY_EXCHANGE_PSK_ENABLED
+// REVDISABLE #define MBEDTLS_KEY_EXCHANGE_PSK_ENABLED
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_DHE_PSK_ENABLED
@@ -937,7 +937,7 @@
  *             See dhm.h for more details.
  *
  */
-// REBDISABLE #define MBEDTLS_KEY_EXCHANGE_DHE_PSK_ENABLED
+// REVDISABLE #define MBEDTLS_KEY_EXCHANGE_DHE_PSK_ENABLED
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_ECDHE_PSK_ENABLED
@@ -957,7 +957,7 @@
  *      MBEDTLS_TLS_ECDHE_PSK_WITH_3DES_EDE_CBC_SHA
  *      MBEDTLS_TLS_ECDHE_PSK_WITH_RC4_128_SHA
  */
-// REBDISABLE #define MBEDTLS_KEY_EXCHANGE_ECDHE_PSK_ENABLED
+// REVDISABLE #define MBEDTLS_KEY_EXCHANGE_ECDHE_PSK_ENABLED
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_RSA_PSK_ENABLED
@@ -982,7 +982,7 @@
  *      MBEDTLS_TLS_RSA_PSK_WITH_3DES_EDE_CBC_SHA
  *      MBEDTLS_TLS_RSA_PSK_WITH_RC4_128_SHA
  */
-// REBDISABLE #define MBEDTLS_KEY_EXCHANGE_RSA_PSK_ENABLED
+// REVDISABLE #define MBEDTLS_KEY_EXCHANGE_RSA_PSK_ENABLED
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_RSA_ENABLED
@@ -1010,7 +1010,7 @@
  *      MBEDTLS_TLS_RSA_WITH_RC4_128_SHA
  *      MBEDTLS_TLS_RSA_WITH_RC4_128_MD5
  */
-// REBDISABLE #define MBEDTLS_KEY_EXCHANGE_RSA_ENABLED
+// REVDISABLE #define MBEDTLS_KEY_EXCHANGE_RSA_ENABLED
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_DHE_RSA_ENABLED
@@ -1043,7 +1043,7 @@
  *             See dhm.h for more details.
  *
  */
-// REBDISABLE #define MBEDTLS_KEY_EXCHANGE_DHE_RSA_ENABLED
+// REVDISABLE #define MBEDTLS_KEY_EXCHANGE_DHE_RSA_ENABLED
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED
@@ -1068,7 +1068,7 @@
  *      MBEDTLS_TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA
  *      MBEDTLS_TLS_ECDHE_RSA_WITH_RC4_128_SHA
  */
-// REBDISABLE #define MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED
+// REVDISABLE #define MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
@@ -1092,7 +1092,7 @@
  *      MBEDTLS_TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA
  *      MBEDTLS_TLS_ECDHE_ECDSA_WITH_RC4_128_SHA
  */
-// REBDISABLE #define MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
+// REVDISABLE #define MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_ECDH_ECDSA_ENABLED
@@ -1116,7 +1116,7 @@
  *      MBEDTLS_TLS_ECDH_ECDSA_WITH_CAMELLIA_128_GCM_SHA256
  *      MBEDTLS_TLS_ECDH_ECDSA_WITH_CAMELLIA_256_GCM_SHA384
  */
-// REBDISABLE #define MBEDTLS_KEY_EXCHANGE_ECDH_ECDSA_ENABLED
+// REVDISABLE #define MBEDTLS_KEY_EXCHANGE_ECDH_ECDSA_ENABLED
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_ECDH_RSA_ENABLED
@@ -1140,7 +1140,7 @@
  *      MBEDTLS_TLS_ECDH_RSA_WITH_CAMELLIA_128_GCM_SHA256
  *      MBEDTLS_TLS_ECDH_RSA_WITH_CAMELLIA_256_GCM_SHA384
  */
-// REBDISABLE #define MBEDTLS_KEY_EXCHANGE_ECDH_RSA_ENABLED
+// REVDISABLE #define MBEDTLS_KEY_EXCHANGE_ECDH_RSA_ENABLED
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED
@@ -1173,7 +1173,7 @@
  *
  * Disable if you only need to support RFC 5915 + 5480 key formats.
  */
-// REBDISABLE #define MBEDTLS_PK_PARSE_EC_EXTENDED
+// REVDISABLE #define MBEDTLS_PK_PARSE_EC_EXTENDED
 
 /**
  * \def MBEDTLS_ERROR_STRERROR_DUMMY
@@ -1204,7 +1204,7 @@
  *
  * Enable functions that use the filesystem.
  */
-// REBDISABLE #define MBEDTLS_FS_IO
+// REVDISABLE #define MBEDTLS_FS_IO
 
 /**
  * \def MBEDTLS_NO_DEFAULT_ENTROPY_SOURCES
@@ -1388,7 +1388,7 @@
  *
  * Enable the checkup functions (*_self_test).
  */
-// REBDISABLE #define MBEDTLS_SELF_TEST
+// REVDISABLE #define MBEDTLS_SELF_TEST
 
 /**
  * \def MBEDTLS_SHA256_SMALLER
@@ -1860,7 +1860,7 @@
  *
  * Comment this macro to disable support for server name indication in SSL
  */
-// REBDISABLE #define MBEDTLS_SSL_SERVER_NAME_INDICATION
+// REVDISABLE #define MBEDTLS_SSL_SERVER_NAME_INDICATION
 
 /**
  * \def MBEDTLS_SSL_TRUNCATED_HMAC
@@ -2087,7 +2087,7 @@
  *
  * This modules adds support for the AES-NI instructions on x86-64
  */
-// REBDISABLE #define MBEDTLS_AESNI_C
+// REVDISABLE #define MBEDTLS_AESNI_C
 
 /**
  * \def MBEDTLS_AES_C
@@ -2204,7 +2204,7 @@
  *          library/pkcs5.c
  *          library/pkparse.c
  */
-// REBDISABLE #define MBEDTLS_ASN1_PARSE_C
+// REVDISABLE #define MBEDTLS_ASN1_PARSE_C
 
 /**
  * \def MBEDTLS_ASN1_WRITE_C
@@ -2218,7 +2218,7 @@
  *          library/x509write_crt.c
  *          library/x509write_csr.c
  */
-// REBDISABLE #define MBEDTLS_ASN1_WRITE_C
+// REVDISABLE #define MBEDTLS_ASN1_WRITE_C
 
 /**
  * \def MBEDTLS_BASE64_C
@@ -2256,7 +2256,7 @@
  *
  * Module:  library/blowfish.c
  */
-// REBDISABLE #define MBEDTLS_BLOWFISH_C
+// REVDISABLE #define MBEDTLS_BLOWFISH_C
 
 /**
  * \def MBEDTLS_CAMELLIA_C
@@ -2311,7 +2311,7 @@
  *      MBEDTLS_TLS_PSK_WITH_CAMELLIA_128_GCM_SHA256
  *      MBEDTLS_TLS_PSK_WITH_CAMELLIA_128_CBC_SHA256
  */
-// REBDISABLE #define MBEDTLS_CAMELLIA_C
+// REVDISABLE #define MBEDTLS_CAMELLIA_C
 
 /**
  * \def MBEDTLS_ARIA_C
@@ -2377,7 +2377,7 @@
  * This module enables the AES-CCM ciphersuites, if other requisites are
  * enabled as well.
  */
-// REBDISABLE #define MBEDTLS_CCM_C
+// REVDISABLE #define MBEDTLS_CCM_C
 
 /**
  * \def MBEDTLS_CERTS_C
@@ -2398,7 +2398,7 @@
  *
  * Module:  library/chacha20.c
  */
-// REBDISABLE #define MBEDTLS_CHACHA20_C
+// REVDISABLE #define MBEDTLS_CHACHA20_C
 
 /**
  * \def MBEDTLS_CHACHAPOLY_C
@@ -2409,7 +2409,7 @@
  *
  * This module requires: MBEDTLS_CHACHA20_C, MBEDTLS_POLY1305_C
  */
-// REBDISABLE #define MBEDTLS_CHACHAPOLY_C
+// REVDISABLE #define MBEDTLS_CHACHAPOLY_C
 
 /**
  * \def MBEDTLS_CIPHER_C
@@ -2468,7 +2468,7 @@
  *
  * This module provides debugging functions.
  */
-#if !defined(NDEBUG)  // REBDISABLE
+#if !defined(NDEBUG)  // REVDISABLE
     #define MBEDTLS_DEBUG_C
 #endif
 
@@ -2499,7 +2499,7 @@
  * \warning   DES is considered a weak cipher and its use constitutes a
  *            security risk. We recommend considering stronger ciphers instead.
  */
-// REBDISABLE #define MBEDTLS_DES_C
+// REVDISABLE #define MBEDTLS_DES_C
 
 /**
  * \def MBEDTLS_DHM_C
@@ -2551,7 +2551,7 @@
  *
  * Requires: MBEDTLS_ECP_C, MBEDTLS_ASN1_WRITE_C, MBEDTLS_ASN1_PARSE_C
  */
-// REBDISABLE #define MBEDTLS_ECDSA_C
+// REVDISABLE #define MBEDTLS_ECDSA_C
 
 /**
  * \def MBEDTLS_ECJPAKE_C
@@ -2624,7 +2624,7 @@
  * This module enables the AES-GCM and CAMELLIA-GCM ciphersuites, if other
  * requisites are enabled as well.
  */
-// REBDISABLE #define MBEDTLS_GCM_C
+// REVDISABLE #define MBEDTLS_GCM_C
 
 /**
  * \def MBEDTLS_HAVEGE_C
@@ -2829,7 +2829,7 @@
  *
  * This modules adds support for the VIA PadLock on x86.
  */
-// REBDISABLE #define MBEDTLS_PADLOCK_C
+// REVDISABLE #define MBEDTLS_PADLOCK_C
 
 /**
  * \def MBEDTLS_PEM_PARSE_C
@@ -2847,7 +2847,7 @@
  *
  * This modules adds support for decoding / parsing PEM files.
  */
-// REBDISABLE #define MBEDTLS_PEM_PARSE_C
+// REVDISABLE #define MBEDTLS_PEM_PARSE_C
 
 /**
  * \def MBEDTLS_PEM_WRITE_C
@@ -2863,7 +2863,7 @@
  *
  * This modules adds support for encoding / writing PEM files.
  */
-// REBDISABLE #define MBEDTLS_PEM_WRITE_C
+// REVDISABLE #define MBEDTLS_PEM_WRITE_C
 
 /**
  * \def MBEDTLS_PK_C
@@ -2894,7 +2894,7 @@
  *
  * Uncomment to enable generic public key parse functions.
  */
-// REBDISABLE #define MBEDTLS_PK_PARSE_C
+// REVDISABLE #define MBEDTLS_PK_PARSE_C
 
 /**
  * \def MBEDTLS_PK_WRITE_C
@@ -2908,7 +2908,7 @@
  *
  * Uncomment to enable generic public key write functions.
  */
-// REBDISABLE #define MBEDTLS_PK_WRITE_C
+// REVDISABLE #define MBEDTLS_PK_WRITE_C
 
 /**
  * \def MBEDTLS_PKCS5_C
@@ -3042,7 +3042,7 @@
  *
  * Requires: MBEDTLS_FS_IO
  */
-// REBDISABLE #define MBEDTLS_PSA_ITS_FILE_C
+// REVDISABLE #define MBEDTLS_PSA_ITS_FILE_C
 
 /**
  * \def MBEDTLS_RIPEMD160_C
@@ -3277,7 +3277,7 @@
  *
  * This module is required for the X.509 parsing modules.
  */
-// REBDISABLE #define MBEDTLS_X509_USE_C
+// REVDISABLE #define MBEDTLS_X509_USE_C
 
 /**
  * \def MBEDTLS_X509_CRT_PARSE_C
@@ -3293,7 +3293,7 @@
  *
  * This module is required for X.509 certificate parsing.
  */
-// REBDISABLE #define MBEDTLS_X509_CRT_PARSE_C
+// REVDISABLE #define MBEDTLS_X509_CRT_PARSE_C
 
 /**
  * \def MBEDTLS_X509_CRL_PARSE_C
@@ -3307,7 +3307,7 @@
  *
  * This module is required for X.509 CRL parsing.
  */
-// REBDISABLE #define MBEDTLS_X509_CRL_PARSE_C
+// REVDISABLE #define MBEDTLS_X509_CRL_PARSE_C
 
 /**
  * \def MBEDTLS_X509_CSR_PARSE_C
@@ -3321,7 +3321,7 @@
  *
  * This module is used for reading X.509 certificate request.
  */
-// REBDISABLE #define MBEDTLS_X509_CSR_PARSE_C
+// REVDISABLE #define MBEDTLS_X509_CSR_PARSE_C
 
 /**
  * \def MBEDTLS_X509_CREATE_C
@@ -3334,7 +3334,7 @@
  *
  * This module is the basis for creating X.509 certificates and CSRs.
  */
-// REBDISABLE #define MBEDTLS_X509_CREATE_C
+// REVDISABLE #define MBEDTLS_X509_CREATE_C
 
 /**
  * \def MBEDTLS_X509_CRT_WRITE_C
@@ -3347,7 +3347,7 @@
  *
  * This module is required for X.509 certificate creation.
  */
-// REBDISABLE #define MBEDTLS_X509_CRT_WRITE_C
+// REVDISABLE #define MBEDTLS_X509_CRT_WRITE_C
 
 /**
  * \def MBEDTLS_X509_CSR_WRITE_C
@@ -3360,7 +3360,7 @@
  *
  * This module is required for X.509 certificate request writing.
  */
-// REBDISABLE #define MBEDTLS_X509_CSR_WRITE_C
+// REVDISABLE #define MBEDTLS_X509_CSR_WRITE_C
 
 /**
  * \def MBEDTLS_XTEA_C

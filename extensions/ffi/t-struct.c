@@ -2,22 +2,22 @@
 //  File: %t-struct.c
 //  Summary: "C struct object datatype"
 //  Section: datatypes
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2014 Atronix Engineering, Inc.
-// Copyright 2014-2017 Rebol Open Source Contributors
+// Copyright 2014-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -75,7 +75,7 @@ static void get_scalar(
         LINK(sub_stu).custom.node = NOD(field);
 
         // The parent data may be a singular array for a HANDLE! or a BINARY!
-        // series, depending on whether the data is owned by Rebol or not.
+        // series, depending on whether the data is owned by Revolt or not.
         // That series pointer is being referenced again here.
         //
         Move_Value(ARR_SINGLE(sub_stu), STU_DATA(stu));
@@ -137,7 +137,7 @@ static void get_scalar(
         Init_Decimal(out, *cast(double*, p));
         break;
 
-      case SYM_POINTER:  // !!! Should 0 come back as a NULL to Rebol?
+      case SYM_POINTER:  // !!! Should 0 come back as a NULL to Revolt?
         Init_Integer(out, cast(intptr_t, *cast(void**, p)));
         break;
 
@@ -169,8 +169,8 @@ static bool Get_Struct_Var(REBVAL *out, REBSTU *stu, const REBVAL *word)
             //
             // Structs contain packed data for the field type in an array.
             // This data cannot expand or contract, and is not in a
-            // Rebol-compatible format.  A Rebol Array is made by
-            // extracting the information.
+            // Revolt-compatible format.  A REBARR is made by extracting the
+            // information.
             //
             // !!! Perhaps a fixed-size VECTOR! could have its data
             // pointer into these arrays?
@@ -872,7 +872,7 @@ static void Parse_Field_Type_May_Fail(
           case SYM_REBVAL: {
             //
             // While most data types have some kind of proxying of when you
-            // pass a Rebol value in (such as turning an INTEGER! into bits
+            // pass a Revolt value in (such as turning an INTEGER! into bits
             // for a C `int`) if the argument is marked as being a REBVAL
             // then the VAL_TYPE is ignored, and it acts like a pointer to
             // the actual argument in the frame...whatever that may be.

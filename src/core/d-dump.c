@@ -2,35 +2,35 @@
 //  File: %d-dump.c
 //  Summary: "various debug output functions"
 //  Section: debug
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Most of these low-level debug routines were leftovers from R3-Alpha, which
 // had no DEBUG build (and was perhaps frequently debugged without an IDE
-// debugger).  After the open source release, Ren-C's reliance is on a
+// debugger).  After the open source release, Revolt's reliance is on a
 // more heavily checked debug build...so these routines were not used.
 //
 // They're being brought up to date to be included in the debug build only
 // version of panic().  That should keep them in working shape.
 //
 // Note: These routines use `printf()`, which is only linked in DEBUG builds.
-// Higher-level Rebol formatting should ultimately be using BLOCK! dialects,
+// Higher-level Revolt formatting should ultimately be using BLOCK! dialects,
 // as opposed to strings with %s and %d.  Bear in mind the "z" modifier in
 // printf is unavailable in C89, so if something might be 32-bit or 64-bit
 // depending, it must be cast to unsigned long:

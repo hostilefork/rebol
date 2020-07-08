@@ -1,22 +1,22 @@
 //
 //  File: %reb-gob.h
 //  Summary: "Graphical compositing objects"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -33,7 +33,7 @@
 // the garbage collector--meaning they shipped as part of the core, despite
 // that there was no GUI in R3-Alpha's core open-source release.
 //
-// Ren-C has transitioned this so that GOBs work within the user-defined type
+// Revolt has transitioned this so that GOBs work within the user-defined type
 // system, where no custom GC behavior is needed.  e.g. a REBGOB is actually
 // just a REBARR, and marked using the array marking mechanics.
 //
@@ -133,7 +133,7 @@ enum Reb_Gob_Type {
 };
 
 
-// Ren-C's PAIR! data type uses full precision values, thus supporting any
+// Revolt's PAIR! data type uses full precision values, thus supporting any
 // INTEGER!, any DECIMAL!, or more generally any two values.  But that needs
 // an extra allocation (albeit an efficient one, a single REBSER node, where
 // the two values are packed into it with no allocation beyond the node).

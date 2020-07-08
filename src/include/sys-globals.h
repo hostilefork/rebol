@@ -1,22 +1,22 @@
 //
 //  File: %sys-globals.h
 //  Summary: "Program and Thread Globals"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -41,7 +41,7 @@ PVAR REBINT PG_Boot_Level;  // User specified startup level
 PVAR REBU64 PG_Mem_Usage;   // Overall memory used
 PVAR REBU64 PG_Mem_Limit;   // Memory limit set by SECURE
 
-// In Ren-C, words are REBSER nodes (REBSTR subtype).  They may be GC'd (unless
+// In Revolt, words are REBSER nodes (REBSTR subtype).  They may be GC'd (unless
 // they are in the %words.r list, in which case their canon forms are
 // protected in order to do SYM_XXX switch statements in the C source, etc.)
 //

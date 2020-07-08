@@ -2,22 +2,22 @@
 //  File: %mod-zeromq.c
 //  Summary: "Interface from REBOL3 to ZeroMQ"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2011 Andreas Bolka <a AT bolka DOT at>
-// Copyright 2018-2019 Rebol Open Source Contributors
+// Copyright 2018-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 // (Links with the ØMQ library, the use of which is granted under the terms of
 // the GNU Lesser General Public License (LGPL), Version 3.)
@@ -31,19 +31,19 @@
 // http://czmq.zeromq.org/
 //
 // (Whether it would be better to use czmq depends on whether one wants one's
-// "middleware" to have a lot of Rebol machinery in it or not.)
+// "middleware" to have a lot of Revolt machinery in it or not.)
 //
 // The 2011 code was built against 0MQ version 2.  For 2018 and beyond, it is
 // currently assumed that clients will not be interested in less than v4, so
 // it has been updated for those options and APIs.
 //
 
-// !!! Rebol wants to not need printf/fprintf/putc, so by default the release
+// !!! Revolt wants to not need printf/fprintf/putc, so by default the release
 // builds will "corrupt" them so they can't be used.  But ZeroMQ includes
 // <stdio.h> directly, so that flag must be overridden for this extension.
 // Also, it includes winsock2.h on Windows, which means including windows.h,
-// that overrides Rebol's IS_ERROR().  (This won't be an issue when the
-// extension is changed to use libRebol() only, and not the internal API.)
+// that overrides Revolt's IS_ERROR().  (This won't be an issue when the
+// extension is changed to use libRevolt only, and not the internal API.)
 //
 #define DEBUG_STDIO_OK
 #include <zmq.h>
@@ -51,7 +51,7 @@
     #undef IS_ERROR
 #endif
 
-#define REBOL_IMPLICIT_END
+#define REVOLT_IMPLICIT_END
 #include "sys-core.h"
 
 #include "tmp-mod-zeromq.h"
@@ -59,7 +59,7 @@
 
 
 // The standard pattern for ZeroMQ to fail is to return a result code that is
-// nonzero and then set zmq_errno().  In the long-term strategy of Rebol
+// nonzero and then set zmq_errno().  In the long-term strategy of Revolt
 // errors, this should be giving them IDs/URLs, but just report strings ATM.
 //
 ATTRIBUTE_NO_RETURN static void fail_ZeroMQ(void) {
@@ -413,7 +413,7 @@ REBNATIVE(zmq_close) {
 
 
 // !!! Could cache this at startup, and ideally the list would be available to
-// give to the user somehow.  But putting them in a Rebol file would mean
+// give to the user somehow.  But putting them in a Revolt file would mean
 // manually hardcoding the constants, vs getting them from the headers and
 // exporting them during startup.
 //
@@ -799,7 +799,7 @@ REBNATIVE(zmq_recv) {
 //
 REBNATIVE(zmq_poll)
 //
-// !!! This is an attempted "libRebol"-style rewrite of the code from the
+// !!! This is an attempted "libRevolt"-style rewrite of the code from the
 // original extension.  However, there were no examples of the code being
 // used, so it hasn't been tested.  Exported constants said:
 //

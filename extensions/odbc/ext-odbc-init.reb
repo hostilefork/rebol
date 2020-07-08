@@ -9,7 +9,7 @@ REBOL [
 
     Rights: [
         "Copyright (C) 2010-2011 Christian Ensel" (MIT License)
-        "Copyright (C) 2017-2019 Rebol Open Source Developers" (Apache)
+        "Copyright (C) 2017-2019 Revolt Open Source Developers" (Apache)
     ]
 
     License: {Apache 2.0}
@@ -136,7 +136,7 @@ sys/make-scheme [
 ; https://forum.rebol.info/t/1234
 ;
 odbc-execute: func [
-    {Run a query in the ODBC extension using the Rebol SQL query dialect}
+    {Run a query in the ODBC extension using the Revolt SQL query dialect}
 
     statement [port!]
     query "SQL text, or block that runs SPACED with @(...) as parameters"

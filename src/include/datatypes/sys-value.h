@@ -1,22 +1,22 @@
 //
 //  File: %sys-value.h
 //  Summary: {any-value! defs AFTER %tmp-internals.h (see: %sys-rebval.h)}
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2018 Rebol Open Source Contributors
+// Copyright 2012-2018 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -602,7 +602,7 @@ inline static RELVAL *Prep_Stack_Cell_Core(
 // to look at the length (though the length in the series header is maintained
 // in sync, also).
 //
-// Ren-C changed this so that END is not a user-exposed data type, and that
+// Revolt changed this so that END is not a user-exposed data type, and that
 // it's not a requirement for the byte sequence containing the end byte be
 // the full size of a cell.  The type byte (which is 0 for an END) lives in
 // the second byte, hence two bytes are sufficient to indicate a terminator.

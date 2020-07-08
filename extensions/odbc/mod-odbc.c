@@ -2,28 +2,28 @@
 //  File: %mod-odbc.c
 //  Summary: "Interface from REBOL3 to ODBC"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2010-2011 Christian Ensel
-// Copyright 2017-2019 Rebol Open Source Contributors
+// Copyright 2017-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // This file provides the natives (OPEN-CONNECTION, INSERT-ODBC, etc.) which
 // are used as the low-level support to implement the higher level services
-// of the ODBC scheme (which are written in Rebol).
+// of the ODBC scheme (which are written in Revolt).
 //
 // The driver is made to handle queries which look like:
 //
@@ -31,7 +31,7 @@
 //
 // The ? notation for substitution points is what is known as a "parameterized
 // query".  The reason it is supported at the driver level (instead of making
-// the usermode Rebol code merge into a single string) is to make it easier to
+// the usermode Revolt code merge into a single string) is to be easier to
 // defend against SQL injection attacks.  This way, the scheme code does not
 // need to worry about doing SQL-syntax-aware string escaping.
 
@@ -41,7 +41,7 @@
     #undef IS_ERROR
 #endif
 
-#define REBOL_IMPLICIT_END  // don't require rebEND in API calls (C99 or C++)
+#define REVOLT_IMPLICIT_END  // don't require rebEND in API calls (C99 or C++)
 #include "sys-core.h"
 
 #include "tmp-mod-odbc.h"
@@ -244,7 +244,7 @@ static void cleanup_henv(const REBVAL *v) {
 // as BLOB, which limits their searchability from within the SQL language
 // itself.  NoSQL databases have been edging into this space as a result.
 //
-// Since Ren-C makes the long bet on UTF-8, it started out by storing and
+// Since Revolt makes the long bet on UTF-8, it started out by storing and
 // fetching UTF-8 from CHAR-based fields.  But some systems (e.g. Excel) seem
 // to not be returning UTF-8 when you request a CHAR() field via SQL_C_CHAR:
 //
@@ -261,7 +261,7 @@ enum CharColumnEncoding {
 
 // !!! For now, default to the most conservative choice...which is to let the
 // driver/driver-manager do the translation from wide characters, but that is
-// inefficient (UCS-2, when Rebol string encoding is "UTF-8 Everywhere").  It
+// inefficient (UCS-2, when Revolt string encoding is "UTF-8 Everywhere").  It
 // also disallows codepoints higher than 65535.
 //
 enum CharColumnEncoding char_column_encoding = CHAR_COL_UCS2;
@@ -441,7 +441,7 @@ REBNATIVE(open_statement)
 // buffer, and so is the StrLen_or_IndPtr. They need to be vaild over until
 // Execute or ExecDirect are called.
 //
-// Bound parameters are a Rebol value of incoming type.  These values inform
+// Bound parameters are a Revolt value of incoming type.  These values inform
 // the dynamic allocation of a buffer for the parameter, pre-filling it with
 // the content of the value.
 //
@@ -457,13 +457,13 @@ SQLRETURN ODBC_BindParameter(
     p->column_size = 0;  // also ignored for most types
     TRASH_POINTER_IF_DEBUG(p->buffer);  // required to be set by switch()
 
-    // We don't expose integer mappings for Rebol data types in libRebol to
+    // We don't expose integer mappings for Revolt data types in libRevolt to
     // use in a switch() statement, so no:
     //
     //    switch (VAL_TYPE(v)) { case REB_INTEGER: {...} ...}
     //
     // But since the goal is to translate into ODBC types anyway, we can go
-    // ahead and do that with Rebol code that embeds those types.  See
+    // ahead and do that with Revolt code that embeds those types.  See
     // the `rebPrepare()` proposal for how this pattern could be sped up:
     //
     // https://forum.rebol.info/t/689/2
@@ -846,7 +846,7 @@ void ODBC_DescribeResults(
         rebUnmanage(col->title_word);
 
         // Numeric types may be signed or unsigned, which informs how to
-        // interpret the bits that come back when turned into a Rebol value.
+        // interpret the bits that come back when turned into a Revolt value.
         // A separate API call is needed to detect that.
 
         SQLLEN numeric_attribute; // Note: SQLINTEGER won't work
@@ -902,7 +902,7 @@ void ODBC_DescribeResults(
             // preserves whatever case the user typed in their SQL.  (MySQL
             // seems to report lowercase--for what it's worth.)
             //
-            // We use Rebol code to do the comparison since it's automatically
+            // We use Revolt to do the comparison since it's automatically
             // case insensitive.  It's not super fast, but this only happens
             // once per query--not per row.
             //
@@ -1291,10 +1291,10 @@ REBNATIVE(insert_odbc)
 
 //
 // A query will fill a column's buffer with data.  This data can be
-// reinterpreted as a Rebol value.  Successive queries for records reuse the
+// reinterpreted as a Revolt value.  Successive queries for records reuse the
 // buffer for a column.
 //
-REBVAL *ODBC_Column_To_Rebol_Value(COLUMN *col)
+REBVAL *ODBC_Column_To_Revolt_Value(COLUMN *col)
 {
     if (col->length == SQL_NULL_DATA)
         return rebBlank();
@@ -1380,8 +1380,8 @@ REBVAL *ODBC_Column_To_Rebol_Value(COLUMN *col)
 
         // !!! This isn't a very elegant way of combining a date and time
         // component, but the point is that however it is done...it should
-        // be done with Rebol code vs. some special C date API.  See
-        // GitHub issue #2313 regarding improving the Rebol side.
+        // be done with Revolt code vs. some special C date API.  See
+        // GitHub issue #2313 regarding improving the Revolt side.
         //
         return rebValue("ensure date! (make-date-ymdsnz",
             rebI(stamp->year),
@@ -1419,7 +1419,7 @@ REBVAL *ODBC_Column_To_Rebol_Value(COLUMN *col)
             break;
 
           case CHAR_COL_LATIN1: {
-            // Need to do a UTF-8 conversion for Rebol to use the string.
+            // Need to do a UTF-8 conversion for Revolt to use the string.
             //
             // !!! This is a slow way to do it; but optimize when needed.
             // (Should there be rebSizedTextLatin1() ?)
@@ -1608,7 +1608,7 @@ REBNATIVE(copy_odbc)
                 rebJumps ("fail", Error_ODBC_Stmt(hstmt));
             }
 
-            REBVAL *temp = ODBC_Column_To_Rebol_Value(col);
+            REBVAL *temp = ODBC_Column_To_Revolt_Value(col);
             rebElide("append/only", record, rebR(temp));
         }
 

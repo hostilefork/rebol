@@ -1,8 +1,8 @@
 REBOL [
-    System: "Ren-C Core Extraction of the Rebol System"
+    System: "Revolt Language Interpreter and Run-time Environment Environment"
     Title: "Common Routines for Tools"
     Rights: {
-        Copyright 2012-2019 Rebol Open Source Contributors
+        Copyright 2012-2019 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {

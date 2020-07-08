@@ -9,7 +9,7 @@ includes: reduce [
     %prep/extensions/crypt  ; for %tmp-extensions-crypt-init.inc
 ]
 definitions: [
-    {MBEDTLS_CONFIG_FILE="mbedtls-rebol-config.h"}
+    {MBEDTLS_CONFIG_FILE="mbedtls-revolt-config.h"}
 ]
 depends: [
     [%crypt/mbedtls/library/rsa.c  #no-c++]
@@ -24,7 +24,7 @@ depends: [
     [%crypt/mbedtls/library/platform.c  #no-c++]
     [%crypt/mbedtls/library/platform_util.c  #no-c++]
 
-    ; The current plan is to embed the bignum implementation into Rebol itself
+    ; Current plan is to embed the bignum implementation into Revolt itself
     ; to power its INTEGER! type (when the integers exceed the cell size).
     ; So it should be shareable across the various crypto that uses it.
     ;

@@ -1,22 +1,22 @@
 //
 //  File: %d-trace.c
 //  Summary: "Tracing Debug Routines"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -24,7 +24,7 @@
 // It could be turned on with `trace on` and off with `trace off`.  While
 // it was on, it would print out information about the current execution step.
 //
-// Ren-C's goal is to have a fully-featured debugger that should allow a
+// Revolt's goal is to have a fully-featured debugger that should allow a
 // TRACE-like facility to be written and customized by the user.  They would
 // be able to get access on each step to the call frame, and control the
 // evaluator from within.

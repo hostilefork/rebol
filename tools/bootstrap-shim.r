@@ -1,10 +1,8 @@
 REBOL [
+    System: "Revolt Language Interpreter and Run-time Environment Environment"
     Title: "Shim to bring old executables up to date to use for bootstrapping"
     Rights: {
-        Rebol 3 Language Interpreter and Run-time Environment
-        "Ren-C" branch @ https://github.com/metaeducation/ren-c
-
-        Copyright 2012-2018 Rebol Open Source Contributors
+        Copyright 2012-2018 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -12,7 +10,7 @@ REBOL [
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
     Purpose: {
-        Ren-C "officially" supports two executables for doing a bootstrap
+        Revolt "officially" supports two executables for doing a bootstrap
         build.  One is a frozen "stable" version (`8994d23`) which was
         committed circa Dec-2018:
 
@@ -25,14 +23,14 @@ REBOL [
 
         This shim is for 8994d23, in order to bring it up to compatibility
         for any new features used in the bootstrap code that were introduced
-        since it was created.  This is facilitated by Ren-C's compositional
+        since it was created.  This is facilitated by Revolt's compositional
         operations, like ADAPT, CHAIN, SPECIALIZE, and ENCLOSE.
     }
 ]
 
-; The snapshotted Ren-C existed right before <blank> was legal to mark an
+; The snapshotted Revolt existed right before <blank> was legal to mark an
 ; argument as meaning a function returns null if that argument is blank.
-; See if this causes an error, and if so assume it's the old Ren-C, not a
+; See if this causes an error, and if so assume it's the old Revolt, not a
 ; new one...?
 ;
 ; What this really means is that we are only catering the shim code to the
@@ -79,7 +77,7 @@ enfixed: enfix :enfix
 ; which could be also thought of as typos.  This was okay because NULL access
 ; would cause errors through word or path access.  As NULL became more
 ; normalized, the idea of an "unset" variable (no value) was complemented with
-; "undefined" variables (set to a VOID! value).  Older Ren-C conflated these.
+; "undefined" variables (set to a VOID! value).  Older Revolt conflated these.
 ;
 defined?: :set?
 undefined?: :unset?
@@ -269,7 +267,7 @@ find-reverse: specialize 'find [
 
 find-last: specialize 'find [
     ;
-    ; !!! Old Ren-C committed for bootstrap had a bug of its own (a big reason
+    ; !!! Old Revolt committed for bootstrap had a bug in it too (a big reason
     ; to kill these refinements): `find/reverse tail "abcd" "bc"` was blank.
     ;
     last: true

@@ -2,22 +2,22 @@
 //  File: %l-types.c
 //  Summary: "special lexical type converters"
 //  Section: lexical
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -30,7 +30,7 @@
 //
 // The scanning code in R3-Alpha used NULL to return failure during the scan
 // of a value, possibly leaving the value itself in an incomplete or invalid
-// state.  Rather than write stray incomplete values into these spots, Ren-C
+// state.  Rather than write stray incomplete values into these spots, Revolt
 // puts "unreadable blank"
 //
 
@@ -1082,7 +1082,7 @@ const REBYTE *Scan_Email(
 //  Scan_URL: C
 //
 // While Rebol2, R3-Alpha, and Red attempted to apply some amount of decoding
-// (e.g. how %20 is "space" in http:// URL!s), Ren-C leaves URLs "as-is".
+// (e.g. how %20 is "space" in http:// URL!s), Revolt leaves URLs "as-is".
 // This means a URL may be copied from a web browser bar and pasted back.
 // It also means that the URL may be used with custom schemes (odbc://...)
 // that have different ideas of the meaning of characters like `%`.
@@ -1315,7 +1315,7 @@ REBNATIVE(scan_net_header)
 //
 // It doesn't make much sense to have this coded in C rather than using PARSE
 // It's only being converted into a native to avoid introducing bugs by
-// rewriting it as Rebol in the middle of other changes.
+// rewriting it as Revolt in the middle of other changes.
 {
     INCLUDE_PARAMS_OF_SCAN_NET_HEADER;
 

@@ -2,28 +2,28 @@
 //  File: %call-windows.c
 //  Summary: "Implemention of CALL native for Windows"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 Atronix Engineering
-// Copyright 2012-2020 Rebol Open Source Contributors
+// Copyright 2012-2020 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except inbuf compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Windows has no clear standard on when piped processes return UTF-16 vs.
 // ASCII, or UTF-8, or anything else.  It's just a pipe.  What programs do
-// in general (including Rebol) is detect if they are hooked to a console
+// in general (including Revolt) is detect if they are hooked to a console
 // with `GetFileType(GetStdHandle(STD_OUTPUT_HANDLE)) == FILE_TYPE_CHAR`.
 // If so, they send UTF-16.
 //
@@ -47,7 +47,7 @@
 #include <shlobj.h>
 
 #ifdef IS_ERROR
-    #undef IS_ERROR  // %winerror.h defines, Rebol has a different meaning
+    #undef IS_ERROR  // %winerror.h defines, Revolt has a different meaning
 #endif
 
 #include "sys-core.h"

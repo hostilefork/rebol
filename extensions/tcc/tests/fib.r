@@ -1,14 +1,14 @@
 REBOL [
-    Title: {Comparing User Native vs. Rebol Fibonacci Number Calculation}
+    Title: {Comparing User Native vs. Revolt Fibonacci Number Calculation}
     Description: {
         @ShixinZeng created this as an initial test to compare the performance
         of a user native implementation of Fibonacci numbers, to an algorithm
-        written in the exact same style using Rebol.
+        written in the exact same style using Revolt.
 
-        It takes hundreds of CPU cycles to run a single step of Rebol, since
+        It takes hundreds of CPU cycles to run a single step of Revolt, since
         it is run by an interpreter.  But a line of C generally translates
         into only a few instructions.  At time of writing, the TCC version is
-        about 50x faster than an -O2 release build running the Rebol version.
+        about 50x faster than an -O2 release build running the Revolt version.
     }
 ]
 
@@ -54,10 +54,10 @@ compilables: [
 ]
 
 opts: [
-    ; This can be specified with LIBREBOL_INCLUDE_DIR as an environment
+    ; This can be specified with LIBREVOLT_INCLUDE_DIR as an environment
     ; variable, but you can also do it here for convenience.
     ;
-    ;;librebol-path %/home/hostilefork/Projects/ren-c/build/prep/include
+    ;;librevolt-path %/home/hostilefork/Projects/ren-c/build/prep/include
 
     ; This can be specified with CONFIG_TCCDIR as an environment variable,
     ; but you can also do it here for convenience.
@@ -86,6 +86,6 @@ if not find system/options/args "nobench" [
     ]
 
     print ["C time:" c]
-    print ["Rebol time:" r]
+    print ["Revolt time:" r]
     print ["Improvement:" unspaced [to integer! (r / c) "x"]]
 ]

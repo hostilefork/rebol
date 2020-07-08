@@ -11,11 +11,11 @@ Rebol [
 
         https://en.wikipedia.org/wiki/Qsort
 
-        An FFI "routine" can provide a bridge function for Rebol to invoke
-        qsort(), translating Rebol datatypes to corresponding values that can
+        An FFI "routine" can provide a bridge function for Revolt to invoke
+        qsort(), translating Revolt datatypes to corresponding values that can
         be read by the C code.  *But* the comparison operation needs to be
         passed to qsort() as a C function pointer.  Because while the C code
-        is running, it doesn't know how to invoke the Rebol interpreter to
+        is running, it doesn't know how to invoke the Revolt interpreter to
         run an ACTION! directly.
 
         LibFFI provides a "closure" facility, which allows the dynamic
@@ -23,8 +23,8 @@ Rebol [
 
         http://www.chiark.greenend.org.uk/doc/libffi-dev/html/The-Closure-API.html
 
-        The Rebol FFI interface uses this in WRAP-CALLBACK, which lets a
-        Rebol function be called from C, with particular expectations of the
+        The Revolt FFI interface uses this in WRAP-CALLBACK, which lets a
+        Revolt function be called from C, with particular expectations of the
         C data types used to invoke it.  The parameter language and supported
         types used is the same as that in MAKE-ROUTINE.
     }
@@ -34,9 +34,9 @@ Rebol [
         to functions passed by pointer.  This means when a function takes a
         function pointer as an argument, there's not enough information in
         that function's annotated specification to automatically "callbackify"
-        a Rebol ACTION! used as an argument.
+        a Revolt ACTION! used as an argument.
 
-        While Rebol's routine spec language could try and remedy this by
+        While Revolt's routine spec language could try and remedy this by
         forcing function pointer arguments to state precise typing, this
         would be at odds with how the language may work.  e.g. another one
         of the function's parameters may dictate the choice of what type of
@@ -44,10 +44,10 @@ Rebol [
     }
 
     See-Also: {
-        "user natives", which embed a TCC compiler into the Rebol
+        "user natives", which embed a TCC compiler into the Revolt
         executable.  This provides an alternative for those who would prefer
         to write their callbacks directly in C, yet still include that C
-        source in a Rebol module.
+        source in a Revolt module.
     }
 ]
 

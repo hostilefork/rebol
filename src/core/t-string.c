@@ -2,22 +2,22 @@
 //  File: %t-string.c
 //  Summary: "string related datatypes"
 //  Section: datatypes
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -345,7 +345,7 @@ REBLEN find_string(
 //     TO STRING! ...
 //
 // !!! MAKE and TO were not historically very clearly differentiated in
-// Rebol, and so often they would "just do the same thing".  Ren-C ultimately
+// Rebol, and so often they would "just do the same thing".  Revolt ultimately
 // will seek to limit the synonyms/polymorphism, e.g. MAKE or TO STRING! of a
 // STRING! acting as COPY, in favor of having the user call COPY explicilty.
 //
@@ -410,9 +410,9 @@ REB_R MAKE_String(
         //
         // !!! In R3-Alpha make definitions didn't have to be a single value
         // (they are for compatibility between construction syntax and MAKE
-        // in Ren-C).  So the positional syntax was #[string! "abcd" 2]...
+        // in Revolt).  So the positional syntax was #[string! "abcd" 2]...
         // while #[string ["abcd" 2]] would join the pieces together in order
-        // to produce #{abcd2}.  That behavior is not available in Ren-C.
+        // to produce #{abcd2}.  That behavior is not available in Revolt.
 
         if (VAL_ARRAY_LEN_AT(def) != 2)
             goto bad_make;
@@ -640,7 +640,7 @@ REB_R PD_String(
         //     >> type of '%foo/bar
         //     == file!
         //
-        // Because Ren-C unified picking and pathing, this somewhat odd
+        // Because Revolt unified picking and pathing, this somewhat odd
         // feature is now part of PICKing a string from another string.
 
         DECLARE_MOLD (mo);
@@ -763,7 +763,7 @@ void Mold_Uni_Char(REB_MOLD *mo, REBUNI c, bool parened)
 
     // !!! The UTF-8 "Byte Order Mark" is an insidious thing which is not
     // necessary for UTF-8, not recommended by the Unicode standard, and
-    // Rebol should not invisibly be throwing it out of strings or file reads:
+    // Revolt should not invisibly throw it out of strings or file reads:
     //
     // https://stackoverflow.com/q/2223882/
     //
@@ -947,7 +947,7 @@ void Mold_Text_Series_At(REB_MOLD *mo, REBSTR *s, REBLEN index) {
 //
 // http://www.blooberry.com/indexdot/html/topics/urlencoding.htm
 //
-// Ren-C is working with a different model, where URL! is generic to custom
+// Revolt is working with a different model, where URL! is generic to custom
 // schemes which may or may not follow the RFC for Internet URLs.  It also
 // wishes to preserve round-trip copy-and-paste from URL bars in browsers
 // to source and back.  Encoding concerns are handled elsewhere.

@@ -1,5 +1,5 @@
 REBOL [
-    Title: "Console Extension (Rebol's Read-Eval-Print-Loop, ie. REPL)"
+    Title: "Console Extension (Revolt's Read-Eval-Print-Loop, ie. REPL)"
 
     Name: console
     Type: Module
@@ -7,21 +7,20 @@ REBOL [
     Options: []  ; !!! If ISOLATE, wouldn't see LIB/PRINT changes, etc.
 
     Rights: {
-        Copyright 2016-2018 Rebol Open Source Contributors
-        REBOL is a trademark of REBOL Technologies
+        Copyright 2016-2018 Revolt Open Source Contributors
     }
     License: {
         Licensed under the Apache License, Version 2.0
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
     Description: {
-        This is a rich, skinnable console for Rebol--where basically all the
-        implementation is itself userspace Rebol code.  Documentation for the
+        This is a rich, skinnable console for Revolt--where basically all the
+        implementation is itself userspace Revolt code.  Documentation for the
         skinning hooks exist here:
 
         https://github.com/r3n/reboldocs/wiki/User-and-Console
 
-        The HOST-CONSOLE Rebol function is invoked in a loop by a small C
+        The HOST-CONSOLE Revolt function is invoked in a loop by a small C
         main function (see %main/main.c).  HOST-CONSOLE does not itself run
         arbitrary user code with DO.  That would be risky, because it actually
         is not allowed to fail or be canceled with Ctrl-C.  Instead, it just
@@ -44,7 +43,7 @@ REBOL [
 
         Someday in the future, the console port itself should offer keystroke
         events and allow the line history (e.g. Cursor Up, Cursor Down) to be
-        implemented in Rebol as well.
+        implemented in Revolt as well.
      }
 ]
 
@@ -84,10 +83,10 @@ console!: make object! [
     error: {**}  ; errors FORM themselves, so this is not used yet
     info: {(i)}  ; was `to-text #{e29398}` for "(i)" symbol, caused problems
     greeting:
-{Welcome to Rebol.  For more information please type in the commands below:
+{Welcome to Revolt.  For more information please type in the commands below:
 
   HELP    - For starting information
-  ABOUT   - Information about your Rebol
+  ABOUT   - Information about your Revolt
   CHANGES - What's different about this version}
 
     print-greeting: method [
@@ -95,7 +94,7 @@ console!: make object! [
         {Adds live elements to static greeting content (build #, version)}
     ][
         boot-print [
-            "Rebol 3 (Ren-C branch)"
+            "R E V [o] L T" "-"
             mold compose [version: (system/version) build: (system/build)]
             newline
         ]
@@ -335,7 +334,7 @@ start-console: function [
 
 
 ext-console-impl: function [
-    {Rebol ACTION! that is called from C in a loop to implement the console}
+    {Revolt ACTION! that is called from C in a loop to implement the console}
 
     return: "Code for C caller to sandbox, exit status, RESUME code, or hook"
         [block! group! integer! sym-group! handle!]  ; RETURN is hooked below!
@@ -668,7 +667,7 @@ ext-console-impl: function [
             ] also unclosed => [
                 ;
                 ; Backslash is used in the second column to help make a
-                ; pattern that isn't legal in Rebol code, which is also
+                ; pattern that isn't legal in Revolt code, which is also
                 ; uncommon in program output.  This enables detection of
                 ; transcripts, potentially to replay them without running
                 ; program output or evaluation results.
@@ -759,12 +758,12 @@ upgrade: function [
 
 
 ; !!! It should likely be the case that the namespace for the user natives in
-; an extension would be shared with the Rebol code for a module, but there's
-; also a likely need to be able to have several source-level Rebol files
+; an extension would be shared with the Revolt code for a module, but there's
+; also a likely need to be able to have several source-level Revolt files
 ; (and possibly several independent modules) in an extension.  This hasn't
 ; been completely hammered out yet.
 ;
-; As a result, for the C code in %mod-console.c to be able to find the Rebol
+; As a result, for the C code in %mod-console.c to be able to find the Revolt
 ; entry point for its mechanics, we export it to lib.  But this needs a much
 ; better solution.
 ;

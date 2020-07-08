@@ -2,33 +2,33 @@
 //  File: %n-do.c
 //  Summary: "native functions for DO, EVAL, APPLY"
 //  Section: natives
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Ren-C's philosophy of DO is that the argument to it represents a place to
+// Revolt's philosophy of DO is that the argument to it represents a place to
 // find source code.  Hence `DO 3` does not evaluate to the number 3, any
 // more than `DO "print hello"` would evaluate to `"print hello"`.  If a
 // generalized evaluator is needed, use the special-purpose function EVAL.
 //
 // Note that although the code for running blocks and frames is implemented
 // here as C, the handler for processing STRING!, FILE!, TAG!, URL!, etc. is
-// dispatched out to some Rebol code.  See `system/intrinsic/do*`.
+// dispatched out to some Revolt code.  See `system/intrinsic/do*`.
 //
 
 #include "sys-core.h"
@@ -402,13 +402,13 @@ REBNATIVE(do)
         // and "FAIL X" more clearly communicates a failure than "DO X"
         // does.  However DO of an ERROR! would have to raise an error
         // anyway, so it might as well raise the one it is given...and this
-        // allows the more complex logic of FAIL to be written in Rebol code.
+        // allows the more complex logic of FAIL to be written in Revolt code.
         //
         fail (VAL_CONTEXT(source));
 
       case REB_ACTION: {
         //
-        // Ren-C will only run arity 0 functions from DO, otherwise EVAL
+        // Revolt will only run arity 0 functions from DO, otherwise REEVAL
         // must be used.  Look for the first non-local parameter to tell.
         //
         REBVAL *param = ACT_PARAMS_HEAD(VAL_ACTION(source));
@@ -419,7 +419,7 @@ REBNATIVE(do)
             ++param;
         }
         if (NOT_END(param))
-            fail (Error_Use_Eval_For_Eval_Raw());
+            fail (Error_Use_Reeval_For_Do_Raw());
 
         if (Eval_Value_Throws(D_OUT, source, SPECIFIED))
             return R_THROWN;
@@ -482,7 +482,7 @@ REBNATIVE(do)
         break;
     }
 
-    fail (Error_Use_Eval_For_Eval_Raw()); // https://trello.com/c/YMAb89dv
+    fail (Error_Use_Reeval_For_Do_Raw());  // https://trello.com/c/YMAb89dv
 }
 
 

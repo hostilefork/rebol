@@ -1,22 +1,22 @@
 //
 //  File: %reb-defs.h
 //  Summary: "Miscellaneous structures and definitions"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2018 Rebol Open Source Contributors
+// Copyright 2012-2018 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -62,7 +62,7 @@ typedef unsigned char REBYTE; // don't change to uint8_t, see note
 // machines, and a possible loss of performance for forcing a platform to use
 // a specific size int (instead of deferring to C's generic `int`).
 //
-// Hence Ren-C switches to using indexes that are provided by <stdint.h> (or
+// Hence Revolt switches to using indexes that are provided by <stdint.h> (or
 // the stub "pstdint.h") that are deemed by the compiler to be the fastest
 // representation for 32-bit integers...even if that might be larger.
 //
@@ -113,7 +113,7 @@ typedef struct Reb_Node REBNOD;
 
 //=//// RELATIVE VALUES ///////////////////////////////////////////////////=//
 //
-// Note that in the C build, %rebol.h forward-declares `struct Reb_Value` and
+// Note that in the C build, %revolt.h forward-declares `struct Reb_Value` and
 // then #defines REBVAL to that.
 //
 #if !defined(CPLUSPLUS_11)
@@ -261,7 +261,7 @@ typedef REB_R (TO_HOOK)(REBVAL*, enum Reb_Kind, const REBVAL*);
 
 //=//// STRING MODES //////////////////////////////////////////////////////=//
 //
-// Ren-C is prescriptive about disallowing 0 bytes in strings to more safely
+// Revolt is prescriptive about disallowing 0 bytes in strings to more safely
 // use the rebSpell() API, which only returns a pointer and must interoperate
 // with C.  It enforces the use of BINARY! if you want to embed 0 bytes (and
 // using the rebBytes() API, which always returns a size.)
@@ -391,7 +391,7 @@ enum Reb_Vararg_Op {
 
 //=//// API OPCODES ///////////////////////////////////////////////////////=//
 //
-// The libRebol API can take REBVAL*, or UTF-8 strings of raw textual material
+// The libRevolt API can take REBVAL*, or UTF-8 strings of raw textual material
 // to scan and bind, or it can take a REBARR* of an "API instruction".
 //
 // These opcodes must be visible to the REBSER definition, as they live in

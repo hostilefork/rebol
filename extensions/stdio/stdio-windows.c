@@ -1,22 +1,22 @@
 //
 //  File: %dev-stdio.c
 //  Summary: "Device: Standard I/O for Win32"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -30,15 +30,15 @@
 
 // !!! Read_IO writes directly into a BINARY!, whose size it needs to keep up
 // to date (in order to have it properly terminated and please the GC).  At
-// the moment it does this with the internal API, though libRebol should
+// the moment it does this with the internal API, though libRevolt should
 // hopefully suffice in the future.  This is part of an ongoing effort to
-// make the device layer work more in the vocabulary of Rebol types.
+// make the device layer work more in the vocabulary of Revolt types.
 //
 #include "sys-core.h"
 
 #include "readline.h"
 
-#if defined(REBOL_SMART_CONSOLE)
+#if defined(REVOLT_SMART_CONSOLE)
     extern STD_TERM *Term_IO;
 #endif
 
@@ -76,7 +76,7 @@ DEVICE_CMD Quit_IO(REBREQ *dr)
 {
     REBDEV *dev = (REBDEV*)dr; // just to keep compiler happy above
 
-  #if defined(REBOL_SMART_CONSOLE)
+  #if defined(REVOLT_SMART_CONSOLE)
     if (Term_IO)
         Quit_Terminal(Term_IO);
     Term_IO = nullptr;
@@ -125,7 +125,7 @@ DEVICE_CMD Open_IO(REBREQ *io)
             );
         }
 
-      #if defined(REBOL_SMART_CONSOLE)
+      #if defined(REVOLT_SMART_CONSOLE)
         //
         // We can't sensibly manage the character position for an editing
         // buffer if either the input or output are redirected.  This means
@@ -181,13 +181,13 @@ DEVICE_CMD Write_IO(REBREQ *io)
     if (Stdout_Handle == nullptr)
         return DR_DONE;
 
-  #if defined(REBOL_SMART_CONSOLE)
+  #if defined(REVOLT_SMART_CONSOLE)
     if (Term_IO) {
         if (req->modes & RFM_TEXT) {
             //
             // !!! This is a wasteful step as the text initially came from
-            // a Rebol TEXT! :-/  But moving this one step at a time, to
-            // where the device layer speaks in terms of Rebol datatypes.
+            // a Revolt TEXT! :-/  But moving this one step at a time, to
+            // where the device layer speaks in terms of Revolt datatypes.
             //
             REBVAL *text = rebSizedText(s_cast(req->common.data), req->length);
             Term_Insert(Term_IO, text);
@@ -256,7 +256,7 @@ DEVICE_CMD Write_IO(REBREQ *io)
         // answer for C89 builds on arbitrarily limited platforms, vs.
         // catering to it here.
         //
-      #if defined(REBOL_SMART_CONSOLE)
+      #if defined(REVOLT_SMART_CONSOLE)
         assert(Redir_Inp or Redir_Out);  // should have used smarts otherwise
       #endif
 
@@ -267,7 +267,7 @@ DEVICE_CMD Write_IO(REBREQ *io)
             // but this could be changed.
         }
 
-        // !!! Historically, Rebol on Windows automatically "enlined" strings
+        // !!! Historically, Revolt on Windows automatically "enlined" strings
         // on write to turn LF to CR LF.  This was done in Prin_OS_String().
         // However, the current idea is to be more prescriptive and not
         // support this without a special codec.  In lieu of a more efficient
@@ -332,7 +332,7 @@ DEVICE_CMD Read_IO(REBREQ *io)
     // the plain ReadFile() style calls are byte-oriented, so you get whatever
     // code page is in use.  This is good for UTF-8 files, but would need
     // some kind of conversion to get better than ASCII on systems without
-    // the REBOL_SMART_CONSOLE setting.
+    // the REVOLT_SMART_CONSOLE setting.
 
     DWORD bytes_to_read = req->length;
 

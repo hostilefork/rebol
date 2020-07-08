@@ -2,22 +2,22 @@
 //  File: %n-system.c
 //  Summary: "native functions for system operations"
 //  Section: natives
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -71,17 +71,17 @@ REBNATIVE(quit)
 
 
 //
-//  exit-rebol: native [
+//  exit-revolt: native [
 //
-//  {Stop the current Rebol interpreter (cannot be caught by CATCH/QUIT)}
+//  {Stop the current Revolt interpreter (cannot be caught by CATCH/QUIT)}
 //
 //      status "See: http://en.wikipedia.org/wiki/Exit_status"
 //          [<opt> <end> integer!]
 //  ]
 //
-REBNATIVE(exit_rebol)
+REBNATIVE(exit_revolt)
 {
-    INCLUDE_PARAMS_OF_EXIT_REBOL;
+    INCLUDE_PARAMS_OF_EXIT_REVOLT;
 
     int status;
     if (IS_NULLED(ARG(status)))
@@ -225,7 +225,7 @@ REBNATIVE(check)
 //
 // This forces an integrity check to run on a series.  In R3-Alpha there was
 // no debug build, so this was a simple validity check and it returned an
-// error on not passing.  But Ren-C is designed to have a debug build with
+// error on not passing.  But Revolt is designed to have a debug build with
 // checks that aren't designed to fail gracefully.  So this just runs that
 // assert rather than replicating code here that can "tolerate" a bad series.
 // Review the necessity of this native.
@@ -331,12 +331,12 @@ REBNATIVE(c_debug_break_at)
   #if !defined(NDEBUG) && defined(DEBUG_COUNT_TICKS)
     if (REF(compensate)) {
         //
-        // Imagine two runs of Rebol console initialization.  In the first,
+        // Imagine two runs of Revolt console initialization.  In the first,
         // the tick count is 304 when C-DEBUG-BREAK/COMPENSATE is called,
         // right after command line parsing.  Later on a panic() is hit and
         // reports tick count 1020 in the crash log.
         //
-        // Wishing to pick apart the bug before it happens, the Rebol Core
+        // Wishing to pick apart the bug before it happens, the Revolt Core
         // Developer then re-runs the program with `--breakpoint=1020`, hoping
         // to break at that tick, to catch the downstream appearance of the
         // tick in the panic().  But since command-line processing is in

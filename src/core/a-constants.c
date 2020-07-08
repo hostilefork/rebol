@@ -2,29 +2,28 @@
 //  File: %a-constants.c
 //  Summary: "Special global constants, scanned to make %tmp-constants.h"
 //  Section: environment
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2018 Rebol Open Source Contributors
+// Copyright 2012-2018 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Most text strings in Rebol should appear in the bootstrap files as Rebol
+// Most text strings in Revolt should appear in the bootstrap files as Revolt
 // code.  This allows for "internationalization" without needing to update
-// the C code.  Other advantages are that the strings are compressed,
-// "reduces tampering", etc.
+// the C code.  Another advantage is that the strings are compressed.
 //
 // So to keep track of any stray English strings in the executable which make
 // it into the user's view, they should be located here.
@@ -41,22 +40,22 @@
 
 #include "reb-config.h"
 
-#include <stdlib.h> // size_t and other types used in rebol.h
-#include "pstdint.h" // polyfill <stdint.h> for pre-C99/C++11 compilers
-#include "pstdbool.h" // polyfill <stdbool.h> for pre-C99/C++11 compilers
-#if !defined(REBOL_IMPLICIT_END)
-    #define REBOL_EXPLICIT_END // ensure core compiles with pre-C99/C++11
+#include <stdlib.h>  // size_t and other types used in revolt.h
+#include "pstdint.h"  // polyfill <stdint.h> for pre-C99/C++11 compilers
+#include "pstdbool.h"  // polyfill <stdbool.h> for pre-C99/C++11 compilers
+#if !defined(REVOLT_IMPLICIT_END)
+    #define REVOLT_EXPLICIT_END  // ensure core compiles with pre-C99/C++11
 #endif
-#include "rebol.h"
+#include "revolt.h"
 
-#include "tmp-constants.h" // need the extern definitions
+#include "tmp-constants.h"  // need the extern definitions
 
 const char Str_REBOL[] = "REBOL";
 
 // A panic() indicates a serious malfunction, and should not make use of
-// Rebol-structured error message delivery in the release build.
+// Revolt-structured error message delivery in the release build.
 
-const char Str_Panic_Title[] = "Rebol Internal Error";
+const char Str_Panic_Title[] = "Revolt Internal Error";
 
 const char Str_Panic_Directions[] = {
     "If you need to file a bug in the issue tracker, please give thorough\n"
@@ -70,7 +69,7 @@ const char Str_Panic_Directions[] = {
 const char * Hex_Digits = "0123456789ABCDEF";
 
 const char * const Esc_Names[] = {
-    // Must match enum REBOL_Esc_Codes!
+    // Must match enum Esc_Codes!
     "line",
     "tab",
     "page",
@@ -82,7 +81,7 @@ const char * const Esc_Names[] = {
 };
 
 const unsigned char Esc_Codes[] = {
-    // Must match enum REBOL_Esc_Codes!
+    // Must match enum Esc_Names!
     10,     // line
     9,      // tab
     12,     // page

@@ -2,23 +2,21 @@
 //  File: %mod-crypt.c
 //  Summary: "Native Functions for Cryptography"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Copyright 2012 REBOL Technologies
 // Copyright 2012 Saphirion AG
-// Copyright 2012-2020 Rebol Open Source Contributors
-// REBOL is a trademark of REBOL Technologies
+// Copyright 2012-2020 Revolt Open Source Contributors
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -202,7 +200,7 @@ REBNATIVE(checksum)
 
     // Turn the method into a string and look it up in the table that mbedTLS
     // builds in when you `#include "md.h"`.  How many entries are in this
-    // table depend on the config settings (see %mbedtls-rebol-config.h)
+    // table depend on the config settings (see %mbedtls-revolt-config.h)
     //
     char *method_name = rebSpellQ(
         "all [", REF(method), REF(settings), "] then [",
@@ -262,7 +260,7 @@ REBNATIVE(checksum)
     // !!! Note: There used to be entries in %words.r for the methods.  It
     // is proposed that extensions be able to plug into an agreed upon
     // (but not shipped in the executable) allocation of words to numbers
-    // in order to do faster lookups from C.  For now we use libRebol.
+    // in order to do faster lookups from C.  For now we use libRevolt.
     //
     if (rebDidQ("'CRC24 =", ARG(method), rebEND)) {
         Init_Integer(D_OUT, Compute_CRC24(data, len));
@@ -309,7 +307,7 @@ REBNATIVE(checksum)
 //=//// INDIVIDUAL CRYPTO NATIVES /////////////////////////////////////////=//
 //
 // These natives are the hodgepodge of choices that implemented "enough TLS"
-// to let Rebol communicate with HTTPS sites.  The first ones originated
+// to let R3-Alpha communicate with HTTPS sites.  The first ones originated
 // from Saphirion's %host-core.c:
 //
 // https://github.com/zsx/r3/blob/atronix/src/os/host-core.c
@@ -462,7 +460,7 @@ REBNATIVE(rsa)
         REBVAL *qinv = rebValue("ensure binary! pick", obj, "'qinv", rebEND);
 
         // !!! Because BINARY! is not locked in memory or safe from GC, the
-        // libRebol API doesn't allow direct pointer access.  Use the
+        // libRevolt API doesn't allow direct pointer access.  Use the
         // internal VAL_BIN_AT for now, but consider if a temporary locking
         // should be possible...locked until released.
         //
@@ -503,7 +501,7 @@ REBNATIVE(rsa)
         rebRelease(qinv);
     }
 
-    // !!! See notes above about direct binary access via libRebol
+    // !!! See notes above about direct binary access via libRevolt
     //
   blockscope {
     REBYTE *dataBuffer = VAL_BIN_AT(ARG(data));
@@ -825,7 +823,7 @@ REBNATIVE(dh_compute_secret)
                 "{Suspiciously poor base and modulus usage was detected.}",
                 "{It's unwise to use random primes vs. constructed ones.}",
                 "{https://www.cl.cam.ac.uk/~rja14/Papers/psandqs.pdf}",
-                "{If keys originated from Rebol, please report this!}",
+                "{If keys originated from Revolt, please report this!}",
             "]",
             rebEND);
     }
@@ -1103,7 +1101,7 @@ REBNATIVE(ecc_generate_keypair)
         nullptr  // p_rng, parameter tunneled to random generator (unused atm)
     ));
 
-    // Allocate into memory that can be retaken directly as BINARY! in Rebol
+    // Allocate into memory that can be retaken directly as BINARY! in Revolt
     //
   blockscope {
     uint8_t *p_publicX = rebAllocN(uint8_t, num_bytes);

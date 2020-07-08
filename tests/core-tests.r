@@ -15,7 +15,7 @@
 ;
 ; *****************************************************************************
 
-%api/librebol.test.reb
+%api/librevolt.test.reb
 
 %datatypes/action.test.reb
 %datatypes/binary.test.reb

@@ -2,7 +2,7 @@
 //  File: %mod-secure.c
 //  Summary: "SECURE extension"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
@@ -12,11 +12,11 @@
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -54,7 +54,7 @@ enum Reb_Security_Byte_Offsets {
 // Compare two file path series and return true if s1 is a subpath of s2.
 // Case insensitive.
 //
-// !!! This C code would likely be better as Rebol in %ext-secure-init.reb
+// !!! This C code would likely be better as Revolt in %ext-secure-init.reb
 //
 bool Match_Sub_Path(REBSTR *s1, REBSTR *s2)
 {
@@ -205,7 +205,7 @@ void Trap_Security(REBLEN flag, REBSTR *subsystem, const REBVAL *value)
 // !!! To keep this stub routine from being included by things like the
 // JavaScript extension, the places that used to call it instead call the
 // `Check_Security_Placeholder()` function.  A real solution would be done
-// via a Rebol routine or HIJACK, which would permit dynamic linking.
+// via a Revolt routine or HIJACK, which would permit dynamic linking.
 //
 void Check_Security(
     REBSTR *subsystem,  // e.g. FILE, DEBUG, MEMORY, CALL

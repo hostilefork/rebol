@@ -433,7 +433,7 @@ echo "$R3_EXIT_STATUS"
 # do a simple test that does a TCC fibonnaci calculation.
 
 # The TCC extension currently looks at the environment variable
-# LIBREBOL_INCLUDE_DIR to find "rebol.h".  Ultimately, this should be
+# LIBREVOLT_INCLUDE_DIR to find "rebol.h".  Ultimately, this should be
 # shipped with the TCC extension.  (It may be desirable to embed it,
 # but it also may be desirable to have a copy that a file can find
 # via `#include "rebol.h"`)
@@ -441,7 +441,7 @@ echo "$R3_EXIT_STATUS"
 # (export is so that the child process can see the environment variable)
 #
 echo "Note: CONFIG_TCCDIR is ${CONFIG_TCCDIR}"
-export LIBREBOL_INCLUDE_DIR="${TOP_DIR}/build/prep/include"
+export LIBREVOLT_INCLUDE_DIR="${TOP_DIR}/build/prep/include"
 if [[ (! -z $TCC) && ($TCC != no) ]]; then
   if [[ $OS_ID = 0.4.40 ]]; then
     $RUNNER ./r3 ../extensions/tcc/tests/fib.r
@@ -455,7 +455,7 @@ if [[ (! -z $TCC) && ($TCC != no) ]]; then
     # environment variable and uses hardcoded output of `gcc -v m32`
     # for library directories to override `/usr/lib` with.
     #
-    export REBOL_TCC_EXTENSION_32BIT_ON_64BIT=1
+    export REVOLT_TCC_EXTENSION_32BIT_ON_64BIT=1
     $RUNNER ./r3 ../extensions/tcc/tests/fib.r
     R3_EXIT_STATUS=$?
   fi

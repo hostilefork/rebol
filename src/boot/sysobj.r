@@ -1,5 +1,5 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "System object"
     Rights: {
         Copyright 2012 REBOL Technologies
@@ -106,7 +106,7 @@ set in locale 'library make object! [
 ]
 
 options: make object! [  ; Options supplied to REBOL during startup
-    bin: _          ; Path to directory where Rebol executable binary lives
+    bin: _          ; Path to directory where Revolt executable binary lives
     boot: _         ; Path of executable, ie. system/options/bin/r3-exe
     home: _         ; Path of home directory
     resources: _    ; users resources directory (for %user.r, skins, modules etc)
@@ -278,7 +278,7 @@ standard: make object! [
         ; a known location for all port types.  So it was moved here to be
         ; findable in the standard port object's layout.
         ;
-        ; !!! Solving R3-Alpha's legacy port model isn't a Ren-C priority, but
+        ; !!! Solving R3-Alpha's port model isn't a Revolt priority, but
         ; this is needed so `httpd.reb` is robust when connections close:
         ;
         ; https://github.com/metaeducation/rebol-httpd/issues/4
@@ -286,9 +286,9 @@ standard: make object! [
         error: _
 
         ; !!! The `connections` field is a BLOCK! used only by TCP listen
-        ; ports.  Since it is a Rebol series value, the GC needs to be aware
+        ; ports.  Since it is a Revolt series value, the GC needs to be aware
         ; of it, so it can't be in the port-subtype-specific REBREQ data.
-        ; As REBREQ migrates to being Rebol-valued per-port data, this should
+        ; As REBREQ migrates to being Revolt-valued per-port data, this should
         ; be a field only in those TCP listening ports...
         ;
         connections:
@@ -346,7 +346,7 @@ standard: make object! [
     ; SPEC-OF INTEGER! or similar, you would not just get a textual name for
     ; it but optionally other information (like numeric limits).  The gist is
     ; reasonable, though having arbitrary precision integers is more useful.
-    ; Since the feature was never developed, Ren-C merged the %typespec.r
+    ; Since the feature was never developed, Revolt merged the %typespec.r
     ; descriptions into the %types.r for easier maintenance.  So all that's
     ; left is the name, but an object is synthesized on SPEC OF requests just
     ; as a placeholder to remember the idea.
@@ -366,7 +366,7 @@ view: make object! [
     event-port: _
 
     ; !!! The event-types list used to be fixed and built into a separate
-    ; enum.  Now it is done with Rebol symbols.  Hence, these get uint16_t
+    ; enum.  Now it is done with Revolt symbols.  Hence, these get uint16_t
     ; identifiers.  However, symbol numbers are hypothesized to be expandable
     ; via a pre-published dictionary of strings, committed to as a registry.
     ;

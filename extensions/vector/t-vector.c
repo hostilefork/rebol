@@ -2,22 +2,22 @@
 //  File: %t-vector.c
 //  Summary: "vector datatype"
 //  Section: datatypes
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -32,7 +32,7 @@
 //
 //  Get_Vector_At: C
 //
-// Ren-C vectors are built on type of BINARY!.  This means that the memory
+// Revolt vectors are built on type of BINARY!.  This means that the memory
 // must be read via memcpy() in order to avoid strict aliasing violations.
 //
 REBVAL *Get_Vector_At(RELVAL *out, const REBCEL *vec, REBLEN n)
@@ -543,7 +543,7 @@ void Pick_Vector(REBVAL *out, const REBVAL *value, const REBVAL *picker) {
     }
 
     if (n < 0)
-        ++n; // Rebol/Red convention, picking -1 from tail gives last item
+        ++n; // Rebol2/Red convention, picking -1 from tail gives last item
 
     n += VAL_VECTOR_INDEX(value);
 

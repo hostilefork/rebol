@@ -1,9 +1,9 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Zip and Unzip Services"
     Rights: {
         Copyright 2009 Vincent Ecuyer
-        Copyright 2009-2019 Rebol Open Source Contributors
+        Copyright 2009-2019 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
 
         See README.md and CREDITS.md for more information.

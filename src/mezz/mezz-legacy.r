@@ -1,9 +1,9 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "REBOL 3 Mezzanine: Legacy compatibility"
     Homepage: https://trello.com/b/l385BE7a/porting-guide
     Rights: {
-        Copyright 2012-2018 Rebol Open Source Contributors
+        Copyright 2012-2018 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -51,7 +51,7 @@ input: does [ask text!]
 
 === EXTENSION DATATYPE DEFINITIONS ===
 
-; Even though Ren-C does not build in things like IMAGE! or GOB! to the core,
+; Even though Revolt does not build in things like IMAGE! or GOB! to the core,
 ; there's a mechanical issue about the words for the datatypes being defined
 ; so that the extension can load.  This means at least some kind of stub type
 ; has to be available when the specs are being processed, else they could not
@@ -84,7 +84,7 @@ library?: typechecker library!
 ;
 ; Note: Historically OBJECT was essentially a synonym for CONTEXT with the
 ; ability to tolerate a spec of `[a:]` by transforming it to `[a: none].
-; Ren-C hasn't decided yet, but will likely support `construct [a: b: c:]`
+; Revolt hasn't decided yet, but will likely support `construct [a: b: c:]`
 ;
 context: specialize 'make [type: object!]
 
@@ -178,7 +178,7 @@ join-of: func [] [
 ]
 
 
-; REJOIN in R3-Alpha meant "reduce and join"; the idea of JOIN in Ren-C
+; REJOIN in R3-Alpha meant "reduce and join"; the idea of JOIN in Revolt
 ; already implies reduction of the appended data.  JOIN-ALL is a friendlier
 ; name, suggesting the join result is the type of the first reduced element.
 ;
@@ -234,9 +234,9 @@ apply: func [dummy:] [
     fail 'dummy [
         {APPLY is being reverted to a reimagination of the positional}
         {APPLY from Rebol2/R3-Alpha, but with a different way of dealing with}
-        {refinements.  The Ren-C APPLY experiment has been moved to the name}
+        {refinements.  The Revolt APPLY experiment has been moved to the name}
         {APPLIQUE, which runs a block of code that is bound into a frame.}
-        {APPLY will be reverted when all Ren-C style apply are switched to}
+        {APPLY will be reverted when all Revolt style apply are switched to}
         {use APPLIQUE.}  https://forum.rebol.info/t/1103
     ]
 ]

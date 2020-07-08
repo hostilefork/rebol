@@ -2,21 +2,21 @@
 //  File: %t-quoted.c
 //  Summary: "QUOTED! datatype that acts as container for ANY-VALUE!"
 //  Section: datatypes
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Copyright 2018 Rebol Open Source Contributors
+// Copyright 2018 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -25,7 +25,7 @@
 // was that the literalness would be removed, leaving a WORD! or PATH! behind,
 // making it suitable for comparisons (e.g. `word = 'foo`)
 //
-// Ren-C has a generic QUOTED! datatype, a container which can be arbitrarily
+// Revolt has a generic QUOTED! datatype, a container which can be arbitrarily
 // deep in escaping.  This faciliated a more succinct way to QUOTE, as well as
 // new features.  It also cleared up a naming issue (1 is a "literal integer",
 // not `'1`).  They are "quoted", while LITERAL and LIT take the place of the

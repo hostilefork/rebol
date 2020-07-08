@@ -4,7 +4,7 @@ REBOL [
 
     ; !!! This file can't be `Type: 'Module`, it needs MAKE-EMITTER, CSCAPE,
     ; etc. in the user context and thus isn't isolated.  It is run directly by
-    ; a DO from the C libRebol prep script, so that it will have the
+    ; a DO from the C libRevolt prep script, so that it will have the
     ; structures and helpers set up to process API endpoints.  However, the
     ; ability to do this should be offered as a general build system hook
     ; to extensions (also needed by the TCC extension)
@@ -24,7 +24,7 @@ REBOL [
 
         https://emscripten.org/docs/porting/connecting_cpp_and_javascript/Interacting-with-code.html
 
-        However, libRebol makes extensive use of variadic functions, which
+        However, libRevolt makes extensive use of variadic functions, which
         means it needs to do interact with the `va_list()` convention.
         This is beyond the C standard and each compiler can implement it
         differently.  But it was reverse-engineered from emcc/clang build
@@ -523,7 +523,7 @@ e-cwrap/emit {
 
     /* !!! reb.T()/reb.I()/reb.L() could be optimized entry points, but make
      * them compositions for now, to ensure that it's possible for the user to
-     * do the same tricks without resorting to editing libRebol's C code.
+     * do the same tricks without resorting to editing libRevolt's C code.
      */
 
     reb.T = function(utf8) {
@@ -546,7 +546,7 @@ e-cwrap/emit {
         _RL_rebStartup()
 
         /* reb.END is a 2-byte sequence that must live at some address
-         * it must be initialized before any variadic libRebol API will work
+         * it must be initialized before any variadic libRevolt API will work
          */
         reb.END = _malloc(2)
         setValue(reb.END, -127, 'i8')  /* 0x80 */
@@ -590,7 +590,7 @@ e-cwrap/emit {
     }
 
     /*
-     * JS-NATIVE has a spec which is a Rebol block (like FUNC) but a body that
+     * JS-NATIVE has a spec which is a BLOCK! (like FUNC) but a body that
      * is a TEXT! of JavaScript code.  For efficiency, that text is made into
      * a function one time (as opposed to eval()'d each time).  The function
      * is saved in this map, where the key is the heap pointer that identifies
@@ -630,7 +630,7 @@ e-cwrap/emit {
          *
          * !!! For efficiency we could fold this into reb.Promise(), so that
          * if someone does `await reb.Promise()` they don't have to explicitly
-         * make it cancelable, but we'd have to recognize Rebol promises.
+         * make it cancelable, but we'd have to recognize Revolt promises.
          */
 
         let cancel  /* defined inside promise scope, but added to promise */
@@ -689,7 +689,7 @@ e-cwrap/emit {
 
     reb.Halt = function() {
         /*
-         * Standard request to the interpreter not to perform any more Rebol
+         * Standard request to the interpreter not to perform any more Revolt
          * evaluations...next evaluator step forces a THROW of a HALT signal.
          */
         _RL_rebHalt()
@@ -726,8 +726,8 @@ e-cwrap/emit {
             if (arguments.length > 1)
                 throw Error("JS-NATIVE's return/resolve() takes 1 argument")
 
-            /* JS-AWAITER results become Rebol ACTION! returns, and must be
-             * received by arbitrary Rebol code.  Hence they can't be any old
+            /* JS-AWAITER results become Revolt ACTION! returns, and must be
+             * received by arbitrary Revolt code.  Hence they can't be any old
              * JavaScript object...they must be a REBVAL*, today a raw heap
              * address (Emscripten uses "number", someday that could be
              * wrapped in a specific JS object type).  Also allow null and
@@ -769,7 +769,7 @@ e-cwrap/emit {
              * likely "bubble up" policy will always make catch arguments a
              * JavaScript Error(), even if it's wrapping a REBVAL* ERROR! as
              * a data member.  It may-or-may-not make sense to prohibit raw
-             * Rebol values here.
+             * Revolt values here.
              */
 
             if (typeof rej == "number")
@@ -892,7 +892,7 @@ e-cwrap/write-emitted
 === GENERATE EMSCRIPTEN KEEPALIVE LIST ===
 
 ; It is possible to tell the linker what functions to keep alive via the
-; EMSCRIPTEN_KEEPALIVE annotation.  But we don't want %rebol.h to be dependent
+; EMSCRIPTEN_KEEPALIVE annotation.  But we don't want %revolt.h to depend
 ; upon the emscripten header.  Since it's possible to use a JSON file to
 ; specify the list with EXPORTED_FUNCTIONS (via an @), we use that instead.
 ;
@@ -929,12 +929,12 @@ write output-dir/libr3.exports.json json-collect [
 ; https://emscripten.org/docs/porting/asyncify.html#optimizing
 ;
 ; While the list expected by Emscripten is JSON, that doesn't support comments
-; so we transform it from Rebol.
+; so we transform it from Revolt.
 ;
 ; <review> ; IN LIGHT OF ASYNCIFY
 ; Beyond speed, an API marked in the blacklist has the special ability of
 ; still being run while in the yielding state (a feature added to Emscripten
-; due to a Ren-C request):
+; due to a Revolt request):
 ;
 ; https://stackoverflow.com/q/51204703/
 ;

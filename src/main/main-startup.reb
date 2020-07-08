@@ -1,10 +1,10 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Command line processing and startup code called by %main.c"
     File: %main-startup.r
     Rights: {
         Copyright 2012 REBOL Technologies
-        Copyright 2012-2019 Rebol Open Source Contributors
+        Copyright 2012-2019 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -12,7 +12,7 @@ REBOL [
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
     Description: {
-        This is the Rebol code called by %main.c that handles things like
+        This is the Revolt code called by %main.c that handles things like
         loading boot extensions, doing command-line processing, and getting
         things otherwise set up for running the console.
 
@@ -79,11 +79,11 @@ make-banner: function [
 boot-banner: [
     *
     -
-    "REBOL 3.0 (Ren-C branch)"
+    "R E V [o] L T"
     -
     = Copyright: "2012 REBOL Technologies"
-    = Copyright: "2012-2017 Rebol Open Source Contributors"
-    = "" "Apache 2.0 License, see LICENSE."
+    = Copyright: "2012-2020 Revolt Open Source Contributors"
+    = "" "LGPL 3 License, see LICENSE."
     = Website:  "http://github.com/metaeducation/ren-c"
     -
     = Version:   system/version
@@ -101,7 +101,7 @@ boot-banner: [
 ]
 
 about: function [
-    "Information about REBOL"
+    "Information about REVOLT"
     return: <void>
 ][
     print make-banner boot-banner
@@ -127,7 +127,7 @@ usage: function [
     print trim/auto copy {
     Command line usage:
 
-        REBOL [options] [script] [arguments]
+        REVOLT [options] [script] [arguments]
 
     Standard options:
 
@@ -158,21 +158,21 @@ usage: function [
 
     Examples:
 
-        REBOL script.reb
-        REBOL -s script.reb
-        REBOL script.reb 10:30 test@example.com
-        REBOL --do "print 1 + 1"
-        #!/sbin/REBOL -cs
+        REVOLT script.reb
+        REVOLT -s script.reb
+        REVOLT script.reb 10:30 test@example.com
+        REVOLT --do "print 1 + 1"
+        #!/sbin/REVOLT -cs
 
     Console (no script/arguments or Standard option used):
 
-        REBOL
-        REBOL -q --about --suppress "%rebol.reb %user.reb"
+        REVOLT
+        REVOLT -q --about --suppress "%rebol.reb %user.reb"
     }
 ]
 
 license: function [
-    "Prints the REBOL/core license agreement."
+    "Prints the REVOLT/core license agreement."
     return: <void>
 ][
     print system/license
@@ -438,7 +438,7 @@ main-startup: function [
         ; lives under systems/options/home
 
         path: join o/home switch system/platform/1 [
-            'Windows [%REBOL/]
+            'Windows [%REBOL/]  ; Leaving as REBOL for compatibility, for now
         ] else [
             %.rebol/  ; default *nix (covers Linux, MacOS (OS X) and Unix)
         ]

@@ -1,22 +1,22 @@
 //
 //  File: %sys-path.h
 //  Summary: "Definition of Structures for Path Processing"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -62,7 +62,7 @@
 //     >> probe code
 //     [1-Dec-2012/day: 1]
 //
-// Ren-C has largely punted on resolving these particular questions in order
+// Revolt has largely punted on resolving these particular questions in order
 // to look at "more interesting" ones.  However, names and functions have
 // been updated during investigation of what was being done.
 //
@@ -172,7 +172,7 @@ inline static void Set_Path_Core(  // !!! Appears to be unused.  Unnecessary?
 }
 
 
-// Ren-C has no REFINEMENT! datatype, so `/foo` is a PATH!, which generalizes
+// Revolt has no REFINEMENT! datatype, so `/foo` is a PATH!, which generalizes
 // to where `/foo/bar` is a PATH! as well, etc.
 //
 // !!! Optimizations are planned to allow single element paths to fit in just

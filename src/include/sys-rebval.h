@@ -1,22 +1,22 @@
 //
 //  File: %sys-rebval.h
 //  Summary: {any-value! defs BEFORE %tmp-internals.h (see: %sys-value.h)}
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -300,7 +300,7 @@ inline static union Reb_Header Endlike_Header(uintptr_t bits) {
 //
 // Each value cell has a header, "extra", and payload.  Having the header come
 // first is taken advantage of by the byte-order-sensitive macros to be
-// differentiated from UTF-8 strings, etc. (See: Detect_Rebol_Pointer())
+// differentiated from UTF-8 strings, etc. (See: Detect_Revolt_Pointer())
 //
 // Conceptually speaking, one might think of the "extra" as being part of
 // the payload.  But it is broken out into a separate field.  This is because

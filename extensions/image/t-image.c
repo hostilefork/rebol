@@ -2,22 +2,22 @@
 //  File: %t-image.c
 //  Summary: "image datatype"
 //  Section: datatypes
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -287,7 +287,7 @@ REB_R MAKE_Image(
             // image unless it has all the RGBA components together.  While
             // some MAKE-like procedure might allow you to pass in separate
             // components, the value of a system one is to use the data
-            // directly as-is...so Ren-C only supports RGBA.
+            // directly as-is...so Revolt only supports RGBA.
 
             if (VAL_INDEX(item) != 0)
                 fail ("MAKE IMAGE! w/BINARY! must have binary at HEAD");

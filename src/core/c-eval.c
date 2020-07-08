@@ -1,22 +1,22 @@
 //
 //  File: %c-eval.c
 //  Summary: "Central Interpreter Evaluator"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -59,7 +59,7 @@
 //
 // * The evaluator only moves forward, and operates on a strict window of
 //   visibility of two elements at a time (current position and "lookback").
-//   See `Reb_Feed` for the code that provides this abstraction over Rebol
+//   See `Reb_Feed` for the code that provides this abstraction over Revolt
 //   arrays as well as C va_list.
 //
 
@@ -572,7 +572,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
 
 //=//// LOOKAHEAD FOR ENFIXED FUNCTIONS THAT QUOTE THEIR LEFT ARG /////////=//
 
-    // Ren-C has an additional lookahead step *before* an evaluation in order
+    // Revolt has an additional lookahead step *before* an evaluation in order
     // to take care of this scenario.  To do this, it pre-emptively feeds the
     // frame one unit that f->value is the *next* value, and a local variable
     // called "current" holds the current head of the expression that the
@@ -897,7 +897,7 @@ bool Eval_Internal_Maybe_Stale_Throws(REBFRM * const f)
     //=//// UNSPECIALIZED REFINEMENT SLOT /////////////////////////////////=//
 
         // We want to fulfill all normal parameters before any refinements
-        // that take arguments.  Ren-C allows normal parameters *after* any
+        // that take arguments.  Revolt allows normal parameters *after* any
         // refinement, that are not "refinement arguments".  So a refinement
         // that takes an argument must always fulfill using "pickups".
 

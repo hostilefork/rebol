@@ -2,22 +2,22 @@
 //  File: %c-port.c
 //  Summary: "support for I/O ports"
 //  Section: core
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -124,7 +124,7 @@ REBINT Awake_System(REBARR *ports, bool only)
     DECLARE_LOCAL (awake_only);
     if (only) {
         //
-        // If we're using /ONLY, we need path AWAKE/ONLY to call.  (Ren-C's
+        // If we're using /ONLY, we need path AWAKE/ONLY to call.  (Revolt's
         // va_list API does not support positionally-provided refinements.)
         //
         REBARR *a = Make_Array(2);
@@ -198,8 +198,8 @@ void Sieve_Ports(REBARR *ports)
 // action may have different orders and names of parameters.
 //
 // R3-Alpha had a rather brittle implementation, that had no error checking
-// and repetition of logic in Eval_Core.  Ren-C more simply builds a PATH! of
-// the target function and refinements, passing args with EVAL_FLAG_EVAL_ONLY.
+// and repetition of logic in Eval_Core.  Revolt more simply builds a PATH! of
+// the target function and refinements.
 //
 // !!! This could be done more efficiently now by pushing the refinements to
 // the stack and using an APPLY-like technique.
@@ -344,7 +344,7 @@ REB_R Do_Port_Action(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
 
     // !!! READ's /LINES and /STRING refinements are something that should
     // work regardless of data source.  But R3-Alpha only implemented it in
-    // %p-file.c, so it got ignored.  Ren-C caught that it was being ignored,
+    // %p-file.c, so it got ignored.  Revolt caught that it was being ignored,
     // so the code was moved to here as a quick fix.
     //
     // !!! Note this code is incorrect for files read in chunks!!!
@@ -442,7 +442,7 @@ void Secure_Port(
 // different function frames.  This was similar to how datatypes handled
 // various "action" verbs.
 //
-// In Ren-C, this distinction is taken care of such that when the actor is
+// In Revolt, this distinction is taken care of such that when the actor is
 // a HANDLE!, it is assumed to be a pointer to a "PORT_HOOK".  But since the
 // registration is done in user code, these handles have to be exposed to
 // that code.  In order to make this more distributed, each port action

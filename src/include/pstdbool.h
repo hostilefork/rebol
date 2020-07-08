@@ -29,7 +29,7 @@
   #else
     //
     // Follow the pattern of pstdint.h for announcing that the standard bool
-    // shim has had an effect.  This will signal rebol.h *not* to auto-include
+    // shim has had an effect.  This will signal revolt.h to NOT auto-include
     // <stdbool.h>, as that would cause a problem.
     //
     #ifndef _PSTDBOOL_H_INCLUDED

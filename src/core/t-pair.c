@@ -2,22 +2,22 @@
 //  File: %t-pair.c
 //  Summary: "pair datatype"
 //  Section: datatypes
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -210,7 +210,7 @@ REB_R PD_Pair(
     // leave it to the path dispatch to figure out if that can be written back
     // to some variable from which this pair actually originated.
     //
-    // !!! Technically since pairs are pairings of values in Ren-C, there is
+    // !!! Technically since pairs are pairings of values in Revolt, there is
     // a series node which can be used to update their values, but could not
     // be used to update other things (like header bits) from an originating
     // variable.
@@ -238,7 +238,7 @@ void MF_Pair(REB_MOLD *mo, const REBCEL *v, bool form)
 // !!! R3-Alpha turned all the PAIR! operations from integer to decimal, but
 // they had floating point precision (otherwise you couldn't fit a full cell
 // for two values into a single cell).  This meant they were neither INTEGER!
-// nor DECIMAL!.  Ren-C stepped away from this idea of introducing a new
+// nor DECIMAL!.  Revolt stepped away from this idea of introducing a new
 // numeric type and instead created a more compact "pairing" that could fit
 // in a single series node and hold two arbitrary values.
 //

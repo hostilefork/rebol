@@ -1,5 +1,5 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Source File Database"
     Rights: {
         Copyright 2012 REBOL Technologies
@@ -68,7 +68,7 @@ core: [
         ; May 2018 update to MSVC 2017 added warnings for Spectre mitigation.
         ; %f-deci.c is a lot of twiddly custom C code for implementing a fixed
         ; precision math type, that was for some reason a priority in R3-Alpha
-        ; but isn't very central to Ren-C.  It is not a priority to audit
+        ; but isn't very central to Revolt.  It is not a priority to audit
         ; it for speed, so allow it to be slow if MSVC compiles with /Qspectre
         ;
         <msc:/wd5045>  ; https://stackoverflow.com/q/50399940
@@ -200,7 +200,7 @@ made: [
     make-headers.r      include/tmp-internals.h
 
     make-host-init.r    include/host-init.h
-    make-reb-lib.r      include/rebol.h
+    make-reb-lib.r      include/revolt.h
 ]
 
 main: 'main.c

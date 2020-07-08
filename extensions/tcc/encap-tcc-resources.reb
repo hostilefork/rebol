@@ -1,11 +1,10 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Gather and Compress redistributable includes/libs for TCC"
     File: %encap-tcc-resources.reb  ; used by MAKE-EMITTER
 
     Rights: {
-        Copyright 2019 Rebol Open Source Contributors
-        REBOL is a trademark of REBOL Technologies
+        Copyright 2019 Revolt Open Source Contributors
     }
     License: {
         Licensed under the Apache License, Version 2.0
@@ -28,8 +27,8 @@ REBOL [
         specific include overrides and service lib (libtcc1.a) are needed.
         These can be obtained via `sudo apt-get install tcc`, but that
         only works if the distribution's TCC matches the TCC that was
-        linked into the Rebol that was built.  In the general case, the
-        Rebol should probably embed the appropriate files into the binary
+        linked into the Revolt that was built.  In the general case, the
+        Revolt should probably embed the appropriate files into the binary
         and unpack them on demand when run on a new system.
 
         Windows is slightly different, because one doesn't generally assume
@@ -56,8 +55,8 @@ comment [
     exists? top-dir or [
         print ["TOP_DIR does not exist" top-dir]
         fail [
-            "TOP_DIR should be set to where the git repository for Rebol was"
-            "cloned into.  (This should be REBOL_SOURCE_DIR or something"
+            "TOP_DIR should be set to where the git repository for Revolt was"
+            "cloned into.  (This should be REVOLT_SOURCE_DIR or something"
             "more clear, but it's what was configured on Travis CI)"
         ]
     ]
@@ -118,9 +117,9 @@ change-dir config-tccdir
 ;
 encap: compose [
     ;
-    ; !!! Is it worth it to put %rebol.h in a `rebol` subdirectory?
+    ; !!! Is it worth it to put %revolt.h in a `revolt` subdirectory?
     ;
-    %rebol.h (read top-dir/build/prep/include/rebol.h)
+    %revolt.h (read top-dir/build/prep/include/revolt.h)
 
     ; Only a few special headers needed for TCC, that are selectively
     ; used to override the system standard ones with `-I`:

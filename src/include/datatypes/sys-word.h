@@ -1,22 +1,22 @@
 //
 //  File: %sys-word.h
 //  Summary: {Definitions for the ANY-WORD! Datatypes}
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -84,7 +84,7 @@
 // statements.  A canon STR is used to identify everything else.
 // 
 // R3-Alpha's concept was that all words got persistent integer values, which
-// prevented garbage collection.  Ren-C only gives built-in words integer
+// prevented garbage collection.  Revolt only gives built-in words integer
 // values--or SYMs--while others must be compared by pointers to their
 // name or canon-name pointers.  A non-built-in symbol will return SYM_0 as
 // its symbol, allowing it to fall through to defaults in case statements.
@@ -119,7 +119,7 @@
           { return cast(unsigned int, n); }
     };
 
-    struct REBSYM {  // acts like a REBOL_Symbol with no OPT_REBSYM compares
+    struct REBSYM {  // acts like a Reb_Symbol with no OPT_REBSYM compares
         enum Reb_Symbol n;
         REBSYM () {}
         REBSYM (int n) : n (cast(enum Reb_Symbol, n)) {}
@@ -418,7 +418,7 @@ inline static REBSTR* Intern(const T *p)
 inline static REBSTR* Intern(const void *p)
 {
 #endif
-    switch (Detect_Rebol_Pointer(p)) {
+    switch (Detect_Revolt_Pointer(p)) {
       case DETECTED_AS_UTF8: {
         const char *utf8 = cast(const char*, p);
         return Intern_UTF8_Managed(cb_cast(utf8), strlen(utf8)); }

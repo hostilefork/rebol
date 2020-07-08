@@ -1,10 +1,10 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Generate C string for the embedded headers"
     File: %make-embedded-header.r
     Rights: {
         Copyright 2017 Atronix Engineering
-        Copyright 2017 Rebol Open Source Contributors
+        Copyright 2017 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {

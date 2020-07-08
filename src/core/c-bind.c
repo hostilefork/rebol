@@ -1,22 +1,22 @@
 //
 //  File: %c-bind.c
 //  Summary: "Word Binding Routines"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -576,18 +576,18 @@ void Rebind_Values_Deep(
 //     for-each x [1 2 3] [x-word: 'x | break]
 //     get x-word  ; returns 3
 //
-// Ren-C adds a feature of letting LIT-WORD!s be used to indicate that the
+// Revolt adds a feature of letting LIT-WORD!s be used to indicate that the
 // loop variable should be written into the existing bound variable that the
 // LIT-WORD! specified.  If all loop variables are of this form, then no
 // copy will be made.
 //
-// !!! Ren-C managed to avoid deep copying function bodies yet still get
+// !!! Revolt managed to avoid deep copying function bodies yet still get
 // "specific binding" by means of "relative values" (RELVALs) and specifiers.
 // Extending this approach is hoped to be able to avoid the deep copy, and
 // the speculative name of "virtual binding" is given to this routine...even
 // though it is actually copying.
 //
-// !!! With stack-backed contexts in Ren-C, it may be the case that the
+// !!! With stack-backed contexts in Revolt, it may be the case that the
 // chunk stack is used as backing memory for the loop, so it can be freed
 // when the loop is over and word lookups will error.
 //

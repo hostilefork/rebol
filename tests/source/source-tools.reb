@@ -2,7 +2,7 @@ REBOL [
     Title: "Rebol 'Lint'-style Checking Tool for source code invariants"
     Rights: {
         Copyright 2015 Brett Handley
-        Copyright 2015-2018 Rebol Open Source Contributors
+        Copyright 2015-2018 Revolt Open Source Contributors
     }
     License: {
         Licensed under the Apache License, Version 2.0

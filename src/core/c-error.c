@@ -2,22 +2,22 @@
 //  File: %c-error.c
 //  Summary: "error handling"
 //  Section: core
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -151,15 +151,15 @@ void Assert_State_Balanced_Debug(
 // Note: This is a crucial difference between C and C++, as C++ will walk up
 // the stack at each level and make sure any constructors have their
 // associated destructors run.  *Much* safer for large systems, though not
-// without cost.  Rebol's greater concern is not so much the cost of setup for
-// stack unwinding, but being written without requiring a C++ compiler.
+// without cost.  Revolt's greater concern is not so much the cost of setup
+// for stack unwinding, but being buildable without requiring a C++ compiler.
 //
 void Trapped_Helper(struct Reb_State *s)
 {
     ASSERT_CONTEXT(s->error);
     assert(CTX_TYPE(s->error) == REB_ERROR);
 
-    // Restore Rebol data stack pointer at time of Push_Trap
+    // Restore Revolt data stack pointer at time of Push_Trap
     //
     DS_DROP_TO(s->dsp);
 
@@ -210,7 +210,7 @@ void Trapped_Helper(struct Reb_State *s)
 //  Fail_Core: C
 //
 // Cause a "trap" of an error by longjmp'ing to the enclosing PUSH_TRAP.  Note
-// that these failures interrupt code mid-stream, so if a Rebol function is
+// that these failures interrupt code mid-stream, so if a Revolt function is
 // running it will not make it to the point of returning the result value.
 // This distinguishes the "fail" mechanic from the "throw" mechanic, which has
 // to bubble up a thrown value through D_OUT (used to implement BREAK,
@@ -269,7 +269,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
     if (p == nullptr) {
         error = Error_Unknown_Error_Raw();
     }
-    else switch (Detect_Rebol_Pointer(p)) {
+    else switch (Detect_Revolt_Pointer(p)) {
       case DETECTED_AS_UTF8:
         error = Error_User(cast(const char*, p));
         break;
@@ -326,7 +326,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
     if (IS_NULLED_OR_BLANK(&vars->where))
         Set_Location_Of_Error(error, FS_TOP);
 
-    // The information for the Rebol call frames generally is held in stack
+    // The information for the Revolt call frames generally is held in stack
     // variables, so the data will go bad in the longjmp.  We have to free
     // the data *before* the jump.  Be careful not to let this code get too
     // recursive or do other things that would be bad news if we're responding
@@ -489,9 +489,9 @@ void Set_Location_Of_Error(
     for (; f != FS_BOTTOM; f = f->prior) {
         if (not f->feed->array) {
             //
-            // !!! We currently skip any calls from C (e.g. rebValue()) and look
-            // for calls from Rebol files for the file and line.  However,
-            // rebValue() might someday supply its C code __FILE__ and __LINE__,
+            // !!! We currently skip calls from C (e.g. rebValue()) and look
+            // for calls from Revolt files for the file and line.  However,
+            // rebValue() might someday supply C code __FILE__ and __LINE__,
             // which might be interesting to put in the error instead.
             //
             continue;
@@ -522,7 +522,7 @@ void Set_Location_Of_Error(
 //
 // Note: Most often system errors from %errors.r are thrown by C code using
 // Make_Error(), but this routine accommodates verification of errors created
-// through user code...which may be mezzanine Rebol itself.  A goal is to not
+// through user code...which may be mezzanine Revltl itself.  A goal is to not
 // allow any such errors to be formed differently than the C code would have
 // made them, and to cross through the point of R3-Alpha error compatibility,
 // which makes this a rather tortured routine.  However, it maps out the
@@ -552,7 +552,7 @@ REB_R MAKE_Error(
         // Create a new error object from another object, including any
         // non-standard fields.  WHERE: and NEAR: will be overridden if
         // used.  If ID:, TYPE:, or CODE: were used in a way that would
-        // be inconsistent with a Rebol system error, an error will be
+        // be inconsistent with a Revolt system error, an error will be
         // raised later in the routine.
 
         error = Merge_Contexts_Selfish_Managed(root_error, VAL_CONTEXT(arg));
@@ -620,7 +620,7 @@ REB_R MAKE_Error(
 
     if (IS_WORD(&vars->type) and IS_WORD(&vars->id)) {
         // If there was no CODE: supplied but there was a TYPE: and ID: then
-        // this may overlap a combination used by Rebol where we wish to
+        // this may overlap a combination used by Revolt where we wish to
         // fill in the code.  (No fast lookup for this, must search.)
 
         REBCTX *categories = VAL_CONTEXT(Get_System(SYS_CATALOG, CAT_ERRORS));

@@ -1,22 +1,22 @@
 //
 //  File: %sys-node.h
 //  Summary: {Convenience routines for the Node "superclass" structure}
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -207,7 +207,7 @@ enum Reb_Pointer_Detect {
 // invalid Rebol-oriented cases gave illegal codepoints...that way, it could
 // already be on its first step of a UTF-8 decode otherwise.
 //
-inline static enum Reb_Pointer_Detect Detect_Rebol_Pointer(const void *p) {
+inline static enum Reb_Pointer_Detect Detect_Revolt_Pointer(const void *p) {
     const REBYTE* bp = cast(const REBYTE*, p);
 
     switch (bp[0] >> 4) {  // switch on the left 4 bits of the byte

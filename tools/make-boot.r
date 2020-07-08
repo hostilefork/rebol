@@ -1,10 +1,10 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Make primary boot files"
     File: %make-boot.r  ; used by EMIT-HEADER to indicate emitting script
     Rights: {
         Copyright 2012 REBOL Technologies
-        Copyright 2012-2019 Rebol Open Source Contributors
+        Copyright 2012-2019 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -14,9 +14,9 @@ REBOL [
     Version: 2.100.0
     Needs: 2.100.100
     Purpose: {
-        A lot of the REBOL system is built by REBOL, and this program
+        A lot of the Revolt system is built by Revolt, and this program
         does most of the serious work. It generates most of the C include
-        files required to compile REBOL.
+        files required to compile Revolt.
     }
 ]
 
@@ -58,7 +58,7 @@ mkdir/deep probe core
 Title: {
     REBOL
     Copyright 2012 REBOL Technologies
-    Copyright 2012-2019 Rebol Open Source Contributors
+    Copyright 2012-2019 Revolt Open Source Contributors
     REBOL is a trademark of REBOL Technologies
     Licensed under the Apache License, Version 2.0
 }
@@ -119,11 +119,11 @@ e-version/emit {
      * not be ideal, it's a standard that's been around a long time.
      */
 
-    #define REBOL_VER $<version/1>
-    #define REBOL_REV $<version/2>
-    #define REBOL_UPD $<version/3>
-    #define REBOL_SYS $<version/4>
-    #define REBOL_VAR $<version/5>
+    #define REVOLT_VER $<version/1>
+    #define REVOLT_REV $<version/2>
+    #define REVOLT_UPD $<version/3>
+    #define REVOLT_SYS $<version/4>
+    #define REVOLT_VAR $<version/5>
 }
 e-version/emit newline
 e-version/write-emitted
@@ -131,7 +131,7 @@ e-version/write-emitted
 
 === SET UP COLLECTION OF SYMBOL NUMBERS ===
 
-; !!! The symbol strategy in Ren-C is expected to move to using a fixed table
+; !!! The symbol strategy in Revolt is expected to move to using a fixed table
 ; of words that commit to their identity, as opposed to picking on each build.
 ; Concept would be to fit every common word that would be used in Rebol to
 ; the low 65535 indices, while allowing numbers beyond that to be claimed
@@ -140,7 +140,7 @@ e-version/write-emitted
 ;
 ; For now, the symbols are gathered from the various phases, and can change
 ; as things are added or removed.  Hence C code using SYM_XXX must be
-; recompiled with changes to the core.  These symbols aren't in libRebol,
+; recompiled with changes to the core.  These symbols aren't in libRevolt,
 ; however, so it only affects clients of the core API for now.
 
 e-symbols: make-emitter "Symbol Numbers" inc/tmp-symbols.h
@@ -153,7 +153,7 @@ boot-words: copy []
 add-sym: function [
     {Add SYM_XXX to enumeration}
     return: [<opt> integer!]
-    word  ; bootstrap issue with older Ren-C, | is a BAR! (no type exists)
+    word  ; bootstrap issue with older Revolt, | is a BAR! (no type exists)
     /exists "return ID of existing SYM_XXX constant if already exists"
     <with> sym-n
 ][
@@ -202,7 +202,7 @@ e-types/emit {
     /*
      * INTERNAL DATATYPE CONSTANTS, e.g. REB_BLOCK or REB_TAG
      *
-     * Do not export these values via libRebol, as the numbers can change.
+     * Do not export these values via libRevolt, as the numbers can change.
      * Their ordering is for supporting certain optimizations, such as being
      * able to quickly check if a type IS_BINDABLE().  When types are added,
      * or removed, the numbers must shuffle around to preserve invariants.
@@ -393,7 +393,7 @@ for-each [ts types] typeset-sets [
 ]
 
 e-types/emit {
-    /* !!! R3-Alpha made frequent use of these predefined typesets.  In Ren-C
+    /* !!! R3-Alpha made frequent use of these predefined typesets.  In Revolt
      * they have been called into question, as to exactly how copying
      * mechanics should work.
      */
@@ -584,7 +584,7 @@ e-sysobj/write-emitted
 === EVENT TYPES ===
 
 ; R3-Alpha made specific C enumerated types out of the event types and keys.
-; Ren-C takes a broader view of "symbol IDs" as fixed numbers that can be
+; Revolt takes a broader view of "symbol IDs" as fixed numbers that can be
 ; expanded as new IDs are agreed upon (a bit like adding an emoji to unicode,
 ; I'd suppose) :-)  Hence plain symbol IDs are used for the event-types and
 ; event keys.  EVENT! can then see if its symbol ID fits into a uint16_t,
@@ -622,7 +622,7 @@ e-errfuncs/emit {
     /*
      * STANDARD ERROR STRUCTURE
      */
-    typedef struct REBOL_Error_Vars {
+    typedef struct REVOLT_Error_Vars {
         $[Fields];
     } ERROR_VARS;
 }
@@ -899,7 +899,7 @@ e-boot/emit {
         $(Nids),
     };
 
-    typedef struct REBOL_Boot_Block {
+    typedef struct REVOLT_Boot_Block {
         $[Fields];
     } BOOT_BLK;
 }

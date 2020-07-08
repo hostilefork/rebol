@@ -1,5 +1,5 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Canonical words"
     Rights: {
         Copyright 2012 REBOL Technologies
@@ -10,7 +10,7 @@ REBOL [
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
     Purpose: {
-        These words are used internally by Rebol, and are canonized with small
+        These words are used internally by Revolt, and are canonized w/small
         integer SYM_XXX constants.  These constants can then be quickly used
         in switch() statements.
     }
@@ -178,14 +178,14 @@ subparse  ; recursions of parse use this for REBNATIVE(subparse) in backtrace
 ;
 set  ; must be first first (SYM_SET referred to by GET_VAR() in %u-parse.c)
 copy
-collect  ; Variant in Red, but Ren-C's acts SET-like, suggested by @rgchris
+collect  ; Variant in Red, but Revolt's acts SET-like, suggested by @rgchris
 keep
 some
 any
 opt
 not
 and
-ahead  ; Ren-C addition (also in Red)
+ahead  ; Revolt addition (also in Red)
 then
 remove
 insert
@@ -195,8 +195,8 @@ fail
 reject
 while
 limit
-seek  ; Ren-C addition
-mark  ; Ren-C addition
+seek  ; Revolt addition
+mark  ; Revolt addition
 ??
 |
 accept
@@ -270,7 +270,7 @@ double
 control
 shift
 
-; Checksum (CHECKSUM-CORE only, others are looked up by string or libRebol)
+; Checksum (CHECKSUM-CORE only, others are looked up by string or libRevolt)
 crc32
 adler32
 

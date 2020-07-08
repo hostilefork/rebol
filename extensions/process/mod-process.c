@@ -2,22 +2,22 @@
 //  File: %mod-call.c
 //  Summary: "Native Functions for spawning and controlling processes"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 Atronix Engineering
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -30,7 +30,7 @@
     #include <shlobj.h>
 
     #ifdef IS_ERROR
-        #undef IS_ERROR //winerror.h defines, Rebol has a different meaning
+        #undef IS_ERROR //winerror.h defines, Revolt has a different meaning
     #endif
 #else
     #if !defined(__cplusplus) && defined(TO_LINUX)
@@ -254,7 +254,7 @@ REBNATIVE(terminate)
   #ifdef TO_WINDOWS
 
     if (GetCurrentProcessId() == cast(DWORD, VAL_INT32(ARG(pid))))
-        fail ("Use QUIT or EXIT-REBOL to terminate current process, instead");
+        fail ("Use QUIT or EXIT-REVOLT to terminate current process, instead");
 
     DWORD err = 0;
     HANDLE ph = OpenProcess(PROCESS_TERMINATE, FALSE, VAL_INT32(ARG(pid)));
@@ -292,7 +292,7 @@ REBNATIVE(terminate)
     if (getpid() == VAL_INT32(ARG(pid))) {
         // signal is not as reliable for this purpose
         // it's caught in main.c as to stop the evaluation
-        fail ("Use QUIT or EXIT-REBOL to terminate current process, instead");
+        fail ("Use QUIT or EXIT-REVOLT to terminate current process instead");
     }
     kill_process(VAL_INT32(ARG(pid)), SIGTERM);
     return nullptr;

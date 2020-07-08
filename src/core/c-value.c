@@ -1,21 +1,21 @@
 //
 //  File: %c-value.c
 //  Summary: "Generic REBVAL Support Services and Debug Routines"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Copyright 2016 Rebol Open Source Contributors
+// Copyright 2016 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -157,7 +157,7 @@ void* Probe_Core_Debug(
     if (not p) {
         Probe_Print_Helper(p, expr, "C nullptr", file, line);
     }
-    else switch (Detect_Rebol_Pointer(p)) {
+    else switch (Detect_Revolt_Pointer(p)) {
       case DETECTED_AS_UTF8:
         Probe_Print_Helper(p, expr, "C String", file, line);
         printf("\"%s\"\n", cast(const char*, p));

@@ -1,22 +1,22 @@
 //
 //  File: %sys-ordered.h
 //  Summary: "Order-dependent type macros"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2018 Rebol Open Source Contributors
+// Copyright 2012-2018 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -197,7 +197,7 @@ inline static bool ANY_SERIES_KIND(REBYTE k)
 
 
 // !!! The ANY-WORD! classification is an odd one, because it's not just
-// WORD!/GET-WORD!/SET-WORD! but includes ISSUE!.  Ren-C is looking at avenues
+// WORD!/GET-WORD!/SET-WORD! but includes ISSUE!.  Revolt is looking at ways
 // of attack for this to let strings hold bindings.  To make the ANY_INERT()
 // test fast, issue is grouped with the inert types...not the other words.
 

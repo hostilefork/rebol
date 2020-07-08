@@ -1,5 +1,5 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "REBOL 3 Boot Base: Function Constructors"
     Rights: {
         Copyright 2012 REBOL Technologies
@@ -92,8 +92,8 @@ func: func* [
         new-body exclusions locals defaulters statics
 ][
     ; R3-Alpha offered features on FUNCTION (a complex usermode construct)
-    ; that the simpler/faster FUNC did not have.  Ren-C seeks to make FUNC and
-    ; FUNCTION synonyms:
+    ; that the simpler/faster FUNC did not have.  Revolt seeks to make FUNC
+    ; and FUNCTION synonyms:
     ;
     ; https://forum.rebol.info/t/abbreviations-as-synonyms/1211
     ;
@@ -790,9 +790,9 @@ module: func [
 
     ; Historically, the Name: and Type: fields would tolerate either LIT-WORD!
     ; or WORD! equally well.  This is because it used R3-Alpha's CONSTRUCT,
-    ; (which was non-evaluative by default, unlike Ren-C's construct) but
+    ; (which was non-evaluative by default, unlike Revolt's construct) but
     ; without the /ONLY switch.  In that mode, it decayed LIT-WORD! to WORD!.
-    ; To try and standardize the variance, Ren-C does not accept LIT-WORD!
+    ; To try and standardize the variance, Revolt does not accept LIT-WORD!
     ; in these slots.
     ;
     ; !!! Although this is a goal, it creates some friction.  Backing off of
@@ -800,11 +800,11 @@ module: func [
     ;
     if lit-word? spec/name [
         spec/name: as word! spec/name
-        ;fail ["Ren-C module Name:" (spec/name) "must be WORD!, not LIT-WORD!"]
+        ;fail ["Revolt module Name:" (spec/name) "is WORD!, not LIT-WORD!"]
     ]
     if lit-word? spec/type [
         spec/type: as word! spec/type
-        ;fail ["Ren-C module Type:" (spec/type) "must be WORD!, not LIT-WORD!"]
+        ;fail ["Revolt module Type:" (spec/type) "is WORD!, not LIT-WORD!"]
     ]
 
     ; Validate the important fields of header:
@@ -823,7 +823,7 @@ module: func [
         do compose [ensure (types) (var)]  ; names to show if fails
     ]
 
-    ; In Ren-C, MAKE MODULE! acts just like MAKE OBJECT! due to the generic
+    ; In Revolt, MAKE MODULE! acts just like MAKE OBJECT! due to the generic
     ; facility for SET-META.
 
     into: default [

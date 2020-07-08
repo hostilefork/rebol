@@ -49,7 +49,7 @@ includes: compose [
 
     ; For the FFI to be used, you pretty much require the ability to load a
     ; DLL or shared library.  Currently the `Find_Function()` API is linked
-    ; statically (as opposed to making a libRebol call to the LIBRARY! and
+    ; statically (as opposed to making a libRevolt call to the LIBRARY! and
     ; giving it a text string, getting back a HANDLE! from which a C function
     ; pointer can be extracted).  Hence headers must be directly included.
     ; But that could be changed.
@@ -61,7 +61,7 @@ includes: compose [
     ; FFI support.  This could be decoupled as an option, but the base demos
     ; (like %qsort.r) depend upon it.  Similarly to the issue of static link
     ; of the LIBRARY! extension, it could be possible (if VECTOR! exported it)
-    ; to do this via libRebol, asking for a HANDLE! memory pointer for the
+    ; to do this via libRevolt, asking for a HANDLE! memory pointer for the
     ; vector...but for now we go through the internal includes of the type.
     ;
     (repo-dir/extensions/vector)

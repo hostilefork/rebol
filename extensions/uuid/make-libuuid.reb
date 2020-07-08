@@ -9,13 +9,13 @@ REBOL [
         https://en.wikipedia.org/wiki/Util-linux
 
         This script is designed to extract just the files that relate to UUID
-        generation and handling, to be built into the Rebol executable.  The
+        generation and handling, to be built into the Revolt executable.  The
         files are read directly from GitHub, and tweaked to build without
         warnings uunder the more rigorous settings used in compilation, which
         includes compiling as C++.
 
-        The extracted files are committed into the Ren-C repository, to reduce
-        the number of external dependencies in the build.
+        The extracted files are committed into the Revolt repository, to
+        reduce the number of external dependencies in the build.
     }
 ]
 

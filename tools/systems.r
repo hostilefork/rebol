@@ -1,9 +1,9 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "System build targets"
     Rights: {
         Copyright 2012 REBOL Technologies
-        Copyright 2012-2017 Rebol Open Source Contributors
+        Copyright 2012-2017 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -337,7 +337,7 @@ system-definitions: make object! [
     UNI: "UNICODE"                ; win32 wants it
     F64: "_FILE_OFFSET_BITS=64"   ; allow larger files
 
-    ; MSC deprecates all non-*_s version string functions.  Ren-C has been
+    ; MSC deprecates all non-*_s version string functions.  Revolt has been
     ; constantly tested with ASAN, which should mitigate the issue somewhat.
     ;
     NSEC: <msc:_CRT_SECURE_NO_WARNINGS>
@@ -403,7 +403,7 @@ linker-flags: make object! [
     ; The `-rdynamic` option is not a POSIX C option, but makes symbols from
     ; the executable visible.  This is generally used for debugging (e.g.
     ; backtrace()), but may have interesting applications in letting a file
-    ; be both an executable and a shared library providing libRebol services.
+    ; be both an executable and a shared library providing libRevolt services.
     ; https://stackoverflow.com/q/36692315
     ;
     DYN: <gnu:-rdynamic>

@@ -1,22 +1,22 @@
 //
 //  File: %reb-c.h
 //  Summary: "General C definitions and constants"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -31,7 +31,7 @@
 // the C99 standard.  But that means this code can't be used with the switches
 // `--pedantic --std=c89` (unless you convert or strip out all the comments).
 //
-// The Ren-C branch advanced Rebol to be able to build under C99=>C11 and
+// The Revolt branch advanced R3-Alpha to be able to build under C99=>C11 and
 // C++98=>C++17 as well.  Some extended checks are provided for these macros
 // if building under various versions of C++.  Also, C99 definitions are
 // taken advantage of if they are available.
@@ -43,8 +43,8 @@
 
 //=//// EXPECTS <stdint.h> OR "pstdint.h" SHIM INCLUDED ///////////////////=//
 //
-// Rebol's initial design targeted C89 and old-ish compilers on a variety of
-// systems.  A comment here said:
+// R3-Alpha's initial design targeted C89 and old-ish compilers on a variety
+// of systems.  A comment here said:
 //
 //     "One of the biggest flaws in the C language was not
 //      to indicate bitranges of integers. So, we do that here.
@@ -88,17 +88,17 @@
 
 //=//// EXPECTS <stdbool.h> OR "pstdbool.h" SHIM INCLUDED /////////////////=//
 //
-// Historically Rebol used TRUE and FALSE uppercase macros, but so long as
+// Historically R3-Alpha used TRUE and FALSE uppercase macros, but so long as
 // C99 has added bool to the language, there's not much point in being
 // compatible with codebases that have `char* true = "Spandau";` or similar
-// in them.  So Rebol can use `true` and `false.
+// in them.  So Revolt can use `true` and `false.
 //
 
 
 //=//// EXPECTS <assert.h> TO BE INCLUDED, PATCH BUG //////////////////////=//
 //
 // There is a bug in older GCC where the assert macro expands arguments
-// unnecessarily.  Since Rebol tries to build on fairly old systems, this
+// unnecessarily.  Since Revolt tries to build on fairly old systems, this
 // patch corrects the issue:
 //
 // https://sourceware.org/bugzilla/show_bug.cgi?id=18604
@@ -133,7 +133,7 @@
 //=//// ISO646 ALTERNATE TOKENS FOR BOOLEAN OPERATIONS ////////////////////=//
 //
 // It is much more readable to see `and` and `or` instead of `&&` and `||`
-// when reading expressions.  Ren-C embraces the ISO646 standard:
+// when reading expressions.  Revolt embraces the ISO646 standard:
 //
 // https://en.wikipedia.org/wiki/C_alternative_tokens
 //
@@ -172,7 +172,7 @@
 
 //=//// CPLUSPLUS_11 PREPROCESSOR DEFINE //////////////////////////////////=//
 //
-// Because the goal of Ren-C is ultimately to be built with C, the C++ build
+// Because the goal of Revolt is ultimately to be built with C, the C++ build
 // is just for static analysis and debug checks.  This means there's not much
 // value in trying to tailor reduced versions of the checks to old ANSI C++98
 // compilers, so the "C++ build" is an "at least C++11 build".
@@ -247,14 +247,14 @@
 
 //=//// UNREACHABLE CODE ANNOTATIONS //////////////////////////////////////=//
 //
-// Because Rebol uses `longjmp` and `exit` there are cases where a function
+// Because Revolt uses `longjmp` and `exit` there are cases where a function
 // might look like not all paths return a value, when those paths actually
 // aren't supposed to return at all.  For instance:
 //
 //     int foo(int x) {
 //         if (x < 1020)
 //             return x + 304;
-//         fail ("x is too big"); // compiler may warn about no return value
+//         fail ("x is too big");  // compiler may warn about no return value
 //     }
 //
 // One way of annotating to say this is okay is on the caller, with DEAD_END:
@@ -263,7 +263,7 @@
 //         if (x < 1020)
 //             return x + 304;
 //         fail ("x is too big");
-//         DEAD_END; // our warning-suppression macro for applicable compilers
+//         DEAD_END;  // a warning-suppression macro for applicable compilers
 //     }
 //
 // DEAD_END is just a no-op in compilers that don't have the feature of
@@ -276,7 +276,7 @@
 // that don't support it.
 //
 
-/* THESE HAVE BEEN RELOCATED TO %rebol.h, SEE DEFINITIONS THERE */
+/* THESE HAVE BEEN RELOCATED TO %revolt.h, SEE DEFINITIONS THERE */
 
 
 //=//// STATIC ASSERT /////////////////////////////////////////////////////=//
@@ -295,10 +295,10 @@
 //
 #ifdef CPLUSPLUS_11
     #define STATIC_ASSERT(cond) \
-        static_assert((cond), #cond) // callsite has semicolon, see C trick
+        static_assert((cond), #cond)  // callsite has semicolon, see C trick
 #else
     #define STATIC_ASSERT(cond) \
-        struct GlobalScopeNoopTrick // https://stackoverflow.com/q/53923706
+        struct GlobalScopeNoopTrick  // https://stackoverflow.com/q/53923706
 #endif
 
 
@@ -317,7 +317,7 @@
 //
 // https://stackoverflow.com/a/27939238/211160
 //
-// When built as C++, Ren-C must tell the compiler that functions/variables
+// When built as C++, Revolt must tell the compiler that functions/variables
 // it exports to the outside world should *not* use C++ name mangling, so that
 // they can be used sensibly from C.  But the instructions to tell it that
 // are not legal in C.  This conditional macro avoids needing to put #ifdefs
@@ -456,7 +456,7 @@
 //
 //     variadic_print("print me", "and me", "stop @ NULL", (char*)NULL);
 //
-// Because libRebol hinges on a premise of making the internal NULL signifier
+// Because libRevolt hinges on a premise of making the internal NULL signifier
 // interface as a C NULL pointer, and hinges on variadics, this is a problem.
 // Rather than introduce a "new" abstraction or macro, this adds a shim of
 // C++11's `nullptr` to C++98, and a simple macro to C.
@@ -519,6 +519,9 @@
 //         int x = 3;
 //         y = y + x;
 //     }
+//
+// But if code has a label for a `goto`, don't do `label: blockscope {...}`.
+// Simply saying `label: {...}` is sufficient.
 //
 #ifndef NOOP
     #define NOOP \

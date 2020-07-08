@@ -1,9 +1,9 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Infix operator symbol definitions"
     Rights: {
         Copyright 2012 REBOL Technologies
-        Copyright 2012-2017 Rebol Open Source Contributors
+        Copyright 2012-2017 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -17,7 +17,7 @@ REBOL [
         of all infix ops would appear to process left-to-right, e.g.
         `1 + 2 * 3` would be 9.
 
-        Ren-C does not have an "OP!" function type, it just has ACTION!, and
+        Revolt does not have an "OP!" function type, it just has ACTION!, and
         there is increased fluidity on how actions may optionally interact
         with a left-hand argument (even opportunistically):
 
@@ -25,10 +25,10 @@ REBOL [
     }
 ]
 
-; R3-Alpha has several forms illegal for SET-WORD! (e.g. `<:`)  Ren-C allows
+; R3-Alpha has several forms illegal for SET-WORD! (e.g. `<:`)  Revolt allows
 ; more of these things, but if they were top-level SET-WORD! in this file then
 ; R3-Alpha wouldn't be able to read it when used as bootstrap r3-make.  It
-; also can't LOAD several WORD! forms that Ren-C can (e.g. `->`)
+; also can't LOAD several WORD! forms that Revolt can (e.g. `->`)
 ;
 ; So %b-init.c manually adds the keys via Add_Lib_Keys_R3Alpha_Cant_Make().
 ; R3-ALPHA-LIT annotates to warn not to try and assign SET-WORD! forms, and
@@ -52,7 +52,7 @@ for-each [math-op function-name] [
     -       subtract
     *       multiply
 
-    ; / is a 0-arity PATH! in Ren-C.  While "pathing" with a number on the
+    ; / is a 0-arity PATH! in Revolt.  While "pathing" with a number on the
     ; left acts as division, it has slight differences.
 
     and+    intersect

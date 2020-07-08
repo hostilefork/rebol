@@ -304,7 +304,7 @@
     i = 10
 )
 
-; In Ren-C's specific binding, a function-local word that escapes the
+; In Revolt's specific binding, a function-local word that escapes the
 ; function's extent cannot be used when re-entering the same function later
 (
     f: func [code value] [either blank? code ['value] [do code]]
@@ -317,7 +317,7 @@
     f-value: f blank blank
     error? trap [g compose [2 * (f-value)] 21]  ; re-entering different function
 )
-[#19 ; but duplicate specializations currently not legal in Ren-C
+[#19 ; but duplicate specializations currently not legal in Revolt
     (
     f: func [/r [integer!]] [x]
     error? trap [2 == f/r/r 1 2]
@@ -334,7 +334,7 @@
 
 ; Second time f is called, `a` has been cleared so `a [d]` doesn't recapture
 ; the local, and `c` holds the `[d]` from the first call.  This succeeds in
-; R3-Alpha for a different reason than it succeeds in Ren-C; Ren-C has
+; R3-Alpha for a different reason than it succeeds in Revolt; Revolt has
 ; closure semantics for functions so the c: [d] where d is 1 survives.
 ; R3-Alpha recycles variables based on stack searching (non-specific binding).
 (
@@ -416,7 +416,7 @@
     error? trap [function [/test /test] []]
 )
 
-; /LOCAL is an ordinary refinement in Ren-C
+; /LOCAL is an ordinary refinement in Revolt
 (
     a-value: func [/local [integer!]] [local]
     1 == a-value/local 1

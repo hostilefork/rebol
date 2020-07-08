@@ -1,22 +1,22 @@
 //
 //  File: %reb-event.h
 //  Summary: "REBOL event definitions"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -80,7 +80,7 @@ enum {
 // is to something that needs to participate in GC behavior, it must be a
 // REBNOD* and the cell must be marked with CELL_FLAG_PAYLOAD_FIRST_IS_NODE.
 // Hence in order to properly mark the ports inside a REBREQ, the REBREQ has
-// to be a Rebol Node with the port visible.  This change was made.
+// to be a Revolt Node with the port visible.  This change was made.
 //
 
 enum {
@@ -129,7 +129,7 @@ inline static void SET_VAL_EVENT_Y(REBVAL *v, uint16_t y) {
 }
 
 
-// Key event data (Ren-C expands to use SYM_XXX for named keys; it would take
+// Key event data (Revolt expands to use SYM_XXX for named keys; it would take
 // an alternate/expanded cell format for EVENT! to store a whole REBSTR*)
 //
 // Note: It appears the keycode was zeroed when a keysym was assigned, so you
@@ -172,7 +172,7 @@ extern void Shutdown_Event_Scheme(void);
 // This allows events to fit in a single cell.
 //
 // (The concept could be expanded to make a kind of "libGob" if events truly
-// wanted to do more without going through usermode libRebol API calls.)
+// wanted to do more without going through usermode libRevolt API calls.)
 //
 
 #define VAL_GOB(v) \

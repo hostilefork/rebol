@@ -1,23 +1,23 @@
 //
 //  File: %t-routine.c
-//  Summary: "Support for calling non-Rebol C functions in DLLs w/Rebol args)"
+//  Summary: "Support to call non-Revolt C functions in DLLs w/Revolt args)"
 //  Section: datatypes
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2014 Atronix Engineering, Inc.
-// Copyright 2014-2017 Rebol Open Source Contributors
+// Copyright 2014-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -50,7 +50,7 @@ static struct {
     {
         SYM_POINTER,
         FLAGIT_KIND(REB_INTEGER)
-            | FLAGIT_KIND(REB_NULLED)   // Rebol's null as 0 seems sensible
+            | FLAGIT_KIND(REB_NULLED)   // Revolt's null as 0 seems sensible
             | FLAGIT_KIND(REB_TEXT)
             | FLAGIT_KIND(REB_BINARY)
             | FLAGIT_KIND(REB_CUSTOM)  // !!! Was REB_VECTOR, must narrow (!)
@@ -62,7 +62,7 @@ static struct {
 
 
 //
-// Writes into `schema_out` a Rebol value which describes either a basic FFI
+// Writes into `schema_out` a Revolt value which describes either a basic FFI
 // type or the layout of a STRUCT! (not including data).
 //
 static void Schema_From_Block_May_Fail(
@@ -215,7 +215,7 @@ inline static void *Expand_And_Align(
 
 
 //
-// Convert a Rebol value into a bit pattern suitable for the expectations of
+// Convert a Revolt value into a bit pattern suitable for the expectations of
 // the FFI for how a C argument would be represented.  (e.g. turn an
 // INTEGER! into the appropriate representation of an `int` in memory.)
 //
@@ -425,7 +425,7 @@ static uintptr_t arg_to_ffi(
             break;
 
         // !!! This is a questionable idea, giving out pointers directly into
-        // Rebol series data.  The data may be relocated in memory if any
+        // Revolt series data.  The data may be relocated in memory if any
         // modifications happen during a callback (or in the future, just for
         // GC compaction even if not changed)...so the memory is not "stable".
         //
@@ -594,7 +594,7 @@ static void ffi_to_rebol(
         Init_Integer(out, *cast(int64_t*, ffi_rvalue));
         break;
 
-      case SYM_POINTER:  // !!! Should 0 come back as a NULL to Rebol?
+      case SYM_POINTER:  // !!! Should 0 come back as a NULL to Revolt?
         Init_Integer(out, cast(uintptr_t, *cast(void**, ffi_rvalue)));
         break;
 
@@ -703,7 +703,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
     REBLEN num_args = num_fixed + num_variable;
 
     // The FFI arguments are passed by void*.  Those void pointers point to
-    // transformations of the Rebol arguments into ranges of memory of
+    // transformations of the Revolt arguments into ranges of memory of
     // various sizes.  This is the backing store for those arguments, which
     // is appended to for each one.  The memory is freed after the call.
     //
@@ -860,7 +860,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
     // THE ACTUAL FFI CALL
     //
     // Note that the "offsets" are now direct pointers.  Also note that
-    // any callbacks which run Rebol code during the course of calling this
+    // any callbacks which run Revolt code during the course of calling this
     // arbitrary C code are not allowed to propagate failures out of the
     // callback--they'll panic and crash the interpreter, since they don't
     // know what to do otherwise.  See MAKE-CALLBACK/FALLBACK for some
@@ -890,7 +890,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
         rebFree(args_fftypes);
     }
 
-    // Note: cannot "throw" a Rebol value across an FFI boundary.
+    // Note: cannot "throw" a Revolt value across an FFI boundary.
 
     return f->out;
 }
@@ -902,7 +902,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
 // The GC-able HANDLE! used by callbacks contains a ffi_closure pointer that
 // needs to be freed when the handle references go away (really only one
 // reference is likely--in the ACT_BODY of the callback, but still this is
-// how the GC gets hooked in Ren-C)
+// how the GC gets hooked in Revolt)
 //
 void cleanup_ffi_closure(const REBVAL *v) {
     ffi_closure_free(VAL_HANDLE_POINTER(ffi_closure, v));
@@ -967,14 +967,14 @@ static REBVAL *callback_dispatcher_core(struct Reb_Callback_Invocation *inv)
 //
 // callback_dispatcher: C
 //
-// Callbacks allow C code to call Rebol functions.  It does so by creating a
+// Callbacks allow C code to call Revolt functions.  They do so by creating a
 // stub function pointer that can be passed in slots where C code expected
 // a C function pointer.  When such stubs are triggered, the FFI will call
 // this dispatcher--which was registered using ffi_prep_closure_loc().
 //
 // An example usage of this feature is in %qsort.r, where the C library
 // function qsort() is made to use a custom comparison function that is
-// actually written in Rebol.
+// actually written in Revolt.
 //
 void callback_dispatcher(
     ffi_cif *cif,
@@ -1013,13 +1013,13 @@ void callback_dispatcher(
 // This allocates a REBACT designed for using with the FFI--though it does
 // not fill in the actual code to run.  That is done by the caller, which
 // needs to be done differently if it runs a C function (routine) or if it
-// makes Rebol code callable as if it were a C function (callback).
+// makes Revolt code callable as if it were a C function (callback).
 //
 // It has a HANDLE! holding a Routine INfo structure (RIN) which describes
 // the FFI argument types.  For callbacks, this cannot be automatically
-// deduced from the parameters of the Rebol function it wraps--because there
+// deduced from the parameters of the Revolt function it wraps--because there
 // are multiple possible mappings (e.g. differently sized C types all of
-// which are passed in from Rebol's INTEGER!)
+// which are passed in from Revolt's INTEGER!)
 //
 // The spec format is a block which is similar to the spec for functions:
 //

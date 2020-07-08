@@ -1,10 +1,10 @@
 REBOL [
-    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    System: "Revolt Language Interpreter and Run-time Environment"
     Title: "Generate extention native header files"
     File: %prep-extension.r  ; EMIT-HEADER uses to indicate emitting script
     Rights: {
         Copyright 2017 Atronix Engineering
-        Copyright 2017-2018 Rebol Open Source Contributors
+        Copyright 2017-2018 Revolt Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -22,9 +22,9 @@ REBOL [
     }
     Notes: {
         Currently the build process does not distinguish between an extension
-        that wants to use just "rebol.h" and one that depends on "sys-core.h"
+        that wants to use just "revolt.h" and one that depends on "sys-core.h"
         Hence it includes things like ARG() and REF() macros, which access
-        frame internals that do not currently go through the libRebol API.
+        frame internals that do not currently go through the libRevolt API.
 
         It should be possible to build an extension that does not use the
         internal API at all, as well as one that does, so that needs review.
@@ -176,7 +176,7 @@ for-each native native-defs [
                 fail ["Unrecognized platform spec:" mold plat]
             ]
         ]
-        null  ; not needed in newer Ren-C (CATCH w/no throw is NULL)
+        null  ; not needed in newer Revolt (CATCH w/no throw is NULL)
     ] else [
         continue  ; not supported
     ] 
@@ -334,9 +334,9 @@ e: make-emitter "Ext custom init code" dest
 script-compressed: gzip (script-uncompressed: read script-name)
 
 e/emit {
-    #include "sys-core.h" /* !!! Could this just use "rebol.h"? */
+    #include "sys-core.h"  /* !!! Could this just use "revolt.h"? */
 
-    #include "tmp-mod-$<mod>.h" /* for REBNATIVE() forward decls */
+    #include "tmp-mod-$<mod>.h"  /* for REBNATIVE() forward decls */
 
     /*
      * Gzip compression of $<Script-Name> (no \0 terminator in array)

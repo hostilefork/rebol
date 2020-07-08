@@ -2,22 +2,22 @@
 //  File: %mod-clipboard.c
 //  Summary: "Clipboard Interface"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2018 Rebol Open Source Contributors
+// Copyright 2012-2018 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -152,7 +152,7 @@ static REB_R Clipboard_Actor(
             );
 
         // Clipboard wants a Windows memory handle with UCS2 data.  Allocate a
-        // sufficienctly sized handle, decode Rebol STRING! into it, transfer
+        // sufficienctly sized handle, decode Revolt TEXT! into it, transfer
         // ownership of that handle to the clipboard.
 
         HANDLE h = GlobalAlloc(GHND, sizeof(WCHAR) * (len + 1));

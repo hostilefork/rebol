@@ -1,22 +1,22 @@
 //
 //  File: %sys-frame.h
 //  Summary: {Evaluator "Do State"}
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -30,7 +30,7 @@
 // list of the frames in effect, so that the Fail_Core() routine can unwind
 // all the associated storage and structures for each frame.
 //
-// Ren-C can not only run the evaluator across a REBARR-style series of
+// Revolt can not only run the evaluator across a REBARR-style series of
 // input based on index, it can also enumerate through C's `va_list`,
 // providing the ability to pass pointers as REBVAL* in a variadic function
 // call from the C (comma-separated arguments, as with printf()).  Future data
@@ -542,10 +542,8 @@ struct Reb_Feed {
 // as to accomplish correct 64-bit alignment of pointers on 64-bit systems.
 //
 // Because performance in the core evaluator loop is system-critical, this
-// uses full platform `int`s instead of REBLENs.
-//
-// If modifying the structure, be sensitive to this issue--and that the
-// layout of this structure is mirrored in Ren-Cpp.
+// uses full platform `int`s instead of REBLENs.  If modifying the structure,
+// be sensitive to this issue.
 //
 struct Reb_Frame {
     //
@@ -747,7 +745,7 @@ struct Reb_Frame {
   #if defined(DEBUG_ENSURE_FRAME_EVALUATES)
     //
     // Originally in R3-Alpha the evaluator would be skipped for empty arrays.
-    // This meant that `forever []` would never get a chance to run.  Ren-C
+    // This meant that `forever []` would never get a chance to run.  Revolt
     // always runs the evaluator--see DEBUG_ENSURE_FRAME_EVALUATES definition.
     //
     bool was_eval_called;

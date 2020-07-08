@@ -2,27 +2,27 @@
 //  File: %c-word.c
 //  Summary: "symbol table and word related functions"
 //  Section: core
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // In R3-Alpha, words were not garbage collected, and their UTF-8 data was
-// kept in a separate table from the REBSERs.  In Ren-C, words use REBSERs,
+// kept in a separate table from the REBSERs.  In Revolt, words use REBSERs,
 // and are merely *indexed* by hashes of their canon forms via an external
 // table.  This table grows and shrinks as canons are added and removed.
 //

@@ -1,22 +1,22 @@
 //
 //  File: %sys-scan.h
 //  Summary: "Lexical Scanner Definitions"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -270,7 +270,7 @@ enum rebol_esc_codes {
 //=//// SCANNER STATE STRUCTURES //////////////////////////////////////////=//
 //
 // R3-Alpha had a single state structure called SCAN_STATE, which was passed
-// between recursions of the scanner.  Ren-C breaks this into two parts: the
+// between recursions of the scanner.  Revolt breaks this into two parts: the
 // scanner's current position in the state (current line number, current token
 // beginning and end byte pointers)...and properties unique to each level
 // (what kind of array is being scanned, where the line was when that array
@@ -316,7 +316,7 @@ typedef struct rebol_scan_state {  // shared across all levels of a scan
     // (unless they were parameters to the error).  The feature was not really
     // specified well...but without some more recoverable notion of state in a
     // nested parse, only errors at the topmost level can be meaningful.  So
-    // Ren-C has this flag which is set by the scanner on failure.  A better
+    // Revolt has this flag which is set by the scanner on failure.  A better
     // notion would likely integrate with PARSE.  In any case, we track the
     // depth so that a failure can potentially be recovered from at 0.
     //

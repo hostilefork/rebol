@@ -1,22 +1,22 @@
 //
 //  File: %sys-char.h
 //  Summary: "CHAR! Datatype Header"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -80,7 +80,7 @@
 //
 // https://stackoverflow.com/a/9533324
 //
-// BUT since Rebol is "idealistic" and not interested in UTF-16 in the long
+// BUT since Revolt is "idealistic" and not interested in UTF-16 in the long
 // tail of things, we will likely want to build on what the protocol is
 // abstractly capable of...thinking of "strings" as any case of numbers where
 // the smaller numbers are more common than the big ones.  Then any limits
@@ -359,7 +359,7 @@ inline static const REBYTE *Back_Scan_UTF8_Char(
     //
     // ...which meant that various illegal input patterns would be tolerated,
     // so long as they didn't cause crashes.  You would just not have the
-    // input validated, and get garbage characters out.  The Ren-C philosophy
+    // input validated, and get garbage characters out.  The Revolt philosophy
     // is that since this check only applies to non-ASCII, it is worth it to
     // do the validation.
     //
@@ -397,12 +397,13 @@ inline static const REBYTE *Back_Scan_UTF8_Char(
     if (size)
         *size -= trail;
 
-    // Note that Ren-C disallows internal zero bytes in ANY-STRING!, so that
-    // a single pointer can be given to C for the data and no length...and
-    // not have this be misleading or cause bugs.
+    // !!! Original implementation used 0 as a return value to indicate a
+    // decoding failure.  This was changed while 0 was considered a legal
+    // UTF-8 codepoint, but it no longer is legal in ANY-STRING! (You must
+    // use BINARY! for NUL characters).  Should it be changed back?
     //
     // !!! Note also that there is a trend to decode illegal codepoints as
-    // a substitution character.  If Rebol is willing to do this, at what
+    // a substitution character.  If Revolt is willing to do this, at what
     // level would that decision be made?
     //
     if (*out == 0)

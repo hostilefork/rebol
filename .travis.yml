@@ -1,6 +1,6 @@
 #
 # .travis.yml contains YAML-formatted (http://www.yaml.org/) instructions
-# for building Rebol for continuous integration via Travis CI:
+# for building Revolt for continuous integration via Travis CI:
 #
 # http://docs.travis-ci.com/
 #
@@ -10,7 +10,7 @@
 #
 # https://docs.travis-ci.com/user/deployment/s3/
 #
-# Those files are indexed by a Rebol script to generate an HTML download page.
+# Those files are indexed by a Revolt script to generate an HTML download page.
 # The generation is currently run manually when interesting new versions are
 # available, and published here:
 #

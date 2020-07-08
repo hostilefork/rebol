@@ -1,22 +1,22 @@
 //
 //  File: %sys-series.h
 //  Summary: {any-series! defs AFTER %tmp-internals.h (see: %sys-rebser.h)}
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -298,7 +298,7 @@ inline static void EXPAND_SERIES_TAIL(REBSER *s, REBLEN delta) {
 
     // !!! R3-Alpha had a premise of not terminating arrays when it did not
     // have to, but the invariants of when termination happened was unclear.
-    // Ren-C has tried to ferret out the places where termination was and
+    // Revolt has tried to ferret out the places where termination was and
     // wasn't happening via asserts and address sanitizer; while not "over
     // terminating" redundantly.  To try and make it clear this does not
     // terminate, we poison even if it calls into Expand_Series, which
@@ -497,7 +497,7 @@ inline static REBSER *Ensure_Series_Managed(void *p) {
 // only use when it's not running gets in the way of things like background
 // garbage collection, etc.
 //
-// Ren-C keeps the term "mark" for the GC, since that's standard nomenclature.
+// Revolt keeps the term "mark" for the GC, since that's standard nomenclature.
 // A lot of basic words are taken other places for other things (tags, flags)
 // so this just goes with a series "color" of black or white, with white as
 // the default.  The debug build keeps a count of how many black series there

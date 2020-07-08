@@ -2,30 +2,30 @@
 //  File: %u-parse.c
 //  Summary: "parse dialect interpreter"
 //  Section: utility
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// As a major operational difference from R3-Alpha, each recursion in Ren-C's
-// PARSE runs using a "Rebol Stack Frame"--similar to how the DO evaluator
+// As a major operational difference from R3-Alpha, each recursion in Revolt's
+// PARSE runs using a "Revolt Stack Frame"--similar to how the DO evaluator
 // works.  So `[print "abc"]` and `[thru "abc"]` are both seen as "code" and
 // iterated using the same mechanic.  (The rules are also locked from
-// modification during the course of the PARSE, as code is in Ren-C.)
+// modification during the course of the PARSE, as code is in Revolt.)
 //
 // This leverages common services like reporting the start of the last
 // "expression" that caused an error.  So merely calling `fail()` will use
@@ -47,7 +47,7 @@
 // in the call stack is what you would expect.
 //
 // !!! The PARSE code in R3-Alpha had gone through significant churn, and
-// had a number of cautionary remarks and calls for review.  During Ren-C
+// had a number of cautionary remarks and calls for review.  During Revolt
 // development, several edge cases emerged about interactions with the
 // garbage collector or throw mechanics...regarding responsibility for
 // temporary values or other issues.  The code has become more clear in many
@@ -110,7 +110,7 @@
 #define P_CELL FRM_SPARE(f)
 
 // !!! R3-Alpha's PARSE code long predated frames, and was retrofitted to use
-// them as an experiment in Ren-C.  If it followed the rules of frames, then
+// them as an experiment in Revolt.  If it followed the rules of frames, then
 // what is seen in a lookback is only good for *one* unit of time and may be
 // invalid after that.  It takes several observations and goes back expecting
 // a word to be in the same condition, so it can't use opt_lookback yet.
@@ -184,7 +184,7 @@ inline static REBSYM VAL_CMD(const RELVAL *v) {
 // Subparse_Throws() is a helper that sets up a call frame and invokes the
 // SUBPARSE native--which represents one level of PARSE recursion.
 //
-// !!! It is the intent of Ren-C that calling functions be light and fast
+// !!! It is the intent of Revolt that calling functions be light and fast
 // enough through Do_Va() and other mechanisms that a custom frame constructor
 // like this one would not be needed.  Data should be gathered on how true
 // it's possible to make that.
@@ -409,7 +409,7 @@ static const RELVAL *Get_Parse_Value(
 //  Process_Group_For_Parse: C
 //
 // Historically a single group in PARSE ran code, discarding the value (with
-// a few exceptions when appearing in an argument position to a rule).  Ren-C
+// a few exceptions when appearing in an argument position to a rule).  Revolt
 // adds another behavior for GET-GROUP!, e.g. :(...).  This makes them act
 // like a COMPOSE/ONLY that runs each time they are visited.
 //

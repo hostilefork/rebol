@@ -1,22 +1,22 @@
 //
 //  File: %readline.h
 //  Summary: "Shared Definitions for Windows/POSIX Console Line Reading"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2020 Rebol Open Source Contributors
+// Copyright 2012-2020 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -41,7 +41,7 @@
 
 // If a POSIX system does not offer Termios features, we assume it might also
 // be old enough (or simple/embedded) to not support C99 and variadic macros.
-// Without variadic macros, we have to use REBOL_EXPLICIT_END and it makes the
+// Without variadic macros, we have to use REVOLT_EXPLICIT_END and it makes the
 // code less pleasant.  We tie the two things together to say that there is
 // no concern for a "smart-terminal-based C89 build"...if you can only build
 // with C89 then another aspect of that constraint is that you aren't going
@@ -57,11 +57,11 @@
 #elif !defined(TO_WINDOWS) and defined(NO_TTY_ATTRIBUTES)
     // ...couldn't do terminal code even if we bothered with C89 support...
 #else
-// ...good enough to use both REBOL_IMPLICIT_END and terminal functions...
+// ...good enough to use both REVOLT_IMPLICIT_END and terminal functions...
 
-#define REBOL_SMART_CONSOLE
+#define REVOLT_SMART_CONSOLE
 
-#include "rebol.h"
+#include "revolt.h"
 
 // !!! The history mechanism will be disconnected from the line editing
 // mechanism--but for the moment, the line editing is the only place we
@@ -94,7 +94,7 @@ extern void Term_Beep(STD_TERM *t);
 extern void Quit_Terminal(STD_TERM *t);
 
 // This attempts to get one unit of "event" from the console.  It does not
-// use the Rebol EVENT! datatype at this time.  Instead it returns:
+// use the R3-Alpha-style EVENT! datatype at this time.  Instead it returns:
 //
 //    CHAR!, TEXT! => printable characters (includes space, but not newline)
 //    WORD! => keystroke or control code

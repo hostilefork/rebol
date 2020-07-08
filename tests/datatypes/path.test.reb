@@ -107,7 +107,7 @@
     1 == a-value/1
 )
 
-; Ren-C changed INTEGER! path picking to act as PICK, only ANY-STRING! and
+; Revolt changed INTEGER! path picking to act as PICK, only ANY-STRING! and
 ; WORD! actually merge with a slash.
 (
     a-value: file://a
@@ -199,12 +199,12 @@
     ]
 )
 
-; / is a length 2 PATH! in Ren-C
+; / is a length 2 PATH! in Revolt
 (path! = type of lit /)
 (2 = length of lit /)
 (lit / = to path! [_ _])
 
-; foo/ is also a length 2 PATH! in Ren-C
+; foo/ is also a length 2 PATH! in Revolt
 (path! = type of lit foo/ )
 (2 = length of lit foo/ )
 (lit foo/ = to path! [foo _])

@@ -1,25 +1,25 @@
 //
 //  File: %sys-quoted.h
 //  Summary: {Definitions for QUOTED! Datatype}
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Copyright 2018 Rebol Open Source Contributors
+// Copyright 2018 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// In Ren-C, any value can be "quote" escaped, any number of times.  As there
+// In Revolt, any value can be "quote" escaped, any number of times.  As there
 // is no limit to how many levels of escaping there can be, the general case
 // of the escaping cannot fit in a value cell, so a "pairing" array is used.
 // (a compact form with only a series tracking node, sizeof(REBVAL)*2).  This

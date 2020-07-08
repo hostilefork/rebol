@@ -2,22 +2,22 @@
 //  File: %mod-uuid.c
 //  Summary: "Native Functions manipulating UUID"
 //  Section: Extension
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2017 Atronix Engineering
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -29,7 +29,7 @@
 
     #define WIN32_LEAN_AND_MEAN  // trim down the Win32 headers
     #include <windows.h>
-    #undef IS_ERROR  // winerror.h defines, Rebol has a different meaning
+    #undef IS_ERROR  // winerror.h defines, Revolt has a different meaning
 
     #include <rpc.h>  // for UuidCreate()
 #elif defined(TO_OSX)

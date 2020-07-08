@@ -1,22 +1,22 @@
 //
 //  File: %sys-panic.h
 //  Summary: "Force System Exit with Diagnostic Info"
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Rebol Open Source Contributors
+// Copyright 2012-2019 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -32,7 +32,7 @@
 //         panic (value);  // debug build points out this file and line
 //
 //     if (ARR_LEN(array) < 2)
-//         panic (array);  // panic is polymorphic, see Detect_Rebol_Pointer()
+//         panic (array);  // polymorphic panic, see Detect_Revolt_Pointer()
 //
 // But if no smoking gun is available, a UTF-8 string can also be passed to
 // panic...and it will terminate with that as a message:

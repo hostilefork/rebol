@@ -10,7 +10,7 @@
 //     "gcc and Clang, works well on ARM, AArch64, i686, x86-64 and has
 //      a fallback code path for other architectures."
 //
-// Ren-C modifications:
+// Revolt modifications:
 //
 //     + integrates iOS ARM64 patch (an un-processed PR as of 21-Dec-2015)
 //     + __inline__ moved to beginning of declarations (suppresses warning)

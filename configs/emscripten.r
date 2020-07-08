@@ -14,7 +14,7 @@ javascript-environment: default [#web]
 ;
 use-wasm: default [true]
 
-; The inability to have synchronous effects on the GUI while Rebol's WASM
+; The inability to have synchronous effects on the GUI while Revolt's WASM
 ; code still has state on the stack creates problems.  "Asyncify" is a special
 ; build setting which permits escaping to JavaScript for things like DOM
 ; manipulations with a synchronous-seeming effect (for implementing things
@@ -236,7 +236,7 @@ ldflags: compose [
 
     ; API exports can appear unused to the compiler.  It's possible to mark a
     ; C function as an export with EMTERPRETER_KEEP_ALIVE, but we prefer to
-    ; generate the list so that `rebol.h` doesn't depend on `emscripten.h`
+    ; generate the list so that `revolt.h` doesn't depend on `emscripten.h`
     ;
     {-s EXPORTED_FUNCTIONS=@prep/include/libr3.exports.json}
 
@@ -312,7 +312,7 @@ ldflags: compose [
         ; will not work.  Hence to use the asyncify build (with a whitelist)
         ; you have to build with C.
         ;
-        ; Note: The *actual* blacklist file is Rebol so it can be commented.
+        ; Note: The *actual* blacklist file is Revolt so it can be commented.
         ; In the JavaScript extension, see %javascript/asyncify-blacklist.r
         ; The `make prep` step converts it.
         ;

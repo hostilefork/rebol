@@ -384,7 +384,7 @@
 (equal? equal? 2-Jul-2009 2-Jul-2009/22:20 equal? 2-Jul-2009/22:20 2-Jul-2009)
 
 ; R3-Alpha considered date! missing time and zone = 00:00:00+00:00.  But
-; in Ren-C, dates without a time are semantically distinct from a date with
+; in Revolt, dates without a time are semantically distinct from a date with
 ; a time at midnight.
 ;
 (not equal? 2-Jul-2009 2-Jul-2009/00:00:00+00:00)
@@ -442,7 +442,7 @@
 (equal? 'a first ['a])
 ; word! vs. lit-word! symmetry
 (equal? equal? 'a first ['a] equal? first ['a] 'a)
-; word! vs. refinement! (changed in Ren-C)
+; word! vs. refinement! (changed in Revolt)
 (not equal? 'a /a)
 (equal? 'a second /a)
 ; word! vs. refinement! symmetry

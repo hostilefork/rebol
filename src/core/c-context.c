@@ -2,22 +2,22 @@
 //  File: %c-context.c
 //  Summary: "Management routines for ANY-CONTEXT! key/value storage"
 //  Section: core
-//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Project: "Revolt Language Interpreter and Run-time Environment"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Rebol Open Source Contributors
+// Copyright 2012-2017 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Lesser GPL, Version 3.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// https://www.gnu.org/licenses/lgpl-3.0.html
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -45,7 +45,7 @@
 //  +------------------------------+        +-------------------------------+
 //
 // While R3-Alpha used a special kind of WORD! known as an "unword" for the
-// keys, Ren-C uses a special kind of TYPESET! which can also hold a symbol.
+// keys, Revolt uses a special kind of TYPESET! which can also hold a symbol.
 // The reason is that keylists are common to function paramlists and objects,
 // and typesets are more complex than words (and destined to become even
 // moreso with user defined types).  So it's better to take the small detail
@@ -893,7 +893,7 @@ REBCTX *Make_Selfish_Context_Detect_Managed(
 // ignored, `d` will be the word `a` (where it knows to be bound to the a
 // of the object) and `e` would be left as it was.
 //
-// Ren-C retakes the name CONSTRUCT to be the arity-2 object creation
+// Revolt retakes the name CONSTRUCT to be the arity-2 object creation
 // function with evaluation, and makes "raw" construction (via /ONLY on both
 // 1-arity HAS and CONSTRUCT) more regimented.  The requirement for a raw
 // construct is that the fields alternate SET-WORD! and then value, with
@@ -1008,7 +1008,7 @@ REBCTX *Merge_Contexts_Selfish_Managed(REBCTX *parent1, REBCTX *parent2)
 {
     if (parent2 != NULL) {
         assert(CTX_TYPE(parent1) == CTX_TYPE(parent2));
-        fail ("Multiple inheritance of object support removed from Ren-C");
+        fail ("Multiple inheritance of object support removed from Revolt");
     }
 
     // Merge parent1 and parent2 words.

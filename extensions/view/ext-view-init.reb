@@ -16,7 +16,7 @@ request-file: adapt :request-file* [
     ;
     filter: default [
         "All files"         %*.*
-        "Rebol scripts"     %*.r
+        "Revolt scripts"    %*.r
         ; ("Default idea"   %*.xxx)
         "Text files"        %*.txt
     ]

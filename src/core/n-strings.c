@@ -132,8 +132,15 @@ REBNATIVE(delimit)
             Form_Value(mo, D_OUT);
             Init_True(pending);
         }
-        
     }
+
+    // !!! Frames get reused for actions, so we need to update the baseline
+    // of the subframe to account for our additions.  This is a bit of a pain
+    // to have to remember to do...but similar things must be done when there
+    // is stack accrual.
+    //
+    f->baseline.mold_buf_len = STR_LEN(STR(MOLD_BUF));
+    f->baseline.mold_buf_size = STR_SIZE(STR(MOLD_BUF));
 
   next_step:
     if (NOT_END(f->feed->value)) {
@@ -143,6 +150,9 @@ REBNATIVE(delimit)
     }
 
   finished:
+
+    Drop_Frame(f);
+
     if (IS_BLANK(pending))
         Init_Nulled(D_OUT);
     else
@@ -153,8 +163,6 @@ REBNATIVE(delimit)
                 D_FRAME->baseline.mold_buf_len
             )
         );
-
-    Drop_Frame(f);
 
     return D_OUT;
   }

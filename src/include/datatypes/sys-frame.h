@@ -415,7 +415,6 @@ inline static void Push_Frame(REBVAL *out, REBFRM *f)
     }
 
     SNAP_STATE(&f->baseline);  // see notes on `baseline` in Reb_Frame
-    f->baseline.dsp = f->baseline.dsp;
 
   #if !defined(NDEBUG)
     f->initial_flags = f->flags.bits;

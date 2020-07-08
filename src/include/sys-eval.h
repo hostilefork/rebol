@@ -92,7 +92,7 @@
             } \
         } while (false)  // macro so that breakpoint is at right stack level!
 #else
-    #define UPDATE_TICK_DEBUG(v) NOOP
+    #define UPDATE_TICK_DEBUG(f,v) NOOP
 #endif
 
 

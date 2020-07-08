@@ -635,3 +635,26 @@ void MF_Varargs(REB_MOLD *mo, const REBCEL *v, bool form) {
 
     End_Mold(mo);
 }
+
+
+//
+//  variadic?: native [
+//
+//  {Returns TRUE if an ACTION! may take a variable number of arguments.}
+//
+//      return: [logic!]
+//      action [action!]
+//  ]
+//
+REBNATIVE(variadic_q)
+{
+    INCLUDE_PARAMS_OF_VARIADIC_Q;
+
+    REBVAL *param = VAL_ACT_PARAMS_HEAD(ARG(action));
+    for (; NOT_END(param); ++param) {
+        if (Is_Param_Variadic(param))
+            return Init_True(D_OUT);
+    }
+
+    return Init_False(D_OUT);
+}

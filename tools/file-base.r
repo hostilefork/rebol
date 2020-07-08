@@ -35,6 +35,19 @@ core: [
     [evaluator/c-path.c #prefer-O2-optimization]
     [evaluator/c-trampoline.c #prefer-O2-optimization]
 
+    functionals/c-adapt.c
+    functionals/c-augment.c
+    functionals/c-chain.c
+    functionals/c-does.c
+    functionals/c-enclose.c
+    functionals/n-function.c
+    functionals/c-hijack.c
+    functionals/c-oneshot.c
+    functionals/c-reskin.c
+    functionals/c-specialize.c
+    functionals/c-typechecker.c
+    functionals/c-yielder.c
+
     c-bind.c
     c-do.c
     c-context.c
@@ -42,11 +55,9 @@ core: [
     c-function.c
     c-port.c
     c-signal.c
-    c-specialize.c
     c-state.c
     c-value.c
     c-word.c
-    c-yielder.c
 
     ; (D)ebug
     d-crash.c
@@ -128,7 +139,6 @@ core: [
     n-data.c
     n-do.c
     n-error.c
-    n-function.c
     n-io.c
     n-loop.c
     n-math.c

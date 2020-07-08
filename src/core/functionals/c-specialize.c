@@ -7,7 +7,7 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Copyright 2015-2019 Revolt Open Source Contributors
+// Copyright 2015-2020 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
@@ -25,9 +25,9 @@
 // refinements available as APPEND, but otherwise just takes one series arg,
 // as it will always be appending 10.
 //
-// The method used is to store a FRAME! in the specialization's ACT_BODY.
-// Any of those items that have ARG_MARKED_CHECKED are copied from
-// that frame instead of gathered from the callsite.  Eval_Core() heeds this
+// The method used is to store a FRAME! in the specialization's ACT_DETAILS().
+// Any of those items that have ARG_MARKED_CHECKED are copied from that
+// frame instead of gathered from the callsite.  Action_Executor() heeds this
 // when walking parameters (see `f->special`).
 //
 // Code is shared between the SPECIALIZE native and specialization of a
@@ -55,7 +55,7 @@
 //
 // So when looking at `fooBC: :foo/B/C`
 //
-// * /A's slot would contain an instruction for /C.  As Eval_Core() visits the
+// * /A's slot would contain an instruction for /C.  As the evaluator visits
 //   arguments in order it pushes /C as the current first-in-line to take
 //   an argument at the callsite.  Yet /A has not been "specialized out", so
 //   a call like `fooBC/A` is legal...it's just that pushing /C from the
@@ -70,6 +70,10 @@
 
 #include "sys-core.h"
 
+enum {
+    IDX_SPECIALIZER_FRAME = 0,  // Partially or fully filled FRAME! to run
+    IDX_SPECIALIZER_MAX
+};
 
 //
 //  Make_Context_For_Action_Push_Partials: C
@@ -509,7 +513,7 @@ bool Specialize_Action_Throws(
         &Specializer_Dispatcher,
         ACT_UNDERLYING(unspecialized),  // same underlying action as this
         exemplar,  // also provide a context of specialization values
-        1  // details array capacity
+        IDX_SPECIALIZER_MAX  // details array capacity
     );
     assert(CTX_KEYLIST(exemplar) == ACT_PARAMLIST(unspecialized));
 
@@ -523,7 +527,7 @@ bool Specialize_Action_Throws(
     // that binding has to be UNBOUND).  It also remembers the original
     // action in the phase, so Specializer_Dispatcher() knows what to call.
     //
-    RELVAL *body = ARR_HEAD(ACT_DETAILS(specialized));
+    RELVAL *body = ARR_AT(ACT_DETAILS(specialized), IDX_SPECIALIZER_FRAME);
     Move_Value(body, CTX_ARCHETYPE(exemplar));
     INIT_BINDING(body, VAL_BINDING(specializee));
     INIT_VAL_CONTEXT_PHASE(body, unspecialized);
@@ -576,7 +580,7 @@ REBNATIVE(specialize_p)  // see extended definition SPECIALIZE in %base-defs.r
 
     // Refinement specializations via path are pushed to the stack, giving
     // order information that can't be meaningfully gleaned from an arbitrary
-    // code block (e.g. `specialize 'append [dup: x | if y [part: z]`, we
+    // code block (e.g. `specialize 'append [dup: x | if y [part: z]]`, we
     // shouldn't think that intends any ordering of /dup/part or /part/dup)
     //
     REBDSP lowest_ordered_dsp = DSP; // capture before any refinements pushed
@@ -586,9 +590,9 @@ REBNATIVE(specialize_p)  // see extended definition SPECIALIZE in %base-defs.r
         &opt_name,
         specializee,
         SPECIFIED,
-        true // push_refines = true (don't generate temp specialization)
+        true  // push_refines = true (don't generate temp specialization)
     )){
-        return R_THROWN; // e.g. `specialize 'append/(throw 10 'dup) [...]`
+        return R_THROWN;  // e.g. `specialize 'append/(throw 10 'dup) [...]`
     }
 
     // Note: Even if there was a PATH! doesn't mean there were refinements
@@ -596,7 +600,7 @@ REBNATIVE(specialize_p)  // see extended definition SPECIALIZE in %base-defs.r
 
     if (not IS_ACTION(D_OUT))
         fail (PAR(specializee));
-    Move_Value(specializee, D_OUT); // Frees up D_OUT, GC guards action
+    Move_Value(specializee, D_OUT);  // Frees up D_OUT, GC guards action
 
     if (Specialize_Action_Throws(
         D_OUT,
@@ -605,7 +609,7 @@ REBNATIVE(specialize_p)  // see extended definition SPECIALIZE in %base-defs.r
         ARG(def),
         lowest_ordered_dsp
     )){
-        return R_THROWN; // e.g. `specialize 'append/dup [value: throw 10]`
+        return R_THROWN;  // e.g. `specialize 'append/dup [value: throw 10]`
     }
 
     return D_OUT;
@@ -825,82 +829,6 @@ REBVAL *First_Unspecialized_Arg(REBVAL **opt_param_out, REBFRM *f)
 
 
 //
-//  Block_Dispatcher: C
-//
-// There are no arguments or locals to worry about in a DOES, nor does it
-// heed any definitional RETURN.  This means that in many common cases we
-// don't need to do anything special to a BLOCK! passed to DO...no copying
-// or otherwise.  Just run it when the function gets called.
-//
-// Yet `does [...]` isn't *quite* like `specialize 'do [source: [...]]`.  The
-// difference is subtle, but important when interacting with bindings to
-// fields in derived objects.  That interaction cannot currently resolve such
-// bindings without a copy, so it is made on demand.
-//
-// (Luckily these copies are often not needed, such as when the DOES is not
-// used in a method... -AND- it only needs to be made once.)
-//
-REB_R Block_Dispatcher(REBFRM *f)
-{
-    REBARR *details = ACT_DETAILS(FRM_PHASE(f));
-    RELVAL *block = ARR_HEAD(details);  // note NON-CONST, may get updated!
-    assert(IS_BLOCK(block) and VAL_INDEX(block) == 0);
-
-    if (IS_SPECIFIC(block)) {
-        if (FRM_BINDING(f) == UNBOUND) {
-            if (Do_Any_Array_At_Throws(f->out, KNOWN(block), SPECIFIED))
-                return R_THROWN;
-            return f->out;
-        }
-
-        // Until "virtual binding" is implemented, we would lose f->binding's
-        // ability to influence any variable lookups in the block if we did
-        // not relativize it to this frame.  This is the only current way to
-        // "beam down" influence of the binding for cases like:
-        //
-        // What forces us to copy the block are cases like this:
-        //
-        //     o1: make object! [a: 10 b: does [if true [a]]]
-        //     o2: make o1 [a: 20]
-        //     o2/b = 20
-        //
-        // While o2/b's ACTION! has a ->binding to o2, the only way for the
-        // [a] block to get the memo is if it is relative to o2/b.  It won't
-        // be relative to o2/b if it didn't have its existing relativism
-        // Derelativize()'d out to make it specific, and then re-relativized
-        // through a copy on behalf of o2/b.
-
-        REBARR *body_array = Copy_And_Bind_Relative_Deep_Managed(
-            KNOWN(block),
-            ACT_PARAMLIST(FRM_PHASE(f)),
-            TS_WORD,
-            false  // do not gather LETs
-        );
-
-        // Preserve file and line information from the original, if present.
-        //
-        if (GET_ARRAY_FLAG(VAL_ARRAY(block), HAS_FILE_LINE_UNMASKED)) {
-            LINK_FILE_NODE(body_array) = LINK_FILE_NODE(VAL_ARRAY(block));
-            MISC(body_array).line = MISC(VAL_ARRAY(block)).line;
-            SET_ARRAY_FLAG(body_array, HAS_FILE_LINE_UNMASKED);
-        }
-
-        // Update block cell as a relativized copy (we won't do this again).
-        //
-        REBACT *phase = FRM_PHASE(f);
-        Init_Relative_Block(block, phase, body_array);
-    }
-
-    assert(IS_RELATIVE(block));
-
-    if (Do_Any_Array_At_Throws(f->out, block, SPC(f->varlist)))
-        return R_THROWN;
-
-    return f->out;
-}
-
-
-//
 //  Make_Invocation_Frame_Throws: C
 //
 // Logic shared currently by DOES and MATCH to build a single executable
@@ -909,7 +837,7 @@ REB_R Block_Dispatcher(REBFRM *f)
 //
 bool Make_Invocation_Frame_Throws(
     REBFRM *f,
-    REBVAL **first_arg_ptr, // returned so that MATCH can steal it
+    REBVAL **first_arg_ptr,  // returned so that MATCH can steal it
     const REBVAL *action
 ){
     assert(IS_ACTION(action));
@@ -1172,119 +1100,8 @@ REBACT *Make_Action_From_Exemplar(REBCTX *exemplar)
     REBACT *action = Alloc_Action_From_Exemplar(
         exemplar,
         &Specializer_Dispatcher,
-        1  // details capacity
+        IDX_SPECIALIZER_MAX  // details capacity
     );
-    Init_Frame(ARR_HEAD(ACT_DETAILS(action)), exemplar);
+    Init_Frame(ARR_AT(ACT_DETAILS(action), IDX_SPECIALIZER_FRAME), exemplar);
     return action;
-}
-
-
-//
-//  does: native [
-//
-//  {Specializes DO for a value (or for args of another named function)}
-//
-//      return: [action!]
-//      'specializee [any-value!]
-//          {WORD! or PATH! names function to specialize, else arg to DO}
-//      :args [any-value! <...>]
-//          {arguments which will be consumed to fulfill a named function}
-//  ]
-//
-REBNATIVE(does)
-{
-    INCLUDE_PARAMS_OF_DOES;
-
-    REBVAL *specializee = ARG(specializee);
-
-    if (IS_BLOCK(specializee)) {
-        REBARR *paramlist = Make_Array_Core(
-            1, // archetype only...DOES always makes action with no arguments
-            SERIES_MASK_PARAMLIST
-        );
-
-        REBVAL *archetype = RESET_CELL(
-            Alloc_Tail_Array(paramlist),
-            REB_ACTION,
-            CELL_MASK_ACTION
-        );
-        VAL_ACT_PARAMLIST_NODE(archetype) = NOD(paramlist);
-        INIT_BINDING(archetype, UNBOUND);
-        TERM_ARRAY_LEN(paramlist, 1);
-
-        MISC_META_NODE(paramlist) = nullptr;  // REDESCRIBE can add help
-
-        // `does [...]` and `does do [...]` are not exactly the same.  The
-        // generated ACTION! of the first form uses Block_Dispatcher() and
-        // does on-demand relativization, so it's "kind of like" a `func []`
-        // in forwarding references to members of derived objects.  Also, it
-        // is optimized to not run the block with the DO native...hence a
-        // HIJACK of DO won't be triggered by invocations of the first form.
-        //
-        Manage_Array(paramlist);
-        REBACT *doer = Make_Action(
-            paramlist,
-            &Block_Dispatcher, // **SEE COMMENTS**, not quite like plain DO!
-            nullptr, // no underlying action (use paramlist)
-            nullptr, // no specialization exemplar (or inherited exemplar)
-            1 // details array capacity
-        );
-
-        // Block_Dispatcher() *may* copy at an indeterminate time, so to keep
-        // things invariant we have to lock it.
-        //
-        RELVAL *body = ARR_HEAD(ACT_DETAILS(doer));
-        REBSER *locker = NULL;
-        Ensure_Value_Frozen(specializee, locker);
-        Move_Value(body, specializee);
-
-        return Init_Action_Unbound(D_OUT, doer);
-    }
-
-    REBCTX *exemplar;
-    if (
-        GET_CELL_FLAG(specializee, UNEVALUATED)
-        and (IS_WORD(specializee) or IS_PATH(specializee))
-    ){
-        if (Make_Frame_From_Varargs_Throws(
-            D_OUT,
-            specializee,
-            ARG(args)
-        )){
-            return R_THROWN;
-        }
-        exemplar = VAL_CONTEXT(D_OUT);
-    }
-    else {
-        // On all other types, we just make it act like a specialized call to
-        // DO for that value.  But since we're manually specializing it, we
-        // are responsible for type-checking...the evaluator expects any
-        // specialization process to do so (otherwise it would have to pay
-        // for type checking on each call).
-        //
-        // !!! The error reports that DOES doesn't accept the type for its
-        // specializee argument, vs. that DO doesn't accept it.
-        //
-        REBVAL *typeset = ACT_PARAM(NAT_ACTION(do), 1);
-        REBVAL *param = PAR(specializee);
-        if (not TYPE_CHECK(typeset, VAL_TYPE(specializee)))
-            fail (Error_Arg_Type(frame_, param, VAL_TYPE(specializee)));
-
-        exemplar = Make_Context_For_Action(
-            NAT_VALUE(do),
-            DSP, // lower dsp would be if we wanted to add refinements
-            nullptr // don't set up a binder; just poke specializee in frame
-        );
-        assert(GET_SERIES_FLAG(exemplar, MANAGED));
-
-        // Put argument into DO's *second* frame slot (first is RETURN)
-        //
-        assert(VAL_KEY_SYM(CTX_KEY(exemplar, 1)) == SYM_RETURN);
-        Move_Value(CTX_VAR(exemplar, 2), specializee);
-        SET_CELL_FLAG(CTX_VAR(exemplar, 2), ARG_MARKED_CHECKED);
-        Move_Value(specializee, NAT_VALUE(do));
-    }
-
-    REBACT *doer = Make_Action_From_Exemplar(exemplar);
-    return Init_Action_Unbound(D_OUT, doer);
 }

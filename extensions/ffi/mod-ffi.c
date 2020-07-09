@@ -35,7 +35,11 @@ REBTYP *EG_Struct_Type = nullptr;  // (E)xtension (G)lobal
 // and MAKE-CALLBACK natives take as an option via refinement
 //
 static ffi_abi Abi_From_Word(const REBVAL *word) {
-    //
+    if (word == nullptr)
+        return FFI_DEFAULT_ABI;
+
+    assert(IS_WORD(word));
+
     // !!! In order to use #ifdefs inside the call, we cannot use the variadic
     // macro that injects rebEND, but need to use a plain C call and add our
     // own rebEND.  This should be an official technique with an official
@@ -155,14 +159,14 @@ REBNATIVE(unregister_struct_hooks)
 //  {Create a bridge for interfacing with arbitrary C code in a DLL}
 //
 //      return: [action!]
-//      lib [library!]
-//          {Library DLL that C function lives in (get with MAKE LIBRARY!)}
-//      name [text!]
-//          {Linker name of the C function in the DLL}
-//      ffi-spec [block!]
-//          {Description of what C argument types the C function takes}
-//      /abi [word!]
-//          {Application Binary Interface ('CDECL, 'FASTCALL, 'STDCALL, etc.)}
+//      lib "Library DLL that C function lives in (from MAKE LIBRARY!)"
+//          [library!]
+//      name "Linker name of the C function in the DLL"
+//          [text!]
+//      ffi-spec "Description of what C argument types the C function takes"
+//          [block!]
+//      /abi "Application Binary Interface ('CDECL, 'FASTCALL, etc.)"
+//          [word!]
 //  ]
 //
 REBNATIVE(make_routine)
@@ -172,16 +176,10 @@ REBNATIVE(make_routine)
 {
     FFI_INCLUDE_PARAMS_OF_MAKE_ROUTINE;
 
-    ffi_abi abi;
-    if (REF(abi))
-        abi = Abi_From_Word(ARG(abi));
-    else
-        abi = FFI_DEFAULT_ABI;
+    ffi_abi abi = Abi_From_Word(REF(abi));
 
-    // Make sure library wasn't closed with CLOSE
-    //
     REBLIB *lib = VAL_LIBRARY(ARG(lib));
-    if (lib == nullptr)
+    if (lib == nullptr)  // library was closed with CLOSE
         fail (PAR(lib));
 
     // Find_Function takes a char* on both Windows and Posix.
@@ -213,12 +211,12 @@ REBNATIVE(make_routine)
 //  {Create a bridge for interfacing with a C function, by pointer}
 //
 //      return: [action!]
-//      pointer [integer!]
-//          {Raw address of C function in memory}
-//      ffi-spec [block!]
-//          {Description of what C argument types the C function takes}
-//      /abi [word!]
-//          {Application Binary Interface ('CDECL, 'FASTCALL, 'STDCALL, etc.)}
+//      pointer "Raw address of C function in memory"
+//          [integer!]
+//      ffi-spec "Description of what C argument types the C function takes"
+//          [block!]
+//      /abi "Application Binary Interface ('CDECL, 'FASTCALL, etc.)"
+//          [word!]
 //  ]
 //
 REBNATIVE(make_routine_raw)
@@ -228,11 +226,7 @@ REBNATIVE(make_routine_raw)
 {
     FFI_INCLUDE_PARAMS_OF_MAKE_ROUTINE_RAW;
 
-    ffi_abi abi;
-    if (REF(abi))
-        abi = Abi_From_Word(ARG(abi));
-    else
-        abi = FFI_DEFAULT_ABI;
+    ffi_abi abi = Abi_From_Word(REF(abi));
 
     // Cannot cast directly to a function pointer from a 64-bit value
     // on 32-bit systems.
@@ -258,28 +252,24 @@ REBNATIVE(make_routine_raw)
 //  {Wrap an ACTION! so it can be called by raw C code via a memory address.}
 //
 //      return: [action!]
-//      action [action!]
-//          {The existing Revolt action whose behavior is being wrapped}
-//      ffi-spec [block!]
-//          {Description of what C types each Revolt argument should map to}
-//      /abi [word!]
-//          {Application Binary Interface ('CDECL, 'FASTCALL, 'STDCALL, etc.)}
+//      action "The existing Revolt action whose behavior is being wrapped"
+//          [action!]
+//      ffi-spec "What C types each Revolt argument should map to"
+//          [block!]
+//      /abi "Application Binary Interface ('CDECL, 'FASTCALL, etc.)"
+//          [word!]
 //  ]
 //
 REBNATIVE(wrap_callback)
 {
     FFI_INCLUDE_PARAMS_OF_WRAP_CALLBACK;
 
-    ffi_abi abi;
-    if (REF(abi))
-        abi = Abi_From_Word(ARG(abi));
-    else
-        abi = FFI_DEFAULT_ABI;
+    ffi_abi abi = Abi_From_Word(REF(abi));;
 
     REBACT *callback = Alloc_Ffi_Action_For_Spec(ARG(ffi_spec), abi);
     REBRIN *r = ACT_DETAILS(callback);
 
-    void *thunk; // actually CFUNC (FFI uses void*, may not be same size!)
+    void *thunk;  // actually CFUNC (FFI uses void*, may not be same size!)
     ffi_closure *closure = cast(ffi_closure*, ffi_closure_alloc(
         sizeof(ffi_closure), &thunk
     ));
@@ -290,15 +280,15 @@ REBNATIVE(wrap_callback)
     ffi_status status = ffi_prep_closure_loc(
         closure,
         RIN_CIF(r),
-        callback_dispatcher, // when thunk is called it calls this function...
-        r, // ...and this piece of data is passed to callback_dispatcher
+        callback_dispatcher,  // when thunk is called, calls this function...
+        r,  // ...and this piece of data is passed to callback_dispatcher
         thunk
     );
 
     if (status != FFI_OK)
         fail ("FFI: Couldn't prep closure");
 
-    bool check = true; // avoid "conditional expression is constant"
+    bool check = true;  // avoid "conditional expression is constant"
     if (check && sizeof(void*) != sizeof(CFUNC*))
         fail ("FFI does not work when void* size differs from CFUNC* size");
 
@@ -327,10 +317,10 @@ REBNATIVE(wrap_callback)
 //
 //  {Get the memory address of an FFI STRUCT! or routine/callback}
 //
-//      return: [integer!]
-//          {Memory address expressed as an up-to-64-bit integer}
-//      value [action! struct!]
-//          {Fixed address structure or routine to get the address of}
+//      return: "Memory address expressed as an up-to-64-bit integer"
+//          [integer!]
+//      value "Fixed address structure or routine to get the address of"
+//          [action! struct!]
 //  ]
 //
 REBNATIVE(addr_of) {
@@ -373,10 +363,10 @@ REBNATIVE(addr_of) {
 //  "Create a STRUCT! that reuses the underlying spec of another STRUCT!"
 //
 //      return: [struct!]
-//      spec [struct!]
-//          "Struct with interface to copy"
-//      body [block! any-context! blank!]
-//          "keys and values defining instance contents (bindings modified)"
+//      spec "Struct with interface to copy"
+//          [struct!]
+//      body "keys and values defining instance contents (bindings modified)"
+//          [block! any-context! blank!]
 //  ]
 //
 REBNATIVE(make_similar_struct)
@@ -403,8 +393,8 @@ REBNATIVE(make_similar_struct)
 //  {Destroy the external memory associated the struct}
 //
 //      struct [struct!]
-//      /free [action!]
-//          {Specify the function to free the memory}
+//      /free "Specify the function to free the memory"
+//          [action!]
 //  ]
 //
 REBNATIVE(destroy_struct_storage)
@@ -443,8 +433,8 @@ REBNATIVE(destroy_struct_storage)
 //  {Persistently allocate a cell that can be referenced from FFI routines}
 //
 //      return: [integer!]
-//      value [any-value!]
-//          {Initial value for the cell}
+//      value "Initial value for the cell"
+//          [any-value!]
 //  ]
 //
 REBNATIVE(alloc_value_pointer)
@@ -495,10 +485,10 @@ REBNATIVE(free_value_pointer)
 //
 //  {Get the contents of a cell, e.g. one returned by ALLOC-VALUE-POINTER}
 //
-//      return: [<opt> any-value!]
-//          {If the source looks up to a value, that value--else blank}
-//      source [integer!]
-//          {A pointer to a Revolt value}
+//      return: "If the source looks up to a value, that value--else blank"
+//          [<opt> any-value!]
+//      source "A pointer to a Revolt value"
+//          [integer!]
 //  ]
 //
 REBNATIVE(get_at_pointer)
@@ -516,7 +506,7 @@ REBNATIVE(get_at_pointer)
     REBVAL *cell = cast(REBVAL*, cast(intptr_t, VAL_INT64(ARG(source))));
 
     Move_Value(D_OUT, cell);
-    return D_OUT; // don't return `cell` (would do a rebRelease())
+    return D_OUT;  // don't return `cell` (would do a rebRelease())
 }
 
 
@@ -525,14 +515,13 @@ REBNATIVE(get_at_pointer)
 //
 //  {Set the contents of a cell, e.g. one returned by ALLOC-VALUE-POINTER}
 //
-//      return: [<opt> any-value!]
-//          {Will be the value set to, or nullptr if the set value is nullptr}
-//      target [integer!]
-//          {A pointer to a Revolt value}
-//      value [<opt> any-value!]
-//          "Value to assign"
-//      /opt
-//          {Treat nulls as unsetting the target instead of an error}
+//      return: "The value set to, or NULL if the set value is NULL"
+//          [<opt> any-value!]
+//      target "A pointer to a Revolt value"
+//          [integer!]
+//      value "Value to assign"
+//          [<opt> any-value!]
+//      /opt "Treat nulls as unsetting the target instead of an error"
 //  ]
 //
 REBNATIVE(set_at_pointer)
@@ -550,5 +539,5 @@ REBNATIVE(set_at_pointer)
     REBVAL *cell = cast(REBVAL*, cast(intptr_t, VAL_INT64(ARG(target))));
     Move_Value(cell, v);
 
-    RETURN (ARG(value)); // Returning cell would rebRelease()
+    RETURN (ARG(value));  // Returning cell would rebRelease()
 }

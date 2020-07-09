@@ -1044,7 +1044,10 @@ REB_R Reevaluation_Executor(REBFRM *f)
 
 //==//// GET-BLOCK! //////////////////////////////////////////////////////==//
 //
-// !!! Currently just inert, awaiting future usage.
+// !!! The current thinking on GET_BLOCK! is that it will likely be an inert
+// type, used primarily for requesting that branches not be "voidified" in
+// control structures.  This replaces earlier thinking that it might be used
+// as a shorthand for reducing a literal block, which would be of limited use.
 
       case REB_GET_BLOCK:
         Derelativize(f->out, v, f_specifier);

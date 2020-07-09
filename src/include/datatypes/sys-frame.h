@@ -1003,7 +1003,7 @@ inline static REBFRM *Push_Continuation_With_Core(
     const REBVAL *with  // gets copied if not END_VALUE, need not be GC-safe
 ){
     f->flags.bits |= flags;
-    assert(branch != out and with != out);
+    assert(branch != out);  // it's legal for `with` to be the same as out
 
     // !!! This code came from Do_Branch_XXX_Throws() which was not
     // continuation-based, and hence holds some reusable logic for

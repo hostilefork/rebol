@@ -1043,6 +1043,60 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
 }
 
 
+// !!! This is a non-stackless REDUCE operation, which is deprecated.  The
+// FFI code should be rewritten to do more of its pre-processing in usermode,
+// in order to get stacklessness "for free"...and just do the basic system
+// interface part in the C code.  See the TCC module for an example of how
+// this separation was approached.
+//
+static bool Reduce_To_Stack_Throws(
+    REBVAL *out,
+    const RELVAL *any_array,
+    REBSPC *specifier
+){
+    DECLARE_ARRAY_FEED (feed,
+        VAL_ARRAY(any_array),
+        VAL_INDEX(any_array),
+        specifier
+    );
+
+    DECLARE_FRAME (f, feed, EVAL_MASK_DEFAULT | EVAL_FLAG_ALLOCATED_FEED);
+    SHORTHAND (v, f->feed->value, NEVERNULL(const RELVAL*));
+
+    Push_Frame(nullptr, f);
+
+    do {
+        bool line = IS_END(*v) ? false : GET_CELL_FLAG(*v, NEWLINE_BEFORE);
+
+        if (Eval_Step_Throws(out, f)) {
+            Abort_Frame(f);
+            return true;
+        }
+
+        if (IS_END(out)) {  // e.g. `reduce []` or `reduce [comment "hi"]`
+            assert(IS_END(*v));
+            break;
+        }
+
+        // We can't put nulls into array cells, so we put BLANK!.  This is
+        // compatible with historical behavior of `reduce [if 1 = 2 [<x>]]`
+        // which produced `[#[none]]`, and is generally more useful than
+        // putting VOID!, as more operations skip blanks vs. erroring.
+        //
+        if (IS_NULLED(out))
+            Init_Blank(DS_PUSH());
+        else
+            Move_Value(DS_PUSH(), out);
+
+        if (line)
+            SET_CELL_FLAG(DS_TOP, NEWLINE_BEFORE);
+    } while (NOT_END(*v));
+
+    Drop_Frame_Unbalanced(f); // Drop_Frame() asserts on accumulation
+    return false;
+}
+
+
 //
 //  MAKE_Struct: C
 //

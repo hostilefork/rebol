@@ -234,127 +234,36 @@ int Wait_For_Device_Events_Interruptible(
 
 
 //
-//  Wait_Ports_Throws: C
-//
-// Inputs:
-//     Ports: a block of ports or zero (on stack to avoid GC).
-//     Timeout: milliseconds to wait
-//
-// Returns:
-//     out is LOGIC! TRUE when port action happened, or FALSE for timeout
-//     if a throw happens, out will be the thrown value and returns TRUE
-//
-bool Wait_Ports_Throws(
-    REBVAL *out,
-    REBARR *ports,
-    REBLEN timeout,
-    bool only
-){
-    REBI64 base = Delta_Time(0);
-    REBLEN time;
-    REBLEN wt = 1;
-    REBLEN res = (timeout >= 1000) ? 0 : 16;  // OS dependent?
-
-    // Waiting opens the doors to pressing Ctrl-C, which may get this code
-    // to throw an error.  There needs to be a state to catch it.
-    //
-    assert(TG_Jump_List != nullptr);
-
-    while (wt) {
-        if (GET_SIGNAL(SIG_HALT)) {
-            CLR_SIGNAL(SIG_HALT);
-
-            Init_Thrown_With_Label(out, NULLED_CELL, NAT_VALUE(halt));
-            return true; // thrown
-        }
-
-        if (GET_SIGNAL(SIG_INTERRUPT)) {
-            CLR_SIGNAL(SIG_INTERRUPT);
-
-            // !!! If implemented, this would allow triggering a breakpoint
-            // with a keypress.  This needs to be thought out a bit more,
-            // but may not involve much more than running `BREAKPOINT`.
-            //
-            fail ("BREAKPOINT from SIG_INTERRUPT not currently implemented");
-        }
-
-        REBINT ret;
-
-        // Process any waiting events:
-        if ((ret = Awake_System(ports, only)) > 0) {
-            Move_Value(out, TRUE_VALUE); // port action happened
-            return false; // not thrown
-        }
-
-        // If activity, use low wait time, otherwise increase it:
-        if (ret == 0) wt = 1;
-        else {
-            wt *= 2;
-            if (wt > MAX_WAIT_MS) wt = MAX_WAIT_MS;
-        }
-        REBVAL *pump = Get_System(SYS_PORTS, PORTS_PUMP);
-        if (not IS_BLOCK(pump))
-            fail ("system/ports/pump must be a block");
-
-        DECLARE_LOCAL (result);
-        if (Do_Any_Array_At_Throws(result, pump, SPECIFIED))
-            fail (Error_No_Catch_For_Throw(result));
-
-        if (timeout != ALL_BITS) {
-            // Figure out how long that (and OS_WAIT) took:
-            time = cast(REBLEN, Delta_Time(base) / 1000);
-            if (time >= timeout) break;   // done (was dt = 0 before)
-            else if (wt > timeout - time) // use smaller residual time
-                wt = timeout - time;
-        }
-
-        //printf("%d %d %d\n", dt, time, timeout);
-
-        Wait_For_Device_Events_Interruptible(wt, res);
-    }
-
-    //time = (REBLEN)Delta_Time(base);
-    //Print("dt: %d", time);
-
-    Move_Value(out, FALSE_VALUE); // timeout;
-    return false; // not thrown
-}
-
-
-//
-//  export wait: native [
+//  export wait*: native [
 //
 //  "Waits for a duration, port, or both."
 //
+//      return: "NULL if timeout, PORT! that awoke or BLOCK! of ports if /ALL"
+//          [<opt> port! block!]
 //      value [<opt> any-number! time! port! block!]
 //      /all "Returns all in a block"
 //      /only "only check for ports given in the block to this function"
 //  ]
 //
-REBNATIVE(wait)
+REBNATIVE(wait_p)  // See wrapping function WAIT in usermode code
+//
+// WAIT* expects a BLOCK! argument to have been pre-reduced; this means it
+// does not have to implement the reducing process "stacklessly" itself.  The
+// stackless nature comes for free by virtue of REDUCE-ing in usermode.
 {
-    EVENT_INCLUDE_PARAMS_OF_WAIT;
+    EVENT_INCLUDE_PARAMS_OF_WAIT_P;
 
-    REBLEN timeout = 0; // in milliseconds
-    REBARR *ports = NULL;
+    REBLEN timeout = 0;  // in milliseconds
+    REBVAL *ports = nullptr;
     REBINT n = 0;
 
     RELVAL *val;
     if (not IS_BLOCK(ARG(value)))
         val = ARG(value);
     else {
-        REBVAL *block = ARG(value);
-        REBDSP dsp_orig = DSP;
-        if (Reduce_To_Stack_Throws(D_OUT, block, VAL_SPECIFIER(block)))
-            return R_THROWN;
-
-        // !!! This takes the stack array and creates an unmanaged array from
-        // it, which ends up being put into a value and becomes managed.  So
-        // it has to be protected.
-        //
-        ports = Pop_Stack_Values(dsp_orig);
-
-        for (val = ARR_HEAD(ports); NOT_END(val); val++) { // find timeout
+        ports = ARG(value);
+        val = VAL_ARRAY_AT(ports);
+        for (; NOT_END(val); val++) {  // find timeout
             if (Pending_Port(KNOWN(val)))
                 ++n;
 
@@ -362,10 +271,8 @@ REBNATIVE(wait)
                 break;
         }
         if (IS_END(val)) {
-            if (n == 0) {
-                Free_Unmanaged_Array(ports);
+            if (n == 0)
                 return nullptr; // has no pending ports!
-            }
             timeout = ALL_BITS; // no timeout provided
         }
     }
@@ -378,13 +285,17 @@ REBNATIVE(wait)
             timeout = Milliseconds_From_Value(val);
             break;
 
-          case REB_PORT:
+          case REB_PORT: {
             if (not Pending_Port(KNOWN(val)))
                 return nullptr;
-            ports = Make_Array(1);
-            Append_Value(ports, KNOWN(val));
+
+            REBARR *single = Make_Array(1);
+            Append_Value(single, KNOWN(val));
+            Init_Block(ARG(value), single);
+            ports = ARG(value);
+
             timeout = ALL_BITS;
-            break;
+            break; }
 
           case REB_BLANK:
             timeout = ALL_BITS; // wait for all windows
@@ -395,38 +306,159 @@ REBNATIVE(wait)
         }
     }
 
-    // Prevent GC on temp port block:
-    // Note: Port block is always a copy of the block.
+    REBI64 base = Delta_Time(0);
+    REBLEN wait_time = 1;
+    REBLEN res = (timeout >= 1000) ? 0 : 16;  // OS dependent?
+
+    // Waiting opens the doors to pressing Ctrl-C, which may get this code
+    // to throw an error.  There needs to be a state to catch it.
     //
-    if (ports)
-        Init_Block(D_OUT, ports);
+    assert(TG_Jump_List != nullptr);
 
-    // Process port events [stack-move]:
-    if (Wait_Ports_Throws(D_OUT, ports, timeout, did REF(only)))
-        return R_THROWN;
+    REBVAL *system_port = Get_System(SYS_PORTS, PORTS_SYSTEM);
+    if (not IS_PORT(system_port))
+        fail ("System Port is not a PORT! object");
 
-    assert(IS_LOGIC(D_OUT));
+    REBVAL *waiters = VAL_CONTEXT_VAR(system_port, STD_PORT_STATE);
+    if (not IS_BLOCK(waiters))
+        fail ("Wait queue block in System Port is not a BLOCK!");
 
-    if (IS_FALSEY(D_OUT)) { // timeout
-        Sieve_Ports(NULL); // just reset the waked list
+    REBVAL *waked = VAL_CONTEXT_VAR(system_port, STD_PORT_DATA);
+    if (not IS_BLOCK(waked))
+        fail ("Waked queue block in System Port is not a BLOCK!");
+
+    REBVAL *awake = VAL_CONTEXT_VAR(system_port, STD_PORT_AWAKE);
+    if (not IS_ACTION(awake))
+        fail ("System Port AWAKE field is not an ACTION!");
+
+    REBVAL *awake_only = D_SPARE;
+    if (REF(only)) {
+        //
+        // If we're using /ONLY, we need path AWAKE/ONLY to call.
+        // (Revolt's va_list API does not support positional-provided
+        // refinements.)
+        //
+        REBARR *a = Make_Array(2);
+        Append_Value(a, awake);
+        Init_Word(Alloc_Tail_Array(a), Canon(SYM_ONLY));
+
+        Init_Path(D_SPARE, a);
+    }
+    else {
+      #if !defined(NDEBUG)
+        Init_Unreadable_Blank(D_SPARE);
+      #endif
+    }
+
+    bool did_port_action = false;
+
+    while (wait_time != 0) {
+        if (GET_SIGNAL(SIG_HALT)) {
+            CLR_SIGNAL(SIG_HALT);
+
+            Init_Thrown_With_Label(D_OUT, NULLED_CELL, NAT_VALUE(halt));
+            return R_THROWN;
+        }
+
+        if (GET_SIGNAL(SIG_INTERRUPT)) {
+            CLR_SIGNAL(SIG_INTERRUPT);
+
+            // !!! If implemented, this would allow triggering a breakpoint
+            // with a keypress.  This needs to be thought out a bit more,
+            // but may not involve much more than running `BREAKPOINT`.
+            //
+            fail ("BREAKPOINT from SIG_INTERRUPT not currently implemented");
+        }
+
+        if (VAL_LEN_HEAD(waiters) == 0 and VAL_LEN_HEAD(waked) == 0) {
+            //
+            // No activity (nothing to do) so increase the wait time
+            //
+            wait_time *= 2;
+            if (wait_time > MAX_WAIT_MS)
+                wait_time = MAX_WAIT_MS;
+        }
+        else {
+            // Call the system awake function.
+            //
+            // !!! Note: if we knew for certain the names of the arguments
+            // we could use "APPLIQUE".  Since we don't, we have to use a
+            // positional call...but a hybridized APPLY would help here.
+            //
+            if (RunQ_Throws(
+                D_OUT,
+                true,  // fully
+                rebU1(REF(only) ? awake_only : awake),
+                system_port,
+                ports == nullptr ? BLANK_VALUE : ports,
+                rebEND
+            )) {
+                fail (Error_No_Catch_For_Throw(D_OUT));
+            }
+
+            // Awake function returns true for end of WAIT
+            //
+            if (IS_LOGIC(D_OUT) and VAL_LOGIC(D_OUT)) {
+                did_port_action = true;
+                goto post_wait_loop;
+            }
+
+            // Some activity, so use low wait time.
+            //
+            wait_time = 1;
+        }
+
+        if (timeout != ALL_BITS) {
+            //
+            // Figure out how long that (and OS_WAIT) took:
+            //
+            REBLEN time = cast(REBLEN, Delta_Time(base) / 1000);
+            if (time >= timeout)
+                break;  // done (was dt = 0 before)
+            else if (wait_time > timeout - time)  // use smaller residual time
+                wait_time = timeout - time;
+        }
+
+        //printf("%d %d %d\n", dt, time, timeout);
+
+        Wait_For_Device_Events_Interruptible(wait_time, res);
+    }
+
+    //time = (REBLEN)Delta_Time(base);
+    //Print("dt: %d", time);
+
+  post_wait_loop:
+
+    if (not did_port_action) {  // timeout
+        RESET_ARRAY(VAL_ARRAY(waked));  // just reset the waked list
         return nullptr;
     }
 
     if (not ports)
         return nullptr;
 
-    // Determine what port(s) waked us:
-    Sieve_Ports(ports);
+    // Determine what port(s) waked us (intersection of waked and ports)
+    //
+    // !!! Review: should intersect be mutating, or at least have a variant
+    // like INTERSECT and INTERSECTED?  The original "Sieve_Ports" in R3-Alpha
+    // had custom code here but this just uses the API.
 
-    if (not REF(all)) {
-        val = ARR_HEAD(ports);
-        if (not IS_PORT(val))
-            return nullptr;
+    REBVAL *sieved = rebValue("intersect", ports, waked, rebEND);
+    Move_Value(D_OUT, sieved);
+    rebRelease(sieved);
 
-        Move_Value(D_OUT, KNOWN(val));
+    RESET_ARRAY(VAL_ARRAY(waked));  // clear waked list
+
+    if (REF(all))
+        return D_OUT;  // caller wants all the ports that waked us
+
+    RELVAL *first = VAL_ARRAY_AT(D_OUT);
+    if (not IS_PORT(first)) {
+        assert(!"First element of intersection not port, does this happen?");
+        return nullptr;
     }
 
-    return D_OUT;
+    RETURN (KNOWN(first));
 }
 
 

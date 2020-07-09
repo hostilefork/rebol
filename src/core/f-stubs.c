@@ -565,6 +565,46 @@ int64_t Mul_Max(enum Reb_Kind type, int64_t n, int64_t m, int64_t maxi)
 
 
 //
+//  Plainify: C
+//
+// Turn a value into its plain equivalent, if possible.  This tries to
+// "be smart" so even a TEXT! can be turned into a WORD! (just an
+// unbound one).
+//
+REBVAL *Plainify(REBVAL *out) {
+    REBLEN quotes = Dequotify(out);
+
+    enum Reb_Kind kind = VAL_TYPE(out);
+    if (ANY_WORD_KIND(kind)) {
+        mutable_KIND_BYTE(out) = mutable_MIRROR_BYTE(out) = REB_WORD;
+    }
+    else if (ANY_PATH_KIND(kind)) {
+        mutable_KIND_BYTE(out) = mutable_MIRROR_BYTE(out) = REB_PATH;
+    }
+    else if (ANY_BLOCK_KIND(kind)) {
+        mutable_KIND_BYTE(out) = mutable_MIRROR_BYTE(out) = REB_BLOCK;
+    }
+    else if (ANY_GROUP_KIND(kind)) {
+        mutable_KIND_BYTE(out) = mutable_MIRROR_BYTE(out) = REB_GROUP;
+    }
+    else if (kind == REB_NULLED) {
+        fail ("Cannot SETIFY a NULL");
+    }
+    else {
+        // !!! For everything else, as en experiment see if there's some
+        // kind of logic to turn into a SET-WORD!  Calling through the
+        // API is slow, but easy to do for a test.
+        //
+        REBVAL *set = rebValueQ("to word!", out, rebEND);
+        Move_Value(out, set);
+        rebRelease(set);
+    }
+
+    return Quotify(out, quotes);
+}
+
+
+//
 //  Setify: C
 //
 // Turn a value into its SET-XXX! equivalent, if possible.  This tries to

@@ -8,7 +8,7 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Revolt Open Source Contributors
+// Copyright 2012-2020 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
@@ -81,7 +81,8 @@ enum {
     ST_PARSE_ENTRY = 0,
     ST_PARSE_PRE_RULE,
     ST_PARSE_EVALUATING_GROUP,
-    ST_PARSE_PROCESSING_SUBRULES
+    ST_PARSE_PROCESSING_SUBRULES,
+    ST_PARSE_DOING_KEEP_BLOCK  // experimental concept for KEEP :[a b c]
 };
 
 
@@ -99,7 +100,7 @@ enum {
 // usermode authored function arguments only.)
 //
 
-#define P_RAW_RULE              (f->feed->value + 0)  // rvalue
+#define P_RAW_RULE          (f->feed->value + 0)  // rvalue
 #define P_RULE_SPECIFIER    (f->feed->specifier + 0)  // rvalue
 
 #define P_RETURN_VALUE      (f->rootvar + 1)
@@ -1591,22 +1592,48 @@ REB_R Parse_Executor(REBFRM *frame_) {
         TRASH_POINTER_IF_DEBUG(P_SUBRULE);
         TRASH_POINTER_IF_DEBUG(P_SET_OR_COPY_WORD);
 
-        // falls through to pre_rule plus new rule boilerplate
+        goto pre_rule_reset_begin;  // pre_rule plus new rule boilerplate
     }
     else {
         switch (D_STATE_BYTE) {
           case ST_PARSE_PRE_RULE:
             assert(IS_NULLED(P_OUT));  // temporary due to BLANK! continuation
             SET_END(P_OUT);
-            break;  // sets `rule`
+            goto pre_rule_reset_begin;  // sets `rule`
           case ST_PARSE_EVALUATING_GROUP:
             goto group_was_evaluated;  // sets the `rule` or `goto pre_rule;`
           case ST_PARSE_PROCESSING_SUBRULES:
             goto subrules_completed;
+          case ST_PARSE_DOING_KEEP_BLOCK:
+            goto get_keep_block_done;
           default: assert(false);
         }
     }
 
+  get_keep_block_done: {
+    bool only = VAL_LOGIC(DS_TOP);
+    DS_DROP();
+
+    if (IS_NULLED(D_OUT)) {
+        // Nothing to add
+    }
+    else if (only) {
+        Move_Value(Alloc_Tail_Array(P_COLLECTION), D_OUT);
+    }
+    else {
+        rebElideQ("append", P_COLLECTION_VALUE, D_OUT, rebEND);
+    }
+
+    SET_END(D_OUT);  // !!! this invariant is kept (needed?)
+
+    // Don't touch P_POS, we didn't consume anything from
+    // the input series.
+
+    FETCH_NEXT_RAW_RULE(f);
+    goto pre_rule;
+  }
+
+  pre_rule_reset_begin: {
     // Make sure index position is not past END
     //
     if (VAL_INDEX(P_INPUT_VALUE) > VAL_LEN_HEAD(P_INPUT_VALUE))
@@ -1629,6 +1656,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
     // a rule it would have otherwise processed just once.  But there are
     // a lot of edge cases like `while |` where this method isn't set up
     // to notice a "grammar error".  It could use review.
+  }
 
   pre_rule:
 
@@ -1830,16 +1858,18 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 // PATH! dispatch here, so it's `keep only` instead of
                 // `keep/only`.  But is that any good?  Review.
                 //
-                bool only;
+                // Store the "only" flag at the top of the stack, so it is
+                // available even if we need to re-enter the parse executor
+                //
                 if (
                     IS_WORD(P_RAW_RULE)
                     and VAL_WORD_SYM(P_RAW_RULE) == SYM_ONLY
                 ){
-                    only = true;
+                    Init_True(DS_PUSH());  // `only` = true
                     FETCH_NEXT_RAW_RULE(f);
                 }
                 else
-                    only = false;
+                    Init_False(DS_PUSH());  // `only` = false
 
                 REBLEN pos_before = P_POS;
 
@@ -1851,120 +1881,99 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     // evaluation of material that is not matched as
                     // a PARSE rule.
                     //
-                    assert(IS_END(P_OUT));  // should be true until finish
-                    if (Do_Any_Array_At_Throws(
-                        P_OUT,
-                        P_RULE,
-                        P_RULE_SPECIFIER
-                    )){
-                        return R_THROWN;
-                    }
+                    Derelativize(D_SPARE, P_RULE, P_RULE_SPECIFIER);
+                    Plainify(D_SPARE);  // make regular BLOCK! (e.g. for ONLY)
+                    D_STATE_BYTE = ST_PARSE_DOING_KEEP_BLOCK;
 
-                    if (IS_END(P_OUT) or IS_NULLED(P_OUT)) {
-                        // Nothing to add
-                    }
-                    else if (only) {
-                        Move_Value(
-                            Alloc_Tail_Array(P_COLLECTION),
-                            P_OUT
-                        );
-                    }
-                    else
-                        rebElide(
-                            "append", P_COLLECTION_VALUE, rebQ1(P_OUT),
-                        rebEND);
-
-                    SET_END(P_OUT);  // since we didn't throw, put it back
-
-                    // Don't touch P_POS, we didn't consume anything from
-                    // the input series but just fabricated DO material.
-
-                    FETCH_NEXT_RAW_RULE(f);
+                    CONTINUE (D_SPARE);
                 }
-                else {  // Ordinary rule (may be block, may not be)
 
-                    DECLARE_FRAME (
-                        subframe,
-                        f->feed,
-                        EVAL_MASK_DEFAULT
-                        // no EVAL_FLAG_TO_END, don't run all rules (just one)
-                    );
+                // Otherwise an ordinary rule (may be block, may not be)
 
-                    bool interrupted;
-                    assert(IS_END(P_OUT));  // invariant until finished
-                    bool threw = Subparse_Throws(
-                        &interrupted,
-                        P_OUT,
-                        P_INPUT_VALUE,
-                        SPECIFIED,
-                        subframe,
-                        P_COLLECTION,
-                        (P_FLAGS & PF_FIND_MASK)
-                    );
+                DECLARE_FRAME (
+                    subframe,
+                    f->feed,
+                    EVAL_MASK_DEFAULT
+                    // no EVAL_FLAG_TO_END, don't run all rules (just one)
+                );
 
-                    UNUSED(interrupted);  // !!! ignore ACCEPT/REJECT (?)
+                bool interrupted;
+                assert(IS_END(P_OUT));  // invariant until finished
+                bool threw = Subparse_Throws(
+                    &interrupted,
+                    P_OUT,
+                    P_INPUT_VALUE,
+                    SPECIFIED,
+                    subframe,
+                    P_COLLECTION,
+                    (P_FLAGS & PF_FIND_MASK)
+                );
 
-                    if (threw)
-                        return R_THROWN;
+                UNUSED(interrupted);  // !!! ignore ACCEPT/REJECT (?)
 
-                    if (IS_NULLED(P_OUT)) {  // match of rule failed
-                        SET_END(P_OUT);  // restore invariant
-                        goto next_alternate;  // backtrack collect, seek |
-                    }
-                    REBLEN pos_after = VAL_INT32(P_OUT);
+                if (threw)
+                    return R_THROWN;
+
+                bool only = VAL_LOGIC(DS_TOP);
+                DS_DROP();
+
+                if (IS_NULLED(P_OUT)) {  // match of rule failed
                     SET_END(P_OUT);  // restore invariant
-
-                    assert(pos_after >= pos_before);  // 0 or more matches
-
-                    REBARR *target;
-                    if (pos_after == pos_before and not only) {
-                        target = nullptr;
-                    }
-                    else if (ANY_STRING(P_INPUT_VALUE)) {
-                        target = nullptr;
-                        Init_Any_String(
-                            Alloc_Tail_Array(P_COLLECTION),
-                            P_TYPE,
-                            Copy_String_At_Limit(
-                                P_INPUT_VALUE,
-                                pos_after - pos_before
-                            )
-                        );
-                    }
-                    else if (not IS_SER_ARRAY(P_INPUT)) {  // BINARY! (?)
-                        target = nullptr;  // not an array, one item
-                        Init_Any_Series(
-                            Alloc_Tail_Array(P_COLLECTION),
-                            P_TYPE,
-                            Copy_Sequence_At_Len(
-                                P_INPUT,
-                                pos_before,
-                                pos_after - pos_before
-                            )
-                        );
-                    }
-                    else if (only) {  // taken to mean "add as one block"
-                        target = Make_Array_Core(
-                            pos_after - pos_before,
-                            NODE_FLAG_MANAGED
-                        );
-                        Init_Block(Alloc_Tail_Array(P_COLLECTION), target);
-                    }
-                    else
-                        target = P_COLLECTION;
-
-                    if (target) {
-                        REBLEN n;
-                        for (n = pos_before; n < pos_after; ++n)
-                            Derelativize(
-                                Alloc_Tail_Array(target),
-                                ARR_AT(ARR(P_INPUT), n),
-                                P_INPUT_SPECIFIER
-                            );
-                    }
-
-                    P_POS = pos_after;  // continue from end of kept data
+                    goto next_alternate;  // backtrack collect, seek |
                 }
+                REBLEN pos_after = VAL_INT32(P_OUT);
+                SET_END(P_OUT);  // restore invariant
+
+                assert(pos_after >= pos_before);  // 0 or more matches
+
+                REBARR *target;
+                if (pos_after == pos_before and not VAL_LOGIC(DS_TOP)) {
+                    target = nullptr;
+                }
+                else if (ANY_STRING(P_INPUT_VALUE)) {
+                    target = nullptr;
+                    Init_Any_String(
+                        Alloc_Tail_Array(P_COLLECTION),
+                        P_TYPE,
+                        Copy_String_At_Limit(
+                            P_INPUT_VALUE,
+                            pos_after - pos_before
+                        )
+                    );
+                }
+                else if (not IS_SER_ARRAY(P_INPUT)) {  // BINARY! (?)
+                    target = nullptr;  // not an array, one item
+                    Init_Any_Series(
+                        Alloc_Tail_Array(P_COLLECTION),
+                        P_TYPE,
+                        Copy_Sequence_At_Len(
+                            P_INPUT,
+                            pos_before,
+                            pos_after - pos_before
+                        )
+                    );
+                }
+                else if (only) {  // taken to mean "add as one block"
+                    target = Make_Array_Core(
+                        pos_after - pos_before,
+                        NODE_FLAG_MANAGED
+                    );
+                    Init_Block(Alloc_Tail_Array(P_COLLECTION), target);
+                }
+                else
+                    target = P_COLLECTION;
+
+                if (target) {
+                    REBLEN n;
+                    for (n = pos_before; n < pos_after; ++n)
+                        Derelativize(
+                            Alloc_Tail_Array(target),
+                            ARR_AT(ARR(P_INPUT), n),
+                            P_INPUT_SPECIFIER
+                        );
+                }
+
+                P_POS = pos_after;  // continue from end of kept data
                 goto pre_rule; }
 
               case SYM_NOT:

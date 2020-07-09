@@ -32,6 +32,11 @@ REBOL [
 register-event-hooks
 
 
+; WAIT* expects block to be pre-reduced, to ease stackless implementation
+;
+wait: adapt 'wait* [if block? :value [value: reduce value]]
+
+
 sys/make-scheme [
     title: "System Port"
     name: 'system
@@ -97,4 +102,4 @@ sys/make-scheme [
 
 system/ports/system: open [scheme: 'system]
 
-sys/export []  ; current hacky mechanism is to put any exports here
+sys/export [wait]  ; current hacky mechanism is to put any exports here

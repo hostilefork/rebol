@@ -1688,15 +1688,7 @@ static REBINT Scan_Head(SCAN_STATE *ss)
 
 static REBARR *Scan_Child_Array(SCAN_LEVEL *level, REBYTE mode_char);
 
-//
-//  Scan_To_Stack: C
-//
-// Scans values to the data stack, based on a mode_char.  This mode can be
-// ']', ')', or '/' to indicate the processing type...or '\0'.
-//
-// If the source bytes are "1" then it will be the array [1]
-// If the source bytes are "[1]" then it will be the array [[1]]
-//
+
 // BLOCK! and GROUP! use fairly ordinary recursions of this routine to make
 // arrays.  PATH! scanning is a bit trickier...it starts after an element was
 // scanned and is immediately followed by a `/`.  The stack pointer is marked
@@ -1711,39 +1703,60 @@ static REBARR *Scan_Child_Array(SCAN_LEVEL *level, REBYTE mode_char);
 // (It only has a return value because it may be called by rebRescue(), and
 // that's the convention it uses.)
 //
-REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
+REB_R Scanner_Executor(REBFRM *f) {
+
+    enum {
+        ST_SCANNER_INITIAL_ENTRY = 0,
+        ST_SCANNER_SCANNING_CHILD_ARRAY
+    };
+
     DECLARE_MOLD (mo);
 
-    if (C_STACK_OVERFLOWING(&mo))
-        Fail_Stack_Overflow();
-
+    SCAN_LEVEL *level = &f->u.scan;
     SCAN_STATE *ss = level->ss;
 
-    const bool just_once = did (level->opts & SCAN_FLAG_NEXT);
-    if (just_once)
+    const REBYTE *bp;
+    const REBYTE *ep;
+    REBLEN len;
+
+    TRASH_POINTER_IF_DEBUG(bp);
+    TRASH_POINTER_IF_DEBUG(ep);
+
+    switch (STATE_BYTE(f)) {
+      case ST_SCANNER_INITIAL_ENTRY: goto initial_entry;
+      case ST_SCANNER_SCANNING_CHILD_ARRAY:
+        bp = ss->begin;
+        ep = ss->end;
+        len = cast(REBLEN, ep - bp);
+        goto child_array_scanned;
+      default: assert(false);
+    }
+
+  initial_entry: {
+    level->just_once = did (level->opts & SCAN_FLAG_NEXT);
+    if (level->just_once)
         level->opts &= ~SCAN_FLAG_NEXT;  // recursion loads an entire BLOCK!
 
-    REBLEN lit_depth = 0;
-
-    enum Reb_Token token;
+    level->lit_depth = 0;
+  }
 
   loop:
 
     while (true) {
         Drop_Mold_If_Pushed(mo);
-        token = Locate_Token_May_Push_Mold(mo, level);
-        if (token == TOKEN_END)
+        level->token = Locate_Token_May_Push_Mold(mo, level);
+        if (level->token == TOKEN_END)
             break;
 
         assert(ss->begin and ss->end and ss->begin < ss->end);
 
-        const REBYTE *bp = ss->begin;
-        const REBYTE *ep = ss->end;
-        REBLEN len = cast(REBLEN, ep - bp);
+        bp = ss->begin;
+        ep = ss->end;
+        len = cast(REBLEN, ep - bp);
 
         ss->begin = ss->end;  // accept token
 
-        switch (token) {
+        switch (level->token) {
           case TOKEN_NEWLINE:
             level->newline_pending = true;
             ss->line_head = ep;
@@ -1783,8 +1796,8 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
           case TOKEN_SET:
           token_set:
             len--;
-            if (level->mode_char == '/' and token == TOKEN_SET) {
-                token = TOKEN_WORD;  // will be a PATH_SET
+            if (level->mode_char == '/' and level->token == TOKEN_SET) {
+                level->token = TOKEN_WORD;  // will be a PATH_SET
                 ss->end--;  // put ':' back on end but not beginning
             }
             goto token_word;
@@ -1798,7 +1811,7 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
 
             Init_Any_Word(
                 DS_PUSH(),
-                KIND_OF_WORD_FROM_TOKEN(token),
+                KIND_OF_WORD_FROM_TOKEN(level->token),
                 Intern_UTF8_Managed(bp, len)
             );
             break;
@@ -1809,17 +1822,17 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
             break;
 
           case TOKEN_APOSTROPHE: {
-            if (lit_depth != 0)  // e.g. `' '`, nothing seen since last one
-                Quotify(Init_Nulled(DS_PUSH()), lit_depth);
+            if (level->lit_depth != 0)  // e.g. `' '`, nothing seen since last
+                Quotify(Init_Nulled(DS_PUSH()), level->lit_depth);
 
             assert(ss->end > bp);
-            lit_depth = ss->end - bp;
+            level->lit_depth = ss->end - bp;
 
             if (not ANY_CR_LF_END(*ss->begin))  // more to come...(maybe)
                 goto loop;  // so wrap next value
 
-            Quotify(Init_Nulled(DS_PUSH()), lit_depth);
-            lit_depth = 0;
+            Quotify(Init_Nulled(DS_PUSH()), level->lit_depth);
+            level->lit_depth = 0;
             goto loop; }  // wrap next value
 
           case TOKEN_SYM_GROUP_BEGIN:
@@ -1838,18 +1851,62 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
           token_array_begin:
           case TOKEN_GROUP_BEGIN:
           case TOKEN_BLOCK_BEGIN: {
-            REBARR *a = Scan_Child_Array(
-                level, (token >= TOKEN_GET_BLOCK_BEGIN) ? ']' : ')'
+            DECLARE_END_FRAME (
+                subframe,
+                EVAL_MASK_DEFAULT
+                    | EVAL_FLAG_TRAMPOLINE_KEEPALIVE  // we want accrued stack
             );
 
-            enum Reb_Kind kind = KIND_OF_ARRAY_FROM_TOKEN(token);
+            ++ss->depth;
+            subframe->u.scan.ss = ss;
+
+            // Capture current line and head of line into the starting points.
+            // (Some errors wish to report the start of the array's location.)
+            //
+            subframe->u.scan.start_line = ss->line;
+            subframe->u.scan.start_line_head = ss->line_head;
+            subframe->u.scan.newline_pending = false;
+            subframe->u.scan.opts = level->opts
+                &= ~(SCAN_FLAG_NULLEDS_LEGAL | SCAN_FLAG_NEXT);
+
+            subframe->u.scan.mode_char
+                = (level->token >= TOKEN_GET_BLOCK_BEGIN) ? ']' : ')';
+
+            Push_Frame(f->out, subframe);
+            INIT_F_EXECUTOR(subframe, &Scanner_Executor);
+            STATE_BYTE(f) = ST_SCANNER_SCANNING_CHILD_ARRAY;
+            return R_CONTINUATION; }
+
+          child_array_scanned: {
+            assert(FS_TOP->prior == f);
+            REBARR *a = Pop_Stack_Values_Core(
+                FS_TOP->baseline.dsp,
+                NODE_FLAG_MANAGED | (
+                    FS_TOP->u.scan.newline_pending
+                        ? ARRAY_FLAG_NEWLINE_AT_TAIL
+                        : 0
+                )
+            );
+
+            Drop_Frame(FS_TOP);
+
+            // Tag array w/line where beginning bracket/group/etc. was found
+            //
+            MISC(a).line = ss->line;
+            LINK_FILE_NODE(a) = NOD(ss->file);
+            SET_ARRAY_FLAG(a, HAS_FILE_LINE_UNMASKED);
+            SET_SERIES_FLAG(a, LINK_NODE_NEEDS_MARK);
+
+            --ss->depth;
+
+            enum Reb_Kind kind = KIND_OF_ARRAY_FROM_TOKEN(level->token);
             if (
                 *ss->end == ':'  // `...(foo):` or `...[bar]:`
                 and level->mode_char != '/'  // leave `:` to make SET-PATH!
             ){
                 if (
-                    token == TOKEN_GET_BLOCK_BEGIN
-                    or token == TOKEN_GET_GROUP_BEGIN
+                    level->token == TOKEN_GET_BLOCK_BEGIN
+                    or level->token == TOKEN_GET_GROUP_BEGIN
                 ){
                     goto syntax_error;  // `:(foo):` or `:[bar]:`
                 }
@@ -1862,7 +1919,7 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
             ep = ss->end;
             break; }
 
-        case TOKEN_PATH:
+          case TOKEN_PATH:
             if (*ss->end == '\0' or IS_LEX_SPACE(*ss->end)) {
                 //
                 // This means you have something like `/`, `foo//`, `///`...
@@ -1939,7 +1996,7 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
                     goto syntax_error;
             }
             else {  // saw a `/` not in block
-                token = TOKEN_DATE;
+                level->token = TOKEN_DATE;
                 while (*ep == '/' or IS_LEX_NOT_DELIMIT(*ep))
                     ++ep;
                 len = cast(REBLEN, ep - bp);
@@ -2257,7 +2314,7 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
             }
 
             if (*ep != '(' and *ep != '[' and IS_LEX_DELIMIT(*ep)) {
-                token = TOKEN_PATH;  // so error says "bad path"
+                level->token = TOKEN_PATH;  // so error says "bad path"
                 goto syntax_error;
             }
             ss->begin = ep;  // skip next /
@@ -2405,16 +2462,16 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
                 INIT_BINDING(DS_TOP, UNBOUND);
             }
 
-            token = TOKEN_PATH;  // for error message !!! unused?
+            level->token = TOKEN_PATH;  // for error message !!! unused?
         }
 
-        if (lit_depth != 0) {
+        if (level->lit_depth != 0) {
             //
             // Transform the topmost value on the stack into a QUOTED!, to
             // account for the ''' that was preceding it.
             //
-            Quotify(DS_TOP, lit_depth);
-            lit_depth = 0;
+            Quotify(DS_TOP, level->lit_depth);
+            level->lit_depth = 0;
         }
 
         // Set the newline on the new value, indicating molding should put a
@@ -2429,7 +2486,7 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
 
         // Added for TRANSCODE/NEXT (LOAD/NEXT is deprecated, see #1703)
         //
-        if (just_once)
+        if (level->just_once)
             goto array_done;
     }
 
@@ -2443,18 +2500,51 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
 
     Drop_Mold_If_Pushed(mo);
 
-    if (lit_depth != 0)
-        Quotify(Init_Nulled(DS_PUSH()), lit_depth);
+    if (level->lit_depth != 0)
+        Quotify(Init_Nulled(DS_PUSH()), level->lit_depth);
 
     // Note: ss->newline_pending may be true; used for ARRAY_NEWLINE_AT_TAIL
 
-    return nullptr;  // to be used w/rebRescue(), has to return a REBVAL*
+    INIT_F_EXECUTOR(f, nullptr);
+    return Init_Nulled(f->out);  // for rebRescue(), has to return a REBVAL*
 
   syntax_error:
 
-    fail (Error_Syntax(ss, token));
+    fail (Error_Syntax(ss, level->token));
 }
 
+
+//
+//  Scan_To_Stack: C
+//
+// Scans values to the data stack, based on a mode_char.  This mode can be
+// ']', ')', or '/' to indicate the processing type...or '\0'.
+//
+// If the source bytes are "1" then it will be the array [1]
+// If the source bytes are "[1]" then it will be the array [[1]]
+//
+// Note: This is a "stackful" entry point to scanning.  Because the scanner
+// doesn't run arbitrary code (or shouldn't!), you cannot YIELD from the
+// scanner itself.  So unlike with natives, it's not so bad to add a stack
+// level for this routine.
+//
+REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
+    DECLARE_END_FRAME (f, EVAL_MASK_DEFAULT);
+    f->u.scan = *level;
+    INIT_F_EXECUTOR(f, &Scanner_Executor);
+
+    DECLARE_LOCAL (temp);
+    SET_END(temp);
+
+    Push_Frame(temp, f);
+
+    if (Trampoline_Throws(f))
+        fail (Error_No_Catch_For_Throw(temp));
+
+    Drop_Frame_Unbalanced(f);  // allow stack accrual
+
+    return nullptr;
+}
 
 
 //

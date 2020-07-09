@@ -355,13 +355,18 @@ void Assert_Cell_Marked_Correctly(const RELVAL *v)
         //
         assert(Is_Marked(spelling));
 
-        assert(  // GC can't run during binding, only time bind indices != 0
-            NOT_SERIES_INFO(spelling, STRING_CANON)
-            or (
-                MISC(spelling).bind_index.high == 0
-                and MISC(spelling).bind_index.low == 0
-            )
-        );
+        // Note: This used to operate on the idea that a GC could not run
+        // during the binding process.  There's no real reason to disallow it,
+        // but it was nice to have a moment to double-check that all the
+        // bind indices were at zero.  Review if this check could be put back
+        // in when it's known no binders are in effect.
+        //
+        //     assert(
+        //         NOT_SERIES_INFO(spelling, STRING_CANON)
+        //         or (
+        //             MISC(spelling).bind_index.high == 0
+        //             and MISC(spelling).bind_index.low == 0
+        //         )
 
         if (IS_WORD_BOUND(v)) {
             assert(PAYLOAD(Any, v).second.i32 > 0);

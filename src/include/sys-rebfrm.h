@@ -7,7 +7,7 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2019 Revolt Open Source Contributors
+// Copyright 2012-2020 Revolt Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
@@ -780,6 +780,8 @@ struct Reb_Frame {
         //
         const RELVAL *set_or_copy_word;
     } parse;
+
+    SCAN_LEVEL scan;
   } u;
 
     // The "baseline" is a digest of the state of global variables at the

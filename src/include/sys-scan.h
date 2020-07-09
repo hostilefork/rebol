@@ -346,6 +346,13 @@ typedef struct rebol_scan_level {  // each array scan corresponds to a level
     bool newline_pending;
 
     REBFLGS opts;
+
+    // !!! Before stackless, these were locals in Scan_To_Stack()
+    //
+    bool just_once;
+    REBLEN lit_depth;
+    enum Reb_Token token;
+
 } SCAN_LEVEL;
 
 #define ANY_CR_LF_END(c) ((c) == '\0' or (c) == CR or (c) == LF)

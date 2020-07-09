@@ -1144,6 +1144,9 @@ REBLEN Fill_Sweeplist(REBSER *sweeplist)
 //
 REBLEN Recycle_Core(bool shutdown, REBSER *sweeplist)
 {
+    if (PG_Boot_Phase < BOOT_LOADED and not shutdown)
+        return 0;
+
     // Ordinarily, it should not be possible to spawn a recycle during a
     // recycle.  But when debug code is added into the recycling code, it
     // could cause a recursion.  Be tolerant of such recursions to make that

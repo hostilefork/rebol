@@ -54,6 +54,9 @@ REBNATIVE(reeval)
     //
     UNUSED(ARG(expressions));
 
+    if (ANY_INERT(ARG(value)))
+        RETURN (ARG(value));  // save time if it's something like a TEXT!
+
     // !!! Review ramifications of Enfix.  See SHOVE for how the reevaluate
     // situation was addressed in that case.
 

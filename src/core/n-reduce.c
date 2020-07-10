@@ -107,15 +107,22 @@ REBNATIVE(reduce)
   initial_entry: {
     if (not IS_BLOCK(v) and not IS_GROUP(v)) {
         //
-        // Single value REDUCE does an EVAL, but doesn't allow arguments.
+        // Single value REDUCE does a REEVALUATE, but doesn't allow arguments.
         // (R3-Alpha, would return the input, e.g. `reduce ':foo` => :foo)
-        // If arguments are required, Eval_Value_Throws() will error.
+        // This is a variant of REEVAL with an END feed.
         //
         // !!! Should error be "reduce-specific" if args were required?
-        //
-        Move_Value(D_SPARE, v);
-        Quotify(D_SPARE, 1);  // !!! DELEGATE_WITH doesn't suppress eval
-        DELEGATE_WITH (NAT_VALUE(reeval), D_SPARE);
+
+        if (ANY_INERT(v))
+            RETURN (v);  // save time if it's something like a TEXT!
+
+        DECLARE_END_FRAME (subframe, EVAL_MASK_DEFAULT);
+        subframe->executor = &Reevaluation_Executor;
+        subframe->u.reval.value = v;
+        Push_Frame(D_OUT, subframe);
+
+        SET_EVAL_FLAG(frame_, DELEGATE_CONTROL);
+        return R_CONTINUATION;
     }
 
     DECLARE_FRAME_AT (

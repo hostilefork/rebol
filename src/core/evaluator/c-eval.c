@@ -125,8 +125,8 @@ inline static bool Was_Rightward_Continuation_Needed(
     SET_END(f->out);  // `1 x: comment "hi"` shouldn't set x to 1!
 
     REBNAT executor = &New_Expression_Executor;
-/*    if (Did_Init_Inert_Optimize_Complete(out, f->feed, &flags, &executor))
-        return false;  // If eval not hooked, ANY-INERT! may not need a frame */
+    if (Did_Init_Inert_Optimize_Complete(f->out, f->feed, &flags, &executor))
+        return false;  // If eval not hooked, ANY-INERT! may not need a frame
 
     // Can't SET_END() here, because sometimes it would be overwriting what
     // the optimization produced.  Trust that it has already done it if it
@@ -136,6 +136,14 @@ inline static bool Was_Rightward_Continuation_Needed(
     subframe->executor = executor;
 
     Push_Frame(f->out, subframe);
+
+    if (CURRENT_CHANGES_IF_FETCH_NEXT) {
+        Derelativize(f_spare, v, f_specifier);
+        f->u.reval.value = f_spare;
+    }
+    else
+        f->u.reval.value = v;
+
     return true;
 }
 
@@ -590,7 +598,7 @@ REB_R Reevaluation_Executor(REBFRM *f)
         if (IS_END(f->out))  // e.g. `do [x: ()]` or `(x: comment "hi")`.
             fail (Error_Need_Non_End_Core(v, f_specifier));
 
-        CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // this helper counts as eval
+        CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // this counts as eval
 
         Move_Value(Sink_Word_May_Fail(v, f_specifier), f->out);
         break; }
@@ -677,6 +685,9 @@ REB_R Reevaluation_Executor(REBFRM *f)
         // needing to use another output cell in Group_Executor() that we have
         // to copy back into f->out for that effect.
         //
+        // !!! Be sure to test `evaluate evaluate [1 (comment "hi") + 3]` and
+        // make sure it errors and doesn't assert if you want to change this.
+        //
         DECLARE_FRAME_AT_CORE (subframe, v, f_specifier,
             EVAL_MASK_DEFAULT | EVAL_FLAG_TO_END | EVAL_FLAG_KEEP_STALE_BIT
         );
@@ -695,10 +706,10 @@ REB_R Reevaluation_Executor(REBFRM *f)
 
       group_execution_done:
 
-        // Check for lack of staleness (also implies not an END if not stale).
-        // Use raw test instead of GET_CELL_FLAG() since f->out may be END.
+        // If group execution left a result, ignore whether it's stale or not.
         //
-        if (not (f->out->header.bits & CELL_FLAG_OUT_MARKED_STALE)) {
+        if (NOT_END(f->out)) {
+            f->out->header.bits &= ~CELL_FLAG_OUT_MARKED_STALE;
             CLEAR_CELL_FLAG(f->out, UNEVALUATED);  // `(1)` is evaluative
             INIT_F_EXECUTOR(f, &Lookahead_Executor);  // subsequent enfix ok
             return f->out;
@@ -710,7 +721,7 @@ REB_R Reevaluation_Executor(REBFRM *f)
             return f->out;  // use END or stale `f->out` (enfix can't pick up)
         }
 
-        // If there's more to try after a vaporized group, retrigger
+        // If there's more to try after a vaporized group, retrigger...
         //
         assert(f->executor == &Reevaluation_Executor);
         v = Lookback_While_Fetching_Next(f);

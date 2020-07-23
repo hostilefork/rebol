@@ -312,6 +312,14 @@ REB_R New_Expression_Executor(REBFRM *f)
 //
 REB_R Reevaluation_Executor(REBFRM *f)
 {
+    if (Is_Throwing(f)) {
+        //
+        // The Reevaluation executor does not catch throws or errors, and it
+        // has no state it needs to free during an unwind.
+        //
+        return R_THROWN;
+    }
+
     union {
         int byte;  // values bigger than REB_64 are used for in-situ literals
         enum Reb_Kind pun;  // for debug viewing *if* byte < REB_MAX_PLUS_MAX
@@ -1352,6 +1360,9 @@ REB_R Reevaluation_Executor(REBFRM *f)
 //
 REB_R Lookahead_Executor(REBFRM *f)
 {
+    if (GET_EVAL_FLAG(f, ABRUPT_FAILURE))  // this executor itself fail()'ed
+        return R_THROWN;  // nothing to clean up
+
     // If something was run with the expectation it should take the next arg
     // from the output cell, and an evaluation cycle ran that wasn't an
     // ACTION! (or that was an arity-0 action), that's not what was meant.

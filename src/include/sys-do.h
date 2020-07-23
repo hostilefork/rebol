@@ -60,7 +60,14 @@ inline static bool Do_Feed_To_End_Maybe_Stale_Throws(
         f->executor = &New_Expression_Executor;
         threw = (*PG_Trampoline_Throws)(f);
     } while (not threw and NOT_END(feed->value));
-    Drop_Frame(f);
+
+    if (threw and IS_ERROR(VAL_THROWN_LABEL(f->out))) {
+        if (Is_Action_Frame(f))
+            Drop_Action(f);
+        Abort_Frame(f);
+    }
+    else
+        Drop_Frame(f);
 
     return threw;
 }
@@ -194,7 +201,10 @@ inline static bool Do_Branch_Core_Throws(
     );
     SET_EVAL_FLAG(f, ROOT_FRAME);
     bool threw = (*PG_Trampoline_Throws)(f);
-    Drop_Frame(f);
+    if (threw)
+        Abort_Frame(f);
+    else
+        Drop_Frame(f);
     return threw;
 }
 

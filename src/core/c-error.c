@@ -54,6 +54,11 @@ void Trapped_Helper(struct Reb_Jump *j)
     if (ARR_LEN(BUF_COLLECT) != 0)
         Collect_End(NULL); // !!! No binder, review implications
 
+    // !!! This isn't necessarily the perfect idea, but have to start
+    // somewhere...
+    //
+    SET_EVAL_FLAG(FS_TOP, ABRUPT_FAILURE);
+
     TG_Jump_List = j->last_jump;
 }
 
@@ -117,6 +122,19 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
     }
   #endif
 
+    // The topmost frame must be the one issuing the error.  If a frame was
+    // pushed with EVAL_FLAG_TRAMPOLINE_KEEPALIVE that finished executing
+    // but remained pushed, it must be dropped before the frame that pushes
+    // it issues a failure.
+    //
+    assert(FS_TOP->executor != nullptr);
+
+    // You can't abruptly fail during the handling of abrupt failure.  At the
+    // moment we're assuming that once a frame has failed it can't recover if
+    // it originated the failure...but this may be revisited.
+    //
+    assert(NOT_EVAL_FLAG(FS_TOP, ABRUPT_FAILURE));
+
     REBCTX *error;
     if (p == nullptr) {
         error = Error_Unknown_Error_Raw();
@@ -160,7 +178,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
     assert(CTX_TYPE(error) == REB_ERROR);
 
     // If we raise the error we'll lose the stack, and if it's an early
-    // error we always want to see it (do not use ATTEMPT or TRY on
+    // error we always want to see it (do not use ATTEMPT or TRAP on
     // purpose in Startup_Core()...)
     //
     if (PG_Boot_Phase < BOOT_DONE)
@@ -184,41 +202,15 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
             Set_Location_Of_Error(error, FS_TOP);
     }
 
-    // The information for the Revolt call frames generally is held in stack
-    // variables, so the data will go bad in the longjmp.  We have to free
-    // the data *before* the jump.  Be careful not to let this code get too
-    // recursive or do other things that would be bad news if we're responding
-    // to C_STACK_OVERFLOWING.  (See notes on the sketchiness in general of
-    // the way R3-Alpha handles stack overflows, and alternative plans.)
-    //
-    REBFRM *f = FS_TOP;
-    while (f != TG_Jump_List->frame) {
-        if (Is_Action_Frame(f)) {
-            //
-            // !!! Experiment for stackless trap: it doesn't actually use
-            // rebRescue() or PUSH_TRAP_SO_FAIL_CAN_JUMP_BACK_HERE().  We
-            // break and re-enter the trampoline.
-            //
-            if (FRM_PHASE(f) == NAT_ACTION(trap))
-                if (not Is_Action_Frame_Fulfilling(f))  // wouldn't TRAP yet
-                    break;
-
-            Drop_Action(f);
-        }
-
-        REBFRM *prior = f->prior;
-        Abort_Frame(f);  // will call va_end() if variadic frame
-        f = prior;
-    }
-
-    TG_Top_Frame = f;  // TG_Top_Frame is writable FS_TOP
-
     TG_Jump_List->error = error;
 
     // If a throw was being processed up the stack when the error was raised,
     // then it had the thrown argument set.  Set it to END.
     //
     SET_END(&TG_Thrown_Arg);
+  #if !defined(NDEBUG)
+    SET_END(&TG_Thrown_Label_Debug);
+  #endif
 
     LONG_JUMP(TG_Jump_List->cpu_state, 1);
 }
@@ -1061,6 +1053,11 @@ REBCTX *Error_No_Catch_For_Throw(REBVAL *thrown)
 
     DECLARE_LOCAL (arg);
     CATCH_THROWN(arg, thrown);
+
+    if (IS_ERROR(label)) {
+        assert(IS_NULLED(arg));
+        return VAL_CONTEXT(label);
+    }
 
     return Error_No_Catch_Raw(arg, label);
 }

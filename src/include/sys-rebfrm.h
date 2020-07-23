@@ -227,9 +227,13 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 
 
 
-//=//// EVAL_FLAG_20 //////////////////////////////////////////////////////=//
+//=//// EVAL_FLAG_ABRUPT_FAILURE //////////////////////////////////////////=//
 //
-#define EVAL_FLAG_20 \
+// !!! This is a current guess for how to handle the case of re-entering an
+// executor when it fail()s abruptly.  We don't want to steal a STATE_BYTE
+// for this in case the status of that state byte is important for cleanup.
+//
+#define EVAL_FLAG_ABRUPT_FAILURE \
     FLAG_LEFT_BIT(20)
 
 

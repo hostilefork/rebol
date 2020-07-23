@@ -194,6 +194,14 @@ bool Match_For_Compose(const RELVAL *group, const REBVAL *label) {
 // trampoline to get the stackless behavior while still having the holds.
 //
 REB_R Composer_Executor(REBFRM *f) {
+    if (Is_Throwing(f)) {
+        //
+        // The Composer_Executor() has no state it needs to free during an
+        // unwind due to an error or a throw.
+        //
+        return R_THROWN;
+    }
+
     REBFRM *frame_ = CTX_FRAME_IF_ON_STACK(VAL_CONTEXT(FRM_SPARE(f)));
     assert(frame_ != nullptr);
 

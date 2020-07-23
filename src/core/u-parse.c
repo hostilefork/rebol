@@ -347,7 +347,7 @@ bool Unpack_Subparse_Throws(
     // or not found.  This returns the interrupted flag which is still
     // ignored by most callers, but makes that fact more apparent.
     //
-    const REBVAL *label = VAL_THROWN_LABEL(f->out);
+    const REBVAL *label = VAL_THROWN_LABEL(out);
     if (IS_ACTION(label)) {
         if (VAL_ACTION(label) == NAT_ACTION(parse_reject)) {
             CATCH_THROWN(out, out);
@@ -568,6 +568,9 @@ REB_R Process_Group_For_Parse(
 //
 REB_R Parse_Group_Executor(REBFRM *f)
 {
+    if (Is_Throwing(f))
+        return R_THROWN;
+
     // We don't want to over-aggressively Derelativize() values we don't need
     // to.  So we don't pass in the GROUP! or GET-GROUP! value, just a flag.
     //
@@ -1546,6 +1549,9 @@ REB_R Parse_Executor(REBFRM *frame_) {
     const REBLEN *pos_debug = &P_POS;
     (void)pos_debug; // UNUSED() forces corruption in C++11 debug builds
   #endif
+
+    if (GET_EVAL_FLAG(f, ABRUPT_FAILURE))  // this executor itself fail()'ed
+        goto return_thrown;
 
     if (D_STATE_BYTE == ST_PARSE_ENTRY) {
         //

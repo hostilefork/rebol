@@ -354,7 +354,13 @@ inline static bool Eval_Step_In_Va_Throws_Core(
 
     Push_Frame(out, f);
     bool threw = Eval_Throws(f);
-    Drop_Frame(f); // will va_end() if not reified during evaluation
+    if (threw and IS_ERROR(VAL_THROWN_LABEL(f->out))) {
+        if (Is_Action_Frame(f))
+            Drop_Action(f);
+        Abort_Frame(f);
+    }
+    else
+        Drop_Frame(f); // will va_end() if not reified during evaluation
 
     if (threw)
         return true;

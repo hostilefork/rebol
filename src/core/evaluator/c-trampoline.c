@@ -66,8 +66,6 @@
 //
 bool Trampoline_Throws(REBFRM *f)
 {
-    REBFRM *f_start = f;
-
     // The instigating call to this function cannot be unwound across, as it
     // represents a "stackful" invocation of the evaluator.  YIELD must know
     // the passed-in frame is uncrossable, so that it can raise an error if
@@ -85,39 +83,59 @@ bool Trampoline_Throws(REBFRM *f)
 
     // In theory, a caller could push several frames to be evaluated, and
     // the passed in `f` would just be where evaluation should *stop*.  No
-    // cases of this exist yet, but if they did we'd need to make sure the
-    // frame we process first is updated to be the topmost one pushed.
+    // cases of this exist yet, but the `f = FS_TOP` below would allow it.
     //
     assert(f == FS_TOP);
-    /* f = FS_TOP; */
 
   push_again: ;
 
-    f = FS_TOP;  // *usually* FS_TOP, unless requested to not drop
+    // There is only one setjmp() point for each trampoline invocation.  Any
+    // frame that is interrupted at an arbitrary moment by a fail() will be
+    // "teleported" up to this point.  The running C stack variables will be
+    // lost, but the Revolt frame stack will still be intact.
+    //
+    // Only the topmost frame may raise an error.  This means that if a frame
+    // pushes another frame to do work with EVAL_FLAG_TRAMPOLINE_KEEPALIVE,
+    // that must be dropped before failing.
+    //
+    // A *cooperative* failure is done by raising the error and returning it
+    // like a throw.  This form of failure assumes balance in the frame was
+    // achieved before returning, and the frame will be considered done.  If
+    // EVAL_FLAG_TRAMPOLINE_KEEPALIVE wasn't used, it will be dropped.
+    //
+    // On the other hand, an *uncooperative* failure can happen at any moment,
+    // even due to something like a failed memory allocation requested by
+    // the executor itself.  As evidenced by fail()s in an Action_Executor()
+    // which are caused by subdispatch to a native, the executor must get a
+    // chance to clean up after fails that happen on its watch.
 
     struct Reb_Jump jump;
     PUSH_TRAP_SO_FAIL_CAN_JUMP_BACK_HERE(&jump);
-    jump.frame = f_start;
 
     // The first time through the following code 'error' will be null, but...
     // `fail` can longjmp here, so 'error' won't be null *if* that happens!
     //
     if (jump.error) {
-        //
-        // We want to unwind up to the nearest TRAP.  If there isn't one (or
-        // it isn't interested in the form of error we are raising) then we
-        // have to re-raise it.
-        //
-        if (not Is_Action_Frame(FS_TOP)
-            or FRM_PHASE(FS_TOP) != NAT_ACTION(trap)
-        ){
-            fail (jump.error);
-        }
 
-        Init_Error(FS_TOP->out, jump.error);
+        // The mechanisms for THROW-ing and FAIL-ing are somewhat unified in
+        // stackless...(a TRAPpable failure is just any "thrown" value with
+        // a VAL_THROWN_LABEL() which is an ERROR!).  So the trampoline just
+        // converts the longjmp into a throw.
+
+        Init_Thrown_With_Label(
+            FS_TOP->out,
+            NULLED_CELL,  // no "thrown value"
+            CTX_ARCHETYPE(jump.error)  // only the ERROR! as a label
+        );
 
         goto push_again;
     }
+
+    // This assignment is needed to avoid `f could be clobbered by longjmp`
+    // warning (see also note about how it would facilitate a caller who
+    // pushed more stack levels and didn't pass FS_TOP as initial parameter).
+    //
+    f = FS_TOP;
 
   loop:
 
@@ -127,10 +145,29 @@ bool Trampoline_Throws(REBFRM *f)
 
     assert((f->executor == &Action_Executor) == (f->original != nullptr));
 
+    // CALL THE EXECUTOR
+    //
+    // It is expected that all executors are able to handle the Is_Throwing()
+    // state, even if just to pass it through.  The executor may push more
+    // frames or change the executor of the frame it receives.
+    //
     REB_R r = (f->executor)(f);  // Note: f may not be FS_TOP at this moment
     f = FS_TOP;  // refresh to whatever topmost frame is after call
 
-    if (r != R_THROWN)
+    if (r == R_THROWN) {
+        //
+        // When an executor does `return R_THROWN;` cooperatively, it is
+        // expected that it has balanced all of its API handles and memory
+        // allocations.  The executor is changed to a "trash" pointer to
+        // indicate it did not end normally and should not be called again
+        // (distinct from the 'nullptr' which signals normal execution done).
+        // This is because the trashing is not necessary in release builds
+        //
+        assert(f->executor != nullptr);
+        assert(not IS_POINTER_TRASH_DEBUG(f->executor));
+        TRASH_POINTER_IF_DEBUG(f->executor);
+    }
+    else
         assert((f->executor == &Action_Executor) == (f->original != nullptr));
 
     assert(Eval_Count >= 0);
@@ -153,6 +190,11 @@ bool Trampoline_Throws(REBFRM *f)
             r = R_THROWN;
             goto thrown;
         }
+    }
+
+    if (r == R_CONTINUATION) {
+        assert(f->executor != nullptr);  // *topmost* frame needs callback
+        goto loop;  // keep going
     }
 
     if (f->executor == nullptr) {  // no further execution for frame, drop it
@@ -187,11 +229,6 @@ bool Trampoline_Throws(REBFRM *f)
         goto loop;
     }
 
-    if (r == R_CONTINUATION) {
-        assert(f->executor != nullptr);  // *topmost* frame needs callback
-        goto loop;  // keep going
-    }
-
   #if !defined(NDEBUG)
     if (not f->original)
         Eval_Core_Exit_Checks_Debug(f);   // called unless a fail() longjmps
@@ -199,23 +236,17 @@ bool Trampoline_Throws(REBFRM *f)
 
     if (r == R_THROWN) {
       thrown:
-        while (NOT_EVAL_FLAG(f, ROOT_FRAME)) {
-            if (not f->original and f->out != f->prior->out) {
-                //assert(f->out == FRM_SPARE(f->prior));
-                Move_Value(f->prior->out, f->out);
-            }
+        if (GET_EVAL_FLAG(f, ROOT_FRAME)) {
+            assert(NOT_EVAL_FLAG(f, TRAMPOLINE_KEEPALIVE));  // always kept
+            DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&jump);
+            return true;
+        }
+
+        if (GET_EVAL_FLAG(f, TRAMPOLINE_KEEPALIVE))
+            f = f->prior;
+        else {
             Abort_Frame(f);
             f = FS_TOP;  // refresh
-
-            // We assume the action and parse executors want to catch throws
-            // for now...but this needs to be done in a more general way.
-            //
-            if (
-                f->executor == &Action_Executor
-                or f->executor == &Parse_Executor
-            ){
-                goto loop;
-            }
         }
     }
     else {
@@ -255,14 +286,7 @@ bool Trampoline_Throws(REBFRM *f)
         // As it stands, the Action_Dispatcher always wants a chance to
         // follow up... even if just to Drop the action.  Whether it
         // calls the dispatcher or not again depends on DELEGATES_DISPATCH
-        //
-        goto loop;
     }
 
-    assert(GET_EVAL_FLAG(f, ROOT_FRAME));
-
-    assert(r == R_THROWN);
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&jump);
-
-    return true;  // thrown
+    goto loop;
 }

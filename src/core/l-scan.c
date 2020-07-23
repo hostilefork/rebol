@@ -1707,6 +1707,7 @@ REB_R Scanner_Executor(REBFRM *f) {
 
     enum {
         ST_SCANNER_INITIAL_ENTRY = 0,
+        ST_SCANNER_RUNNING,  // we enter here if we fail() to ourselves
         ST_SCANNER_SCANNING_CHILD_ARRAY
     };
 
@@ -1723,13 +1724,29 @@ REB_R Scanner_Executor(REBFRM *f) {
     TRASH_POINTER_IF_DEBUG(ep);
 
     switch (STATE_BYTE(f)) {
-      case ST_SCANNER_INITIAL_ENTRY: goto initial_entry;
+      case ST_SCANNER_INITIAL_ENTRY:
+        STATE_BYTE(f) = ST_SCANNER_RUNNING;
+        goto initial_entry;
+
+      case ST_SCANNER_RUNNING:
+        assert(Is_Throwing(f) and IS_ERROR(VAL_THROWN_LABEL(f->out)));
+        return R_THROWN;
+
       case ST_SCANNER_SCANNING_CHILD_ARRAY:
+        if (Is_Throwing(f)) {
+            assert(IS_ERROR(VAL_THROWN_LABEL(f->out)));
+            assert(FS_TOP->prior == f);
+            Abort_Frame(FS_TOP);
+            return R_THROWN;
+        }
         bp = ss->begin;
         ep = ss->end;
         len = cast(REBLEN, ep - bp);
+        STATE_BYTE(f) = ST_SCANNER_RUNNING;
         goto child_array_scanned;
-      default: assert(false);
+
+      default:
+        assert(false);
     }
 
   initial_entry: {
@@ -2535,13 +2552,14 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
 
     DECLARE_LOCAL (temp);
     SET_END(temp);
-
     Push_Frame(temp, f);
 
-    if (Trampoline_Throws(f))
-        fail (Error_No_Catch_For_Throw(temp));
+    bool threw = Trampoline_Throws(f);
 
     Drop_Frame_Unbalanced(f);  // allow stack accrual
+
+    if (threw)  // make sure failing stack has been dropped before re-failing
+        fail (Error_No_Catch_For_Throw(temp));
 
     return nullptr;
 }

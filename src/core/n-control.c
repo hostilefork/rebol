@@ -1550,6 +1550,9 @@ REBNATIVE(catch)
 
     const REBVAL *label = VAL_THROWN_LABEL(D_OUT);
 
+    if (IS_ERROR(label))  // TRAP must be used to catch ERROR!-labeled FAIL
+        return R_THROWN;
+
     if (REF(any) and not (
         IS_ACTION(label)
         and VAL_ACT_DISPATCHER(label) == &N_quit

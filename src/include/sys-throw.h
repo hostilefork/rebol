@@ -71,7 +71,7 @@ inline static bool Is_Throwing(REBFRM *f) {
     // frames above on the stack.
     //
     if (NOT_END(&TG_Thrown_Arg)) {
-        assert(f == FS_TOP);
+        /*assert(f == FS_TOP);*/  // forget even that check
         UNUSED(f);  // currently only used for debug build check
         return true;
     }
@@ -127,11 +127,22 @@ static inline void CATCH_THROWN(
 ){
     ASSERT_NOT_END(&TG_Thrown_Arg);
 
-    UNUSED(thrown);
     Move_Value(arg_out, &TG_Thrown_Arg);
     SET_END(&TG_Thrown_Arg);
 
-  #if !defined(NDEBUG)
-    SET_END(&TG_Thrown_Label_Debug);
+  #if defined(NDEBUG)
+    UNUSED(thrown);
+  #else
+    // The debug build may have taken the throw label out of the output slot
+    // and put it into a variable on the side (this helps avoid non-throw
+    // aware reads of f->out).  If this was done, put it back after catch
+    // (it is done SPORADICALLY()).  Only do so if they weren't trying to
+    // overwrite the frame's output slot and didn't care about the label.
+    //
+    if (NOT_END(&TG_Thrown_Label_Debug)) {
+        if (arg_out != thrown)
+            Move_Value(thrown, &TG_Thrown_Label_Debug);
+        SET_END(&TG_Thrown_Label_Debug);
+    }
   #endif
 }

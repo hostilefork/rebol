@@ -534,8 +534,17 @@ REBNATIVE(evaluate)
                 | EVAL_FLAG_TRAMPOLINE_KEEPALIVE  // we need `index` of feed
         );
         INIT_F_EXECUTOR(subframe, &New_Expression_Executor);
+
+        // !!! We are evaluating into D_SPARE instead of D_OUT.  This isn't
+        // strictly necessary, and it complicates error handling...but it's
+        // experimenting with what doing that entails.  Currently it means
+        // we have to participate in error handling to get thrown/errors
+        // to move into the D_OUT.  Review.
+        //
         SET_END(D_SPARE);
         Push_Frame(D_SPARE, subframe);
+        SET_EVAL_FLAG(frame_, DISPATCHER_CATCHES);
+
         D_STATE_BYTE = ST_EVALUATE_STEPPING;
         return R_CONTINUATION;
       }
@@ -544,6 +553,12 @@ REBNATIVE(evaluate)
         assert(FS_TOP->prior == frame_);  // FS_TOP should be frame we pushed
         REBLEN index = FS_TOP->feed->index - 1;
         Drop_Frame(FS_TOP);
+
+        if (Is_Throwing(frame_)) {  // we must proxy the error or throw
+            if (NOT_EVAL_FLAG(frame_, ABRUPT_FAILURE))
+                Move_Value(D_OUT, D_SPARE);
+            return R_THROWN;
+        }
 
         if (IS_END(D_SPARE))  // we were at array end or was just COMMENT/etc.
             return nullptr;  // leave the result variable with old value

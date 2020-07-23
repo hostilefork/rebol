@@ -283,6 +283,46 @@ inline static void Conserve_Varlist(REBARR *varlist)
 // optimize performance by working with the evaluator directly.
 
 inline static void Free_Frame_Internal(REBFRM *f) {
+    assert(f->original == nullptr);  // Drop_Action() first
+
+    // If a frame was interrupted by a fail(), we make allowance that API
+    // allocated handles may leak.  Otherwise we mandate that handles have
+    // been freed.
+    //
+    // !!! This could be eased and turned into a kind of debug information
+    // that just warned you about the inefficiencies of leaking handles, and
+    // always do the freeing.  Or that could be a specific feature of usermode
+    // constructs like JavaScript natives, which might be more lax than the
+    // C counterparts that expect more rigor.
+    //
+    if (GET_EVAL_FLAG(f, ABRUPT_FAILURE)) {
+        REBNOD *n = f->alloc_value_list;
+        while (n != NOD(f)) {
+            REBARR *a = ARR(n);
+            n = LINK(n).custom.node;
+            TRASH_CELL_IF_DEBUG(ARR_SINGLE(a));
+            GC_Kill_Series(SER(a));
+        }
+        TRASH_POINTER_IF_DEBUG(f->alloc_value_list);
+    }
+    else {
+        REBNOD *n = f->alloc_value_list;
+        if (n != NOD(f)) {
+            int num_leaks = 0;
+            do {
+                REBARR *a = ARR(n);
+                n = LINK(a).custom.node;  // "next" pointer
+                ++num_leaks;
+            } while (n != NOD(f));
+
+          #if defined(DEBUG_STDIO_OK)
+            printf("%d API handles found not rebRelease()'d\n", num_leaks);
+          #endif
+
+            panic (f->alloc_value_list);  // just panic on the first
+        }
+    }
+
     if (GET_EVAL_FLAG(f, ALLOCATED_FEED))
         Free_Feed(f->feed);  // didn't inherit from parent, and not END_FRAME
 
@@ -434,17 +474,6 @@ inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
 
 inline static void Abort_Frame(REBFRM *f) {
     //
-    // If a frame is aborted, then we allow its API handles to leak.
-    //
-    REBNOD *n = f->alloc_value_list;
-    while (n != NOD(f)) {
-        REBARR *a = ARR(n);
-        n = LINK(n).custom.node;
-        TRASH_CELL_IF_DEBUG(ARR_SINGLE(a));
-        GC_Kill_Series(SER(a));
-    }
-    TRASH_POINTER_IF_DEBUG(f->alloc_value_list);
-
     // Abort_Frame() handles any work that wouldn't be done done naturally by
     // feeding a frame to its natural end.
     // 
@@ -506,19 +535,12 @@ inline static void Drop_Frame_Core(REBFRM *f) {
     free(f->stress);
   #endif
 
-    assert(TG_Jump_List == nullptr or TG_Jump_List->frame != f);
+    // Successful completion of a frame's executor ends with `nullptr`, while
+    // ending returning a throw or cooperative error makes trash.
+    //
+    assert(f->executor == nullptr or IS_POINTER_TRASH_DEBUG(f->executor));
 
     assert(TG_Top_Frame == f);
-
-    REBNOD *n = f->alloc_value_list;
-    while (n != NOD(f)) {
-        REBARR *a = ARR(n);
-      #if defined(DEBUG_STDIO_OK)
-        printf("API handle was allocated but not freed, panic'ing leak\n");
-      #endif
-        panic (a);
-    }
-
     TG_Top_Frame = f->prior;
     Free_Frame_Internal(f);
 }
@@ -574,6 +596,7 @@ inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
     TRASH_POINTER_IF_DEBUG(f->out);
 
     f->original = nullptr;  // !!! redundant!
+    TRASH_POINTER_IF_DEBUG(f->opt_label);  // !!! apparently not redundant!
     TRASH_POINTER_IF_DEBUG(f->executor);  // not defaulted
     f->varlist = nullptr;
 
@@ -799,7 +822,8 @@ inline static void Push_Action(
 }
 
 
-inline static void Drop_Action(REBFRM *f) {
+inline static void Drop_Action(REBFRM *f)
+{
     assert(
         not f->opt_label
         or GET_SERIES_FLAG(f->opt_label, IS_STRING)

@@ -79,7 +79,6 @@ struct Reb_Jump {
 
     struct Reb_Jump *last_jump;
 
-    REBFRM *frame;  // bounding frame (can't be jumped past)
     REBCTX *error;  // longjmp only takes `int`, pointer passed back via this
 };
 
@@ -178,7 +177,6 @@ struct Reb_Jump {
 #define PUSH_TRAP_SO_FAIL_CAN_JUMP_BACK_HERE(j) \
     do { \
         assert(TG_Jump_List or DSP == 0); \
-        (j)->frame = FS_TOP; \
         (j)->last_jump = TG_Jump_List; \
         TG_Jump_List = (j); \
         if (0 == SET_JUMP((j)->cpu_state))  /* initial setjmp branch */ \

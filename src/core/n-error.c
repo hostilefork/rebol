@@ -66,16 +66,23 @@ REBNATIVE(trap)
 
   initial_entry: {
     D_STATE_BYTE = ST_TRAP_EVALUATING;
-    CONTINUE (ARG(code));
+    CONTINUE_CATCHABLE (ARG(code));
   }
 
-  evaluation_finished: {  // e.g. no error or throw occurred
-    if (IS_ERROR(D_OUT))
-        return D_OUT;  // !!! hack for the moment
+  evaluation_finished: {
+    if (not Is_Throwing(frame_)) {
+        if (REF(result))
+            rebElideQ(NAT_VALUE(set), REF(result), D_OUT, rebEND);
+        return nullptr;
+    }
 
-    if (REF(result))
-        rebElideQ(NAT_VALUE(set), REF(result), D_OUT, rebEND);
-    return nullptr;
+    if (not IS_ERROR(VAL_THROWN_LABEL(D_OUT)))  // CATCH for non-ERROR! throws
+        return R_THROWN;
+
+    CATCH_THROWN(D_SPARE, D_OUT);  // label should stay in D_OUT
+    assert(IS_ERROR(D_OUT));
+    assert(IS_NULLED(D_SPARE));  // all error throws are null-valued
+    return D_OUT;
   }
 }
 

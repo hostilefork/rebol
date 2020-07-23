@@ -277,7 +277,10 @@ REB_R Action_Executor(REBFRM *f)
         if (NOT_END(f->param)) {  // *before* function runs
             assert(STATE_BYTE(f) == ST_ACTION_FULFILLING_ARGS);
 
-            Move_Value(f->out, f->arg);  // throw must be in out
+            if (GET_EVAL_FLAG(f, ABRUPT_FAILURE))
+                assert(IS_ERROR(VAL_THROWN_LABEL(f->out)));
+            else
+                Move_Value(f->out, f->arg);  // throw must be in out
             goto abort_action;
         }
 
@@ -285,6 +288,23 @@ REB_R Action_Executor(REBFRM *f)
 
         if (GET_EVAL_FLAG(f, DISPATCHER_CATCHES))
             goto dispatch_phase;  // might want to see BREAK/CONTINUE
+
+        // Since the function doesn't want to see the throw, be helpful by
+        // killing off a TRAMPOLINE_KEEPALIVE frame it may have left above
+        // it.  (That frame should be ready to be dropped, as it either
+        // threw and was balanced...or was EVAL_FLAG_ABRUPT_FAILURE and got
+        // a callback to do a balance.)  This makes writing certain natives
+        // easier that don't have to intercept throws for other reasons.
+        //
+        // !!! It might be the case in the future that more than one frame
+        // could be kept alive, so this should be a while loop from FS_TOP,
+        // but since no cases of this exist yet assert if more than one.
+        //
+        if (f != FS_TOP and GET_EVAL_FLAG(FS_TOP, TRAMPOLINE_KEEPALIVE)) {
+            assert(FS_TOP->prior == f);
+            Abort_Frame(FS_TOP);
+        }
+
         goto action_threw;  // could be an UNWIND or similar
     }
 
@@ -1557,7 +1577,7 @@ REB_R Action_Executor(REBFRM *f)
   }
 
   abort_action: {
-    Drop_Action(f);
+    Drop_Action(f);  // All API handles must have been rebRelease()'d
     return R_THROWN;  // Will Abort_Frame() and drop to baseline DSP, mold...
   }
 

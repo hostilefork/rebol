@@ -80,7 +80,7 @@
     ]
 )
 (
-    err-trapped: trap [[value pos err]: transcode "[^M^/ a] b c"]
+    err-trapped: trap [transcode "[^M^/ a] b c"]
     err-trapped/id = 'illegal-cr
 )
 

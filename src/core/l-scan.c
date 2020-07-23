@@ -1707,14 +1707,16 @@ REB_R Scanner_Executor(REBFRM *f) {
 
     enum {
         ST_SCANNER_INITIAL_ENTRY = 0,
-        ST_SCANNER_RUNNING,  // we enter here if we fail() to ourselves
         ST_SCANNER_SCANNING_CHILD_ARRAY
     };
 
-    DECLARE_MOLD (mo);
-
     SCAN_LEVEL *level = &f->u.scan;
     SCAN_STATE *ss = level->ss;
+
+    if (GET_EVAL_FLAG(f, ABRUPT_FAILURE))  // this Scanner_Executor() fail'd
+        return R_THROWN;  // let caller do error handling
+
+    DECLARE_MOLD (mo);
 
     const REBYTE *bp;
     const REBYTE *ep;
@@ -1725,12 +1727,7 @@ REB_R Scanner_Executor(REBFRM *f) {
 
     switch (STATE_BYTE(f)) {
       case ST_SCANNER_INITIAL_ENTRY:
-        STATE_BYTE(f) = ST_SCANNER_RUNNING;
         goto initial_entry;
-
-      case ST_SCANNER_RUNNING:
-        assert(Is_Throwing(f) and IS_ERROR(VAL_THROWN_LABEL(f->out)));
-        return R_THROWN;
 
       case ST_SCANNER_SCANNING_CHILD_ARRAY:
         if (Is_Throwing(f)) {
@@ -1742,7 +1739,6 @@ REB_R Scanner_Executor(REBFRM *f) {
         bp = ss->begin;
         ep = ss->end;
         len = cast(REBLEN, ep - bp);
-        STATE_BYTE(f) = ST_SCANNER_RUNNING;
         goto child_array_scanned;
 
       default:
@@ -2801,8 +2797,20 @@ REBNATIVE(transcode)
 {
     INCLUDE_PARAMS_OF_TRANSCODE;
 
+    enum {
+        ST_TRANSCODE_INITIAL_ENTRY = 0,
+        ST_TRANSCODE_SCANNING
+    };
+
     REBVAL *source = ARG(source);
 
+    switch (D_STATE_BYTE) {
+      case ST_TRANSCODE_INITIAL_ENTRY: goto initial_entry;
+      case ST_TRANSCODE_SCANNING: goto scan_done_or_error;
+      default: assert(false);
+    }
+
+  initial_entry: {
     // !!! Should the base name and extension be stored, or whole path?
     //
     REBSTR *filename = REF(file)
@@ -2830,67 +2838,105 @@ REBNATIVE(transcode)
     REBSIZ size;
     const REBYTE *bp = VAL_BYTES_AT(&size, source);
 
-    SCAN_LEVEL level;
-    SCAN_STATE ss;
-    Init_Scan_Level(&level, &ss, filename, start_line, bp, size);
+    DECLARE_END_FRAME (f, EVAL_MASK_DEFAULT | EVAL_FLAG_TRAMPOLINE_KEEPALIVE);
+
+    SCAN_STATE *ss = TRY_ALLOC(SCAN_STATE);
+    Init_Scan_Level(&f->u.scan, ss, filename, start_line, bp, size);
 
     if (REF(next))
-        level.opts |= SCAN_FLAG_NEXT;
+        f->u.scan.opts |= SCAN_FLAG_NEXT;
+
+    INIT_F_EXECUTOR(f, &Scanner_Executor);
+
+    Push_Frame(D_OUT, f);
+    SET_EVAL_FLAG(frame_, DISPATCHER_CATCHES);
+    D_STATE_BYTE = ST_TRANSCODE_SCANNING;
+    return R_CONTINUATION;
+  }
+
+  scan_done_or_error: {
+    REBFRM *f = FS_TOP;
+    assert(f->prior == frame_);
+
+    SCAN_LEVEL *level = &f->u.scan;
+    SCAN_STATE *ss = f->u.scan.ss;
+
+    if (Is_Throwing(frame_)) {
+        assert(IS_ERROR(VAL_THROWN_LABEL(f->out)));  // scan doesn't "throw"
+
+        if (not REF(relax)) {  // they didn't care about errors
+            FREE(SCAN_STATE, ss);  // need to free scanner state
+            Abort_Frame(f);
+            return R_THROWN;
+        }
+
+        CATCH_THROWN(D_SPARE, D_OUT);
+        assert(IS_NULLED(D_SPARE));  // always the argument
+        assert(IS_ERROR(D_OUT));
+
+        REBVAL *var = Lookup_Mutable_Word_May_Fail(ARG(relax), SPECIFIED);
+        Move_Value(var, D_OUT);
+    }
+    else {
+        if (REF(relax)) {  // wanted a "relaxed" return of errors, but no error
+            REBVAL *var = Lookup_Mutable_Word_May_Fail(ARG(relax), SPECIFIED);
+            Init_Nulled(var);
+        }
+    }
+
+    // !!! Cache this?  Should scan_state remember the starting position?
+    //
+    REBSIZ size;
+    const REBYTE *bp = VAL_BYTES_AT(&size, source);
 
     // If the source data bytes are "1" then the scanner will push INTEGER! 1
     // if the source data is "[1]" then the scanner will push BLOCK! [1]
     //
     // Return a block of the results, so [1] and [[1]] in those cases.
-    //
-    REBDSP dsp_orig = DSP;
-    if (REF(relax)) {
-        bool failed = Scan_To_Stack_Relaxed_Failed(&level);
-
-        REBVAL *var = Lookup_Mutable_Word_May_Fail(ARG(relax), SPECIFIED);
-        if (failed) {
-            Move_Value(var, DS_TOP);
-            DS_DROP();
-        }
-        else
-            Init_Nulled(var);
-    }
-    else
-        Scan_To_Stack(&level);
 
     if (REF(next)) {
-        if (DSP == dsp_orig)
+        if (DSP == frame_->baseline.dsp)
             Init_Nulled(D_OUT);
         else {
             Move_Value(D_OUT, DS_TOP);
             DS_DROP();
         }
-        assert(DSP == dsp_orig);
+        assert(DSP == frame_->baseline.dsp);
     }
     else {
         REBARR *a = Pop_Stack_Values_Core(
-            dsp_orig,
+            frame_->baseline.dsp,
             NODE_FLAG_MANAGED
-                | (level.newline_pending ? ARRAY_FLAG_NEWLINE_AT_TAIL : 0)
+                | (level->newline_pending ? ARRAY_FLAG_NEWLINE_AT_TAIL : 0)
         );
-        MISC(a).line = ss.line;
-        LINK_FILE_NODE(a) = NOD(ss.file);
+        MISC(a).line = ss->line;
+        LINK_FILE_NODE(a) = NOD(ss->file);
         SER(a)->header.bits |= ARRAY_MASK_HAS_FILE_LINE;
 
         Init_Block(D_OUT, a);
     }
 
     if (ANY_WORD(ARG(line)))  // they wanted the line number updated
-        Init_Integer(Sink_Word_May_Fail(ARG(line), SPECIFIED), ss.line);
+        Init_Integer(Sink_Word_May_Fail(ARG(line), SPECIFIED), ss->line);
 
     // Return the input BINARY! or TEXT! advanced by how much the transcode
     // operation consumed.
+    //
+    // Note that in case of error, the scan state should be past the
+    // identified token that caused the error.  This means that while the ^M
+    // causes an error in the below:
+    //
+    //     [value pos err]: transcode "^M^/a b c"
+    //
+    // The `pos` that is returned will be *past* the ^M.  This makes it
+    // more likely to do some sort of continue of the scan.  So use `ss->end`.
     //
     if (REF(next)) {
         REBVAL *var = Sink_Word_May_Fail(ARG(next), SPECIFIED);
         Move_Value(var, source);
 
         if (IS_BINARY(var))
-            VAL_INDEX(var) = ss.end - VAL_BIN_HEAD(var);
+            VAL_INDEX(var) = ss->end - VAL_BIN_HEAD(var);
         else {
             assert(IS_TEXT(var));
 
@@ -2904,14 +2950,18 @@ REBNATIVE(transcode)
             // (It would probably be better if the scanner kept count, though
             // maybe that would make it slower when this isn't needed?)
             //
-            if (ss.begin != 0)
-                VAL_INDEX(var) += Num_Codepoints_For_Bytes(bp, ss.begin);
-            else
+            if (ss->begin == 0)  // e.g. the scan finished
                 VAL_INDEX(var) += BIN_TAIL(VAL_SERIES(var)) - bp;
+            else
+                VAL_INDEX(var) += Num_Codepoints_For_Bytes(bp, ss->end);
         }
     }
 
+    FREE(SCAN_STATE, ss);
+    Drop_Frame_Unbalanced(f);  // allow stack accrual
+
     return D_OUT;
+  }
 }
 
 

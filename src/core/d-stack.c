@@ -160,8 +160,8 @@ REBVAL *Init_Near_For_Frame(RELVAL *out, REBFRM *f)
     // GET-PATH!.  It has one bit to say whether it's in a path mode or not,
     // so assume that will help a little bit with making the error clear.
     //
-    if (GET_EVAL_FLAG(f, PATH_MODE))
-        Init_Path(out, near);
+    if (f->executor == &Path_Executor and ARR_LEN(near) >= 2)
+        Init_Path(out, near);  // ^-- !!! PICK doesn't have a feed, review
     else
         Init_Block(out, near);
 

@@ -28,6 +28,20 @@
 
 
 //
+//  Path_Executor: C
+//
+// !!! Work in progress.  Currently paths do not use the executor, they are
+// stackful.  So for now this just identifies a path frame, and allows errors
+// on them to be passed through.
+//
+REB_R Path_Executor(REBFRM *f)
+{
+    f->executor = nullptr;
+    return f->out;
+}
+
+
+//
 //  Init_Any_Path_At_Core: C
 //
 REBVAL *Init_Any_Path_At_Core(
@@ -329,7 +343,7 @@ bool Eval_Path_Throws_Core(
     DECLARE_FRAME (
         pvs,
         feed,
-        flags | EVAL_FLAG_PATH_MODE | EVAL_FLAG_ALLOCATED_FEED
+        flags | EVAL_FLAG_ALLOCATED_FEED
     );
 
     SHORTHAND (v, pvs->feed->value, NEVERNULL(const RELVAL*));

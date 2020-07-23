@@ -156,7 +156,7 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 
 //=//// EVAL_FLAG_RUNNING_ENFIX ///////////////////////////////////////////=//
 //
-// IF NOT(EVAL_FLAG_PATH_MODE)...
+// IF NOT PATH_EXECUTOR...
 //
 // Due to the unusual influences of partial refinement specialization, a frame
 // may wind up with its enfix parameter as being something like the last cell
@@ -168,7 +168,7 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 // to run an ACTION! cell as enfix or not.  The reason this may be overridden
 // on what's in the action can be seen in the REBNATIVE(shove) code.
 //
-// IF EVAL_FLAG_PATH_MODE...
+// IF PATH_EXECUTOR...
 //
 // (unused)
 
@@ -209,12 +209,12 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 
 //=//// EVAL_FLAG_NO_PATH_GROUPS //////////////////////////////////////////=//
 //
-// When EVAL_FLAG_PATH_MODE:
+// When PATH_EXECUTOR:
 //
 // This feature is used in PATH! evaluations to request no side effects.
 // It prevents GET of a PATH! from running GROUP!s.
 //
-// When not EVAL_FLAG_PATH_MODE:
+// When not PATH_EXECUTOR:
 //
 // A dispatcher may want to run a "continuation" but not be called back.
 // This is referred to as delegation.
@@ -227,24 +227,21 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 
 
 
-//=//// EVAL_FLAG_PATH_MODE ///////////////////////////////////////////////=//
+//=//// EVAL_FLAG_20 //////////////////////////////////////////////////////=//
 //
-// The frame is for a PATH! dispatch.  Many of the Eval_Core() flags are not
-// applicable in this case.
-//
-#define EVAL_FLAG_PATH_MODE \
+#define EVAL_FLAG_20 \
     FLAG_LEFT_BIT(20)
 
 
 //=//// EVAL_FLAG_PATH_HARD_QUOTE /////////////////////////////////////////=//
 //
-// IF EVAL_FLAG_PATH_MODE...
+// IF PATH_EXECUTOR...
 // ...Path processing uses this flag, to say that if a path has GROUP!s in
 // it, operations like DEFAULT do not want to run them twice...once on a get
 // path and then on a set path.  This means the path needs to be COMPOSEd and
 // then use GET/HARD and SET/HARD.
 //
-// IF NOT(EVAL_FLAG_PATH_MODE)...
+// IF NOT PATH_EXECUTOR...
 // If EVAL_FLAG_POST_SWITCH is being used due to an inert optimization, this
 // flag is set, so that the quoting machinery can realize the lookback quote
 // is not actually too late.
@@ -372,7 +369,7 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 
 //=//// EVAL_FLAG_PUSH_PATH_REFINES + EVAL_FLAG_BLAME_PARENT //////////////=//
 //
-// IF EVAL_FLAG_PATH_MODE...
+// IF PATH_EXECUTOR...
 //
 // It is technically possible to produce a new specialized ACTION! each
 // time you used a PATH!.  This is needed for `apdo: :append/dup/only` as a
@@ -384,7 +381,7 @@ STATIC_ASSERT(EVAL_FLAG_7_IS_TRUE == NODE_FLAG_CELL);
 // in order via a path and values via a block of code can be done in one
 // step, vs needing to make an intermediate ACTION!.
 //
-// IF NOT(EVAL_FLAG_PATH_MODE)...
+// IF NOT PATH_EXECUTOR...
 //
 // Marks an error to hint that a frame is internal, and that reporting an
 // error on it probably won't give a good report.

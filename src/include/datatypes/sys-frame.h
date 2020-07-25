@@ -239,7 +239,6 @@ inline static void Conserve_Varlist(REBARR *varlist)
   #if !defined(NDEBUG)
     assert(NOT_SERIES_INFO(varlist, INACCESSIBLE));
     assert(NOT_SERIES_FLAG(varlist, MANAGED));
-    assert(NOT_SERIES_FLAG(varlist, VARLIST_FRAME_FAILED));
 
     RELVAL *rootvar = ARR_HEAD(varlist);
     assert(CTX_VARLIST(VAL_CONTEXT(rootvar)) == varlist);
@@ -801,8 +800,6 @@ inline static void Push_Action(
 
 
 inline static void Drop_Action(REBFRM *f) {
-    assert(NOT_SERIES_FLAG(f->varlist, VARLIST_FRAME_FAILED));
-
     assert(
         not f->opt_label
         or GET_SERIES_FLAG(f->opt_label, IS_STRING)

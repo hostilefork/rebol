@@ -74,20 +74,11 @@
         | CELL_FLAG_SECOND_IS_NODE  /* phase (for FRAME!) */)
 
 
-//=//// SERIES_FLAG_VARLIST_FRAME_FAILED //////////////////////////////////=//
+//=//// SERIES_FLAG_VARLIST_23 ////////////////////////////////////////////=//
 //
-// In the specific case of a frame being freed due to a failure, this mark
-// is put on the context node.  What this allows is for the system to account
-// for which nodes are being GC'd due to lack of a rebRelease(), as opposed
-// to those being GC'd due to failure.
+// (Note: This is where varlist-specific flags could start being defined.)
 //
-// What this means is that the system can use managed handles by default
-// while still letting "rigorous" code track cases where it made use of the
-// GC facility vs. doing explicit tracking.  Essentially, it permits a kind
-// of valgrind/address-sanitizer way of looking at a codebase vs. just taking
-// for granted that it will GC things.
-//
-#define SERIES_FLAG_VARLIST_FRAME_FAILED \
+#define SERIES_FLAG_VARLIST_23 \
     ARRAY_FLAG_23
 
 

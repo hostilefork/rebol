@@ -37,9 +37,9 @@
 // system.  But there is a rule that when that piece is finished, it must
 // "balance" the stack back to where it was when it was called!  There is
 // a check in the main evaluator loop that the stack has been balanced to
-// wherever it started by the time a function call ends.  However, it is not
+// wherever it started by the time a function call ends.  It's not necessary
 // necessary to balance the stack in the case of calling a `fail`--because
-// it will be automatically restored to where it was at the PUSH_TRAP().
+// it is restored to where it was at PUSH_TRAP_SO_FAIL_CAN_JUMP_BACK_HERE().
 //
 // To speed pushes and pops to the stack while also making sure that each
 // push is tested to see if an expansion is needed, a trick is used.  This

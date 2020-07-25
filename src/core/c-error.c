@@ -196,8 +196,8 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
         if (Is_Action_Frame(f)) {
             //
             // !!! Experiment for stackless trap: it doesn't actually use
-            // rebRescue() or PUSH_TRAP().  We break and re-enter the
-            // trampoline.
+            // rebRescue() or PUSH_TRAP_SO_FAIL_CAN_JUMP_BACK_HERE().  We
+            // break and re-enter the trampoline.
             //
             if (FRM_PHASE(f) == NAT_ACTION(trap))
                 if (not Is_Action_Frame_Fulfilling(f))  // wouldn't TRAP yet

@@ -150,13 +150,13 @@ struct Reb_Jump {
 // passed which it will write into--which is a black box that clients
 // shouldn't inspect.
 //
-// The routine also takes a pointer-to-a-REBCTX-pointer which represents
-// an error.  Using the tricky mechanisms of setjmp/longjmp, there will
-// be a first pass of execution where the line of code after the PUSH_TRAP
-// will see the error pointer as being `nullptr`.  If a trap occurs during
-// code before the paired DROP_TRAP happens, then the C state will be
-// magically teleported back to the line after the PUSH_TRAP with the
-// error context now non-null and usable.
+// Jump buffers contain a pointer-to-a-REBCTX which represents an error.
+// Using the tricky mechanisms of setjmp/longjmp, there will be a first pass
+// of execution where the line of code after the PUSH_TRAP will see the
+// `jump->error` pointer as being `nullptr`.  If a trap occurs during code
+// before the paired DROP_TRAP happens, then the C state will be magically
+// teleported back to the line after the PUSH_TRAP with the error context now
+// non-null and usable.
 //
 // Note: The implementation of this macro was chosen stylistically to
 // hide the result of the setjmp call.  That's because you really can't
@@ -175,24 +175,16 @@ struct Reb_Jump {
 // According to the developers, "This is not a bug as if you inline it, the
 // place setjmp goes to could be not where you want to goto."
 //
-// !!! An assertion that you don't try to push a trap with no saved state
-// unless FS_TOP == FS_BOTTOM is commented out for this moment, because a
-// top level rebValue() currently executes and then runs a trap inside of it.
-// The API model is still being worked out, and so this is tolerated while
-// the code settles--until the right answer can be seen more clearly.
-//
-#define PUSH_TRAP(e,j) \
+#define PUSH_TRAP_SO_FAIL_CAN_JUMP_BACK_HERE(j) \
     do { \
-        /* assert(Saved_State or (DSP == 0 and FS_TOP == FS_BOTTOM)); */ \
+        assert(TG_Jump_List or DSP == 0); \
         (j)->frame = FS_TOP; \
-        TRASH_POINTER_IF_DEBUG((j)->error); \
         (j)->last_jump = TG_Jump_List; \
         TG_Jump_List = (j); \
         if (0 == SET_JUMP((j)->cpu_state))  /* initial setjmp branch */ \
-            *(e) = nullptr;  /* this branch will always be run */ \
+            (j)->error = nullptr;  /* this branch will always be run */ \
         else {  /* the longjmp happened */ \
             Trapped_Helper(j); \
-            *(e) = (j)->error; \
         } \
     } while (0)
 
@@ -210,7 +202,7 @@ struct Reb_Jump {
 //      http://en.cppreference.com/w/c/program/longjmp
 //
 inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_Jump *j) {
-    assert(IS_POINTER_TRASH_DEBUG(j->error));
+    assert(j->error == nullptr);
     TG_Jump_List = j->last_jump;
 }
 

@@ -96,15 +96,13 @@ bool Trampoline_Throws(REBFRM *f)
     f = FS_TOP;  // *usually* FS_TOP, unless requested to not drop
 
     struct Reb_Jump jump;
-    REBCTX *error_ctx;
-
-    PUSH_TRAP(&error_ctx, &jump);
+    PUSH_TRAP_SO_FAIL_CAN_JUMP_BACK_HERE(&jump);
     jump.frame = f_start;
 
     // The first time through the following code 'error' will be null, but...
     // `fail` can longjmp here, so 'error' won't be null *if* that happens!
     //
-    if (error_ctx) {
+    if (jump.error) {
         //
         // We want to unwind up to the nearest TRAP.  If there isn't one (or
         // it isn't interested in the form of error we are raising) then we
@@ -113,10 +111,10 @@ bool Trampoline_Throws(REBFRM *f)
         if (not Is_Action_Frame(FS_TOP)
             or FRM_PHASE(FS_TOP) != NAT_ACTION(trap)
         ){
-            fail (error_ctx);
+            fail (jump.error);
         }
 
-        Init_Error(FS_TOP->out, error_ctx);
+        Init_Error(FS_TOP->out, jump.error);
 
         goto push_again;
     }

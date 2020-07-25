@@ -398,7 +398,9 @@ REBNATIVE(do)
         if (IS_END(f->feed->value))
             return D_OUT;
 
-        DECLARE_FRAME (subframe, f->feed, EVAL_MASK_DEFAULT);
+        DECLARE_FRAME (
+            subframe, f->feed, EVAL_MASK_DEFAULT | EVAL_FLAG_ROOT_FRAME
+        );
 
         bool threw;
         Push_Frame(D_OUT, subframe);
@@ -743,7 +745,7 @@ REBNATIVE(applique)
 
     REBVAL *applicand = ARG(applicand);
 
-    REBFLGS flags = EVAL_MASK_DEFAULT;
+    REBFLGS flags = EVAL_MASK_DEFAULT | EVAL_FLAG_ROOT_FRAME;
     if (not REF(opt))
         flags |= EVAL_FLAG_FULLY_SPECIALIZED;
 

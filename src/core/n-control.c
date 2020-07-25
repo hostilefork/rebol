@@ -573,9 +573,11 @@ REBNATIVE(match)
         if (NOT_CELL_FLAG(test, UNEVALUATED)) // soft quote eval'd
             goto either_match; // allow `MATCH ('NULL?) ...`
 
-        // REBFRM whose built FRAME! context we will steal
+        // REBFRM whose built FRAME! context we will steal (capture DSP now)
         //
-        DECLARE_FRAME (f, parent->feed, EVAL_MASK_DEFAULT);  // capture DSP
+        DECLARE_FRAME (
+            f, parent->feed, EVAL_MASK_DEFAULT | EVAL_FLAG_ROOT_FRAME
+        );
         Push_Frame(D_OUT, f);
 
         REBSTR *opt_label = NULL;
@@ -630,7 +632,8 @@ REBNATIVE(match)
         f->special = f->arg;  // signal only type check data
 
         f->flags.bits = EVAL_MASK_DEFAULT
-            | EVAL_FLAG_FULLY_SPECIALIZED;
+            | EVAL_FLAG_FULLY_SPECIALIZED
+            | EVAL_FLAG_ROOT_FRAME;
       #if !defined(NDEBUG)  // completely overwriting original frame's flags
         f->initial_flags = f->flags.bits;  // ...would trigger an assert
       #endif
@@ -1191,7 +1194,7 @@ REBNATIVE(switch)
         Move_Value(predicate, D_OUT);
     }
 
-    DECLARE_FRAME_AT (f, ARG(cases), EVAL_MASK_DEFAULT);
+    DECLARE_FRAME_AT (f, ARG(cases), EVAL_MASK_DEFAULT | EVAL_FLAG_ROOT_FRAME);
     SHORTHAND (v, f->feed->value, NEVERNULL(const RELVAL*));
     SHORTHAND (specifier, f->feed->specifier, REBSPC*);
 

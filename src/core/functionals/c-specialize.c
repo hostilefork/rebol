@@ -962,7 +962,7 @@ bool Make_Frame_From_Varargs_Throws(
 
     // REBFRM whose built FRAME! context we will steal
 
-    DECLARE_FRAME (f, parent->feed, EVAL_MASK_DEFAULT);
+    DECLARE_FRAME (f, parent->feed, EVAL_MASK_DEFAULT | EVAL_FLAG_ROOT_FRAME);
     Push_Frame(out, f);
 
     REBSTR *opt_label;

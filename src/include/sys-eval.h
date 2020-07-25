@@ -270,7 +270,7 @@ inline static bool Eval_Step_In_Subframe_Throws(
     // the optimization produced.  Trust that it has already done it if it
     // was necessary.
 
-    DECLARE_FRAME (subframe, f->feed, flags);
+    DECLARE_FRAME (subframe, f->feed, flags | EVAL_FLAG_ROOT_FRAME);
     subframe->executor = executor;
 
     Push_Frame(out, subframe);
@@ -349,7 +349,7 @@ inline static bool Eval_Step_In_Va_Throws_Core(
 ){
     DECLARE_VA_FEED (feed, p, vaptr, feed_flags);
 
-    DECLARE_FRAME (f, feed, eval_flags);
+    DECLARE_FRAME (f, feed, eval_flags | EVAL_FLAG_ROOT_FRAME);
     INIT_F_EXECUTOR(f, &New_Expression_Executor);
 
     Push_Frame(out, f);
@@ -397,7 +397,7 @@ inline static bool Eval_Value_Throws(
         FEED_MASK_DEFAULT | (value->header.bits & FEED_FLAG_CONST)
     );
 
-    DECLARE_FRAME (f, feed, EVAL_MASK_DEFAULT);
+    DECLARE_FRAME (f, feed, EVAL_MASK_DEFAULT | EVAL_FLAG_ROOT_FRAME);
     INIT_F_EXECUTOR(f, &New_Expression_Executor);
 
     Push_Frame(out, f);

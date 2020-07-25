@@ -2529,7 +2529,7 @@ REB_R Scanner_Executor(REBFRM *f) {
 // level for this routine.
 //
 REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
-    DECLARE_END_FRAME (f, EVAL_MASK_DEFAULT);
+    DECLARE_END_FRAME (f, EVAL_MASK_DEFAULT | EVAL_FLAG_ROOT_FRAME);
     f->u.scan = *level;
     INIT_F_EXECUTOR(f, &Scanner_Executor);
 

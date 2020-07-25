@@ -1051,7 +1051,8 @@ REB_R Action_Executor(REBFRM *f)
 
                 REBFLGS flags = EVAL_MASK_DEFAULT
                     | EVAL_FLAG_FULFILLING_ARG
-                    | EVAL_FLAG_INERT_OPTIMIZATION;
+                    | EVAL_FLAG_INERT_OPTIMIZATION
+                    | EVAL_FLAG_ROOT_FRAME;
 
                 if (IS_VOID(f_next))  // Eval_Step() has callers test this
                     fail (Error_Void_Evaluation_Raw());  // must be quoted

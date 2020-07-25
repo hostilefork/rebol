@@ -64,17 +64,42 @@
 // as continuations are run.  This is radically different, and is requiring
 // rethinking during the stackless transition.
 //
-bool Trampoline_Throws(REBFRM *f_stop)
+bool Trampoline_Throws(REBFRM *f)
 {
+    REBFRM *f_start = f;
+
+    // The instigating call to this function cannot be unwound across, as it
+    // represents a "stackful" invocation of the evaluator.  YIELD must know
+    // the passed-in frame is uncrossable, so that it can raise an error if
+    // you try to unwind the Revolt stack across a top-level Trampoline call.
+    //
+    // (It's more efficient for the caller to set the bit in one assignment
+    // with the other header bits it sets--so just have the debug build check
+    // to make sure they did so.)
+    //
+    // !!! There could be a "promise" variant which didn't expect a concrete
+    // result back, but was willing to accept a frame stack that would run
+    // later to provide the result.  For now, we consider this a barrier.
+    //
+    assert(GET_EVAL_FLAG(f, ROOT_FRAME));
+
+    // In theory, a caller could push several frames to be evaluated, and
+    // the passed in `f` would just be where evaluation should *stop*.  No
+    // cases of this exist yet, but if they did we'd need to make sure the
+    // frame we process first is updated to be the topmost one pushed.
+    //
+    assert(f == FS_TOP);
+    /* f = FS_TOP; */
+
   push_again: ;
 
-    REBFRM *f = FS_TOP;  // *usually* FS_TOP, unless requested to not drop
+    f = FS_TOP;  // *usually* FS_TOP, unless requested to not drop
 
     struct Reb_Jump jump;
     REBCTX *error_ctx;
 
     PUSH_TRAP(&error_ctx, &jump);
-    jump.frame = f_stop;
+    jump.frame = f_start;
 
     // The first time through the following code 'error' will be null, but...
     // `fail` can longjmp here, so 'error' won't be null *if* that happens!
@@ -141,7 +166,7 @@ bool Trampoline_Throws(REBFRM *f_stop)
         // makes the call, it's not stackless...e.g. it should be written
         // some other way.
         //
-        if (f == f_stop) {
+        if (GET_EVAL_FLAG(f, ROOT_FRAME)) {
             DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&jump);
             return false;
         }
@@ -176,7 +201,7 @@ bool Trampoline_Throws(REBFRM *f_stop)
 
     if (r == R_THROWN) {
       thrown:
-        while (f != f_stop) {
+        while (NOT_EVAL_FLAG(f, ROOT_FRAME)) {
             if (not f->original and f->out != f->prior->out) {
                 //assert(f->out == FRM_SPARE(f->prior));
                 Move_Value(f->prior->out, f->out);
@@ -236,7 +261,7 @@ bool Trampoline_Throws(REBFRM *f_stop)
         goto loop;
     }
 
-    assert(f == f_stop);
+    assert(GET_EVAL_FLAG(f, ROOT_FRAME));
 
     assert(r == R_THROWN);
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&jump);

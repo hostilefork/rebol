@@ -402,7 +402,7 @@ static bool Subparse_Throws(
     // C-style recursion.
     //
     assert(FS_TOP->prior != f);  // should have pushed a frame
-    bool threw = Eval_Throws(f);  // starts running FS_TOP, stops back at `f`
+    bool threw = Trampoline_Throws(f);  // starts running FS_TOP, stops at `f`
     if (threw != Unpack_Subparse_Throws(interrupted_out, out, f))
         assert(!"This might be true today due to Is_Throwing() mechanic");
 
@@ -679,6 +679,7 @@ static REB_R Parse_One_Rule(
             EVAL_MASK_DEFAULT
                 | EVAL_FLAG_ALLOCATED_FEED
                 | EVAL_FLAG_TO_END  // not just one rule
+                | EVAL_FLAG_ROOT_FRAME
         );
 
         DECLARE_LOCAL (subresult);
@@ -1299,7 +1300,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
             &index,
             P_INPUT_VALUE,
             P_INPUT_SPECIFIER,
-            EVAL_MASK_DEFAULT
+            EVAL_MASK_DEFAULT | EVAL_FLAG_ROOT_FRAME
         )){
             Move_Value(P_OUT, P_CELL);  // BREAK/RETURN/QUIT/THROW...
             return THROWN_FLAG;
@@ -1810,7 +1811,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 DECLARE_FRAME (
                     subframe,
                     f->feed,
-                    EVAL_MASK_DEFAULT
+                    EVAL_MASK_DEFAULT | EVAL_FLAG_ROOT_FRAME
                         // no EVAL_FLAG_TO_END, so just one rule (maybe block)
                 );
 
@@ -1893,7 +1894,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 DECLARE_FRAME (
                     subframe,
                     f->feed,
-                    EVAL_MASK_DEFAULT
+                    EVAL_MASK_DEFAULT | EVAL_FLAG_ROOT_FRAME
                     // no EVAL_FLAG_TO_END, don't run all rules (just one)
                 );
 
@@ -2447,6 +2448,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                     EVAL_MASK_DEFAULT
                         | EVAL_FLAG_ALLOCATED_FEED
                         | EVAL_FLAG_TO_END  // not just one rule
+                        | EVAL_FLAG_ROOT_FRAME  // not stackless yet
                 );
 
                 bool interrupted;

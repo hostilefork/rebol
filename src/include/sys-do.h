@@ -52,7 +52,7 @@ inline static bool Do_Feed_To_End_Maybe_Stale_Throws(
     REBFED *feed,  // feed mechanics always call va_end() if va_list
     REBFLGS flags
 ){
-    DECLARE_FRAME (f, feed, flags);
+    DECLARE_FRAME (f, feed, flags | EVAL_FLAG_ROOT_FRAME);
 
     bool threw;
     Push_Frame(out, f);
@@ -192,6 +192,7 @@ inline static bool Do_Branch_Core_Throws(
         SPECIFIED,
         condition
     );
+    SET_EVAL_FLAG(f, ROOT_FRAME);
     bool threw = (*PG_Trampoline_Throws)(f);
     Drop_Frame(f);
     return threw;

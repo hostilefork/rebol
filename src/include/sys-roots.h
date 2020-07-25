@@ -110,6 +110,58 @@ inline static bool Is_Api_Value(const RELVAL *v) {
     return did (v->header.bits & NODE_FLAG_ROOT);
 }
 
+inline static void Link_Api_Handle_To_Frame(REBARR *a, REBFRM *f)
+{
+    // The head of the list isn't null, but points at the frame, so that
+    // API freeing operations can update the head of the list in the frame
+    // when given only the node pointer.
+
+    MISC(a).custom.node = NOD(f);  // back pointer for doubly linked list
+
+    bool empty_list = did (
+        *cast(REBYTE*, f->alloc_value_list) & NODE_BYTEMASK_0x08_FRAME
+    );
+
+    if (not empty_list) {  // head of list exists, take its spot at the head
+        assert(Is_Api_Value(ARR_SINGLE(ARR(f->alloc_value_list))));
+        MISC(f->alloc_value_list).custom.node = NOD(a);  // link back to us
+    }
+
+    LINK(a).custom.node = f->alloc_value_list;  // forward pointer
+    f->alloc_value_list = NOD(a);
+}
+
+inline static void Unlink_Api_Handle_From_Frame(REBARR *a)
+{
+    bool at_head = did (
+        *cast(REBYTE*, MISC(a).custom.node) & NODE_BYTEMASK_0x08_FRAME
+    );
+    bool at_tail = did (
+        *cast(REBYTE*, LINK(a).custom.node) & NODE_BYTEMASK_0x08_FRAME
+    );
+
+    if (at_head) {
+        REBFRM *f = FRM(MISC(a).custom.node);
+        f->alloc_value_list = LINK(a).custom.node;
+
+        if (not at_tail) {  // only set next item's backlink if it exists
+            assert(Is_Api_Value(ARR_SINGLE(ARR(LINK(a).custom.node))));
+            MISC(LINK(a).custom.node).custom.node = NOD(f);
+        }
+    }
+    else {
+        // we're not at the head, so there is a node before us, set its "next"
+        assert(Is_Api_Value(ARR_SINGLE(ARR(MISC(a).custom.node))));
+        LINK(MISC(a).custom.node).custom.node = LINK(a).custom.node;
+
+        if (not at_tail) {  // only set next item's backlink if it exists
+            assert(Is_Api_Value(ARR_SINGLE(ARR(LINK(a).custom.node))));
+            MISC(LINK(a).custom.node).custom.node = MISC(a).custom.node;
+        }
+    }
+}
+
+
 // !!! The return cell from this allocation is a trash cell which has had some
 // additional bits set.  This means it is not "canonized" trash that can be
 // detected as distinct from UTF-8 strings, so don't call IS_TRASH_DEBUG() or
@@ -135,11 +187,13 @@ inline static REBVAL *Alloc_Value(void)
     assert(IS_END(v));
     v->header.bits |= NODE_FLAG_ROOT;  // it's END (can't use SET_CELL_FLAGS)
 
-    REBFRM *f = FS_TOP;
-    while (not Is_Action_Frame(f)) // e.g. a path fulfillment
-        f = f->prior; // FS_BOTTOM is a dummy action, should always stop
+    // We link the API handle into a doubly linked list maintained by the
+    // topmost frame at the time the allocation happens.  This frame will
+    // be responsible for marking the node live, freeing the node in case
+    // of a fail() that interrupts the frame, and reporting any leaks.
+    //
+    Link_Api_Handle_To_Frame(a, FS_TOP);
 
-    LINK(a).owner = NOD(Context_For_Frame_May_Manage(f));
     return v;
 }
 
@@ -149,6 +203,10 @@ inline static void Free_Value(REBVAL *v)
 
     REBARR *a = Singular_From_Cell(v);
     TRASH_CELL_IF_DEBUG(ARR_SINGLE(a));
+
+    if (GET_SERIES_FLAG(a, MANAGED))
+        Unlink_Api_Handle_From_Frame(a);
+
     GC_Kill_Series(SER(a));
 }
 

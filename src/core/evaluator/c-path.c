@@ -635,7 +635,12 @@ REBNATIVE(pick)
         fail (Error_Bad_Path_Pick_Raw(PVS_PICKER(pvs)));
     }
     else if (GET_CELL_FLAG(r, ROOT)) {  // API value
-        // Do nothing, let caller handle
+        //
+        // It was parented to the PVS frame, we have to read it out.
+        //
+        Move_Value(D_OUT, r);
+        rebRelease(r);
+        r = D_OUT;
     }
     else switch (CELL_KIND_UNCHECKED(r)) {
       case REB_R_INVISIBLE:

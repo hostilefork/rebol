@@ -365,7 +365,12 @@ inline static const RELVAL *Detect_Feed_Pointer_Maybe_Fetch(
             GC_Kill_Series(SER(inst1));  // not manuals-tracked
         }
         else if (GET_ARRAY_FLAG(inst1, SINGULAR_API_RELEASE)) {
-            assert(GET_SERIES_FLAG(inst1, MANAGED));
+            //
+            // !!! Originally this asserted it was a managed handle, but the
+            // needs of API-TRANSIENT are such that a handle which outlives
+            // the frame is returned as a SINGULAR_API_RELEASE.  Review.
+            //
+            /*assert(GET_SERIES_FLAG(inst1, MANAGED));*/
 
             // See notes above (duplicate code, fix!) about how we might like
             // to use the as-is value and wait to free until the next cycle

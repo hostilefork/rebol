@@ -626,16 +626,6 @@ union Reb_Series_Link {
     void *trash;
   #endif
 
-    // API handles use "singular" format arrays (see notes on that), which
-    // lay out the link field in the bytes preceding the REBVAL* payload.
-    // Because the API tries to have routines that work across arbitrary
-    // rebMalloc() memory as well as individual cells, the bytes preceding
-    // the pointer handed out to the client are examined to determine which
-    // it is.  If it's an array-type series, it is either the varlist of
-    // the owning frame *or* the EMPTY_ARRAY (to avoid a NULL check)
-    //
-    REBNOD *owner;
-
     // For a writable REBSTR, a list of entities that cache the mapping from
     // index to character offset is maintained.  Without some help, it would
     // be necessary to search from the head or tail of the string, character

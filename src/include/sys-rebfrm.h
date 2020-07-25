@@ -805,6 +805,18 @@ struct Reb_Frame {
     //
     struct Reb_State baseline;
 
+    // While a frame is executing, any Alloc_Value() calls are linked into
+    // a doubly-linked list.  This keeps them alive, and makes it quick for
+    // them to be released.  In the case of an abrupt fail() call, they will
+    // be automatically freed.
+    //
+    // In order to make a handle able to find the frame whose linked list it
+    // belongs to (in order to update the head of the list) the terminator on
+    // the ends is not nullptr, but a pointer to the REBFRM* itself (which
+    // can be noticed via NODE_FLAG_FRAME as not being an API handle).
+    //
+    REBNOD *alloc_value_list;
+
    #if defined(DEBUG_COUNT_TICKS)
     //
     // The expression evaluation "tick" where the Reb_Frame is starting its

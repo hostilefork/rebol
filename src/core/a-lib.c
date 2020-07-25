@@ -1383,37 +1383,47 @@ REBVAL *RL_rebRescue(
 
     REBVAL *result = (*dangerous)(opaque);
 
+    if (not result) {
+        // null is considered a legal result
+    }
+    else if (KIND_BYTE(result) == REB_ERROR) {
+        //
+        // Analogous to how TRAP works, if you don't have a handler for the
+        // error case then you can't return an ERROR!, since all errors
+        // indicate a failure.  Use KIND_BYTE() since R_THROWN or other
+        // special things can be used internally, and literal errors don't
+        // count either.
+        //
+        if (Is_Api_Value(result))
+            rebRelease(result);
+
+        result = rebVoid();
+        goto proxy_result;
+    }
+    else {
+        if (not Is_Api_Value(result)) {
+            // no proxying needed
+        }
+        else {
+            assert(not IS_NULLED(result));  // leaked API nulled cell
+
+            // !!! Automatically proxy the ownership of any managed handles
+            // to the caller.  Any other handles that leak out (e.g. via
+            // state) won't be covered by this, and must be unmanaged.
+
+          proxy_result: {
+            REBARR *a = Singular_From_Cell(result);
+            Unlink_Api_Handle_From_Frame(a);  // e.g. linked to f
+            Link_Api_Handle_To_Frame(a, f->prior);  // link to caller
+          }
+        }
+    }
+
     Drop_Dummy_Frame_Unbalanced(f);
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&jump);
 
-    if (not result)
-        return nullptr;  // null is considered a legal result
-
-    // Analogous to how TRAP works, if you don't have a handler for the
-    // error case then you can't return an ERROR!, since all errors indicate
-    // a failure.  Use KIND_BYTE() since R_THROWN or other special things can
-    // be used internally, and literal errors don't count either.
-    //
-    if (KIND_BYTE(result) == REB_ERROR) {
-        if (Is_Api_Value(result))
-            rebRelease(result);
-        return rebVoid();
-    }
-
-    if (not Is_Api_Value(result))
-        return result;  // no proxying needed
-
-    assert(not IS_NULLED(result));  // leaked API nulled cell (not nullptr)
-
-    // !!! We automatically proxy the ownership of any managed handles to the
-    // caller.  Any other handles that leak out (e.g. via state) will not be
-    // covered by this, and would have to be unmanaged.  Do another allocation
-    // just for the sake of it.
-
-    REBVAL *proxy = Move_Value(Alloc_Value(), result);  // parent is not f
-    rebRelease(result);
-    return proxy;
+    return result;
 }
 
 
@@ -1662,8 +1672,7 @@ REBVAL *RL_rebManage(REBVAL *v)
         fail ("Attempt to rebManage() a handle that's already managed.");
 
     SET_SERIES_FLAG(a, MANAGED);
-    assert(not LINK(a).owner);
-    LINK(a).owner = NOD(Context_For_Frame_May_Manage(FS_TOP));
+    Link_Api_Handle_To_Frame(a, FS_TOP);
 
     return v;
 }
@@ -1696,8 +1705,10 @@ void RL_rebUnmanage(void *p)
     // own risk to do this, and not use those pointers after a free.
     //
     CLEAR_SERIES_FLAG(a, MANAGED);
-    assert(GET_ARRAY_FLAG(LINK(a).owner, IS_VARLIST));
-    LINK(a).owner = UNBOUND;
+    Unlink_Api_Handle_From_Frame(a);
+
+    TRASH_POINTER_IF_DEBUG(LINK(a).custom.node);
+    TRASH_POINTER_IF_DEBUG(MISC(a).custom.node);
 }
 
 
@@ -1923,6 +1934,7 @@ REBNATIVE(api_transient)
     INCLUDE_PARAMS_OF_API_TRANSIENT;
 
     REBVAL *v = Move_Value(Alloc_Value(), ARG(value));
+    rebUnmanage(v);  // has to survive the API-TRANSIENT's frame
     REBARR *a = Singular_From_Cell(v);
     SET_ARRAY_FLAG(a, SINGULAR_API_RELEASE);
 

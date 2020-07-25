@@ -435,6 +435,17 @@ inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
 
 inline static void Abort_Frame(REBFRM *f) {
     //
+    // If a frame is aborted, then we allow its API handles to leak.
+    //
+    REBNOD *n = f->alloc_value_list;
+    while (n != NOD(f)) {
+        REBARR *a = ARR(n);
+        n = LINK(n).custom.node;
+        TRASH_CELL_IF_DEBUG(ARR_SINGLE(a));
+        GC_Kill_Series(SER(a));
+    }
+    TRASH_POINTER_IF_DEBUG(f->alloc_value_list);
+
     // Abort_Frame() handles any work that wouldn't be done done naturally by
     // feeding a frame to its natural end.
     // 
@@ -499,6 +510,16 @@ inline static void Drop_Frame_Core(REBFRM *f) {
     assert(TG_Jump_List == nullptr or TG_Jump_List->frame != f);
 
     assert(TG_Top_Frame == f);
+
+    REBNOD *n = f->alloc_value_list;
+    while (n != NOD(f)) {
+        REBARR *a = ARR(n);
+      #if defined(DEBUG_STDIO_OK)
+        printf("API handle was allocated but not freed, panic'ing leak\n");
+      #endif
+        panic (a);
+    }
+
     TG_Top_Frame = f->prior;
     Free_Frame_Internal(f);
 }
@@ -556,6 +577,8 @@ inline static void Prep_Frame_Core(REBFRM *f, REBFED *feed, REBFLGS flags) {
     f->original = nullptr;  // !!! redundant!
     TRASH_POINTER_IF_DEBUG(f->executor);  // not defaulted
     f->varlist = nullptr;
+
+    f->alloc_value_list = NOD(f);  // doubly link list, terminates in `f`
 }
 
 #define DECLARE_FRAME(name,feed,flags) \

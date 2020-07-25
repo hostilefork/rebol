@@ -1354,30 +1354,18 @@ REBVAL *RL_rebRescue(
 
     PUSH_TRAP(&error_ctx, &jump);
 
-    // We want allocations that occur in the body of the C function for the
-    // rebRescue() to be automatically cleaned up in the case of an error.
+    // We want API allocations via rebValue() or rebMalloc() that occur in the
+    // body of the C function for the rebRescue() to be automatically cleaned
+    // up in the case of an error.  There must be a frame to attach them to.
     //
-    // !!! This is currently done by knowing what frame an error occurred in
-    // and marking any allocations while that frame was in effect as being
-    // okay to "leak" (in the sense of leaking to be GC'd).  So we have to
-    // make a dummy frame here, and unfortunately the frame must be reified
-    // so it has to be an "action frame".  Improve mechanic later, but for
-    // now pretend to be applying a dummy native.
-    //
-    DECLARE_END_FRAME (f, EVAL_MASK_DEFAULT);  // not FULLY_SPECIALIZED
-    Push_Dummy_Frame(f);
+    DECLARE_END_FRAME (dummy, EVAL_MASK_DEFAULT);
+    Push_Frame(nullptr, dummy);
 
     // The first time through the following code 'error' will be null, but...
     // `fail` can longjmp here, so 'error' won't be null *if* that happens!
     //
     if (error_ctx) {
-        assert(f->varlist);  // action must be running
-        REBARR *stub = f->varlist;  // will be stubbed, with info bits reset
-        bool stub_was_managed = GET_SERIES_FLAG(stub, MANAGED);
-        Drop_Action(f);
-        if (stub_was_managed)
-            SET_SERIES_FLAG(stub, VARLIST_FRAME_FAILED);  // so API leaks ok
-        Abort_Frame(f);
+        Abort_Frame(dummy);
         return Init_Error(Alloc_Value(), error_ctx);
     }
 
@@ -1414,12 +1402,17 @@ REBVAL *RL_rebRescue(
           proxy_result: {
             REBARR *a = Singular_From_Cell(result);
             Unlink_Api_Handle_From_Frame(a);  // e.g. linked to f
-            Link_Api_Handle_To_Frame(a, f->prior);  // link to caller
+            Link_Api_Handle_To_Frame(a, dummy->prior);  // link to caller
           }
         }
     }
 
-    Drop_Dummy_Frame_Unbalanced(f);
+    // !!! To abstract how the system deals with exception handling, the
+    // rebRescue() routine started being used in lieu of PUSH_TRAP/DROP_TRAP
+    // internally to the system.  Some of these system routines accumulate
+    // stack state, so Drop_Frame_Unbalanced() must be used.
+    //
+    Drop_Frame_Unbalanced(dummy);
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&jump);
 

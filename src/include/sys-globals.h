@@ -145,11 +145,6 @@ PVAR REBARR *PG_Extension_Types;  // array of datatypes created by extensions
 // when implemented that way. Needs research!!!!
 PVAR REBFLGS Eval_Signals;   // Signal flags
 
-// The "dummy" action is used in frames which are marked as being action
-// frames because they need a varlist, that don't actually execute.
-//
-PVAR REBACT *PG_Dummy_Action;
-
 // It is possible to swap out the evaluator for one that does tracing, or
 // single step debugging, etc.
 //

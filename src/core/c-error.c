@@ -328,8 +328,6 @@ void Set_Location_Of_Error(
             continue;
         if (Is_Action_Frame_Fulfilling(f))
             continue;
-        if (f->original == PG_Dummy_Action)
-            continue;
 
         Get_Frame_Label_Or_Blank(DS_PUSH(), f);
     }

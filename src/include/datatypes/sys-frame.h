@@ -907,37 +907,6 @@ inline static void Drop_Action(REBFRM *f) {
 }
 
 
-// Partially-filled function frames that only have some of their arguments
-// evaluated cannot be "reified" into the form that can be persistently linked
-// as a parent to API handles.  "Dummy frames" exist to look like a fulfilled
-// call to a function with no arguments.  This is helpful if you ever try
-// to do something like call the libRebol API from the guts of the evaluator.
-//
-inline static void Push_Dummy_Frame(REBFRM *f) {
-    Push_Frame(nullptr, f);
-
-    REBSTR *opt_label = NULL;
-
-    Push_Action(f, PG_Dummy_Action, UNBOUND);
-    Begin_Prefix_Action(f, opt_label);
-    assert(f->arg == FRM_ARGS_HEAD(f));
-    f->param = END_NODE;  // signal all arguments gathered
-    f->arg = m_cast(REBVAL*, END_NODE);
-    f->special = END_NODE;
-}
-
-inline static void Drop_Dummy_Frame_Unbalanced(REBFRM *f) {
-    Drop_Action(f);
-
-    // !!! To abstract how the system deals with exception handling, the
-    // rebRescue() routine started being used in lieu of PUSH_TRAP/DROP_TRAP
-    // internally to the system.  Some of these system routines accumulate
-    // stack state, so Drop_Frame_Unbalanced() must be used.
-    //
-    Drop_Frame_Unbalanced(f);
-}
-
-
 //=//// ARGUMENT AND PARAMETER ACCESS HELPERS ////=///////////////////////////
 //
 // These accessors are what is behind the INCLUDE_PARAMS_OF_XXX macros that

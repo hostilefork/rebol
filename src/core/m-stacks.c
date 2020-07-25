@@ -78,6 +78,10 @@ void Shutdown_Data_Stack(void)
 // not necessary for unused frames to check if `f->prior` is null; it may be
 // assumed that it never is.
 //
+// Also: since frames are needed to track API handles, this permits making
+// API handles for things that come into existence at boot and aren't freed
+// until shutdown, as they attach to this frame.
+//
 void Startup_Frame_Stack(void)
 {
   #if !defined(NDEBUG) // see Startup_Trash_Debug() for explanation
@@ -96,40 +100,6 @@ void Startup_Frame_Stack(void)
     DECLARE_FRAME (f, &TG_Frame_Feed_End, EVAL_MASK_DEFAULT);
 
     Push_Frame(nullptr, f);
-
-    // It's too early to be using Make_Paramlist_Managed_May_Fail()
-    //
-    REBARR *paramlist = Make_Array_Core(
-        1,
-        NODE_FLAG_MANAGED | SERIES_MASK_PARAMLIST
-    );
-    MISC_META_NODE(paramlist) = nullptr;
-
-    REBVAL *archetype = RESET_CELL(
-        ARR_HEAD(paramlist),
-        REB_ACTION,
-        CELL_MASK_ACTION
-    );
-    EXTRA(Binding, archetype).node = UNBOUND;
-    Sync_Paramlist_Archetype(paramlist);
-    TERM_ARRAY_LEN(paramlist, 1);
-
-    PG_Dummy_Action = Make_Action(
-        paramlist,
-        &Dummy_Dispatcher,
-        nullptr, // no underlying action (use paramlist)
-        nullptr, // no specialization exemplar (or inherited exemplar)
-        1 // details array capacity (unused, but 0 is not legal)
-    );
-    Init_Unreadable_Blank(ARR_HEAD(ACT_DETAILS(PG_Dummy_Action)));
-
-    Push_Action(f, PG_Dummy_Action, UNBOUND);
-
-    REBSTR *opt_label = nullptr;
-    Begin_Prefix_Action(f, opt_label);
-    f->param = END_NODE; // signal all arguments gathered
-    f->arg = m_cast(REBVAL*, END_NODE);
-    f->special = END_NODE;
 
     TRASH_POINTER_IF_DEBUG(f->prior); // help catch enumeration past FS_BOTTOM
     TG_Bottom_Frame = f;
@@ -154,7 +124,6 @@ void Shutdown_Frame_Stack(void)
 
   blockscope {
     REBFRM *f = FS_TOP;
-    Drop_Action(f);
 
     // There's a Catch-22 on checking the balanced state for outstanding
     // manual series allocations, e.g. it can't check *before* the mold buffer
@@ -168,8 +137,6 @@ void Shutdown_Frame_Stack(void)
 
     TG_Top_Frame = nullptr;
     TG_Bottom_Frame = nullptr;
-
-    PG_Dummy_Action = nullptr; // was GC protected as FS_BOTTOM's f->original
 
   #if !defined(NDEBUG)
   blockscope {
@@ -241,14 +208,6 @@ REBCTX *Get_Context_From_Stack(void)
             continue;
 
         phase = FRM_PHASE(f);
-        if (phase == PG_Dummy_Action) {
-            //
-            // Some frames are set up just to catch failures, but aren't
-            // tied to a function call themselves.  Ignore them.
-            //
-            continue;
-        }
-
         break;
     }
 

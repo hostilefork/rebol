@@ -1138,15 +1138,15 @@ REBLEN Recycle_Core(bool shutdown, REBSER *sweeplist)
     }
   #endif
 
-    // It is currently assumed that no recycle will happen while in a thrown
-    // state.  Debug calls that do evaluation (or even Recycle() directly)
-    // between the time a function has been called and the throw is handled
-    // can cause problems with this.
+    // It was previously assumed no recycle would happen while the evaluator
+    // was in a thrown state.  There's no particular reason to enforce that,
+    // so it has been relaxed.
     //
-    assert(IS_END(&TG_Thrown_Arg));
+    Queue_Mark_Opt_End_Cell_Deep(&TG_Thrown_Arg);
   #if !defined(NDEBUG)
-    assert(IS_END(&TG_Thrown_Label_Debug));
+    Queue_Mark_Opt_End_Cell_Deep(&TG_Thrown_Label_Debug);
   #endif
+    Propagate_All_GC_Marks();
 
     // If disabled by RECYCLE/OFF, exit now but set the pending flag.  (If
     // shutdown, ignore so recycling runs and can be checked for balance.)

@@ -1035,40 +1035,6 @@ fail: func [
 unreachable: specialize 'fail [reason: "Unreachable code"]
 
 
-generate: func [ "Make a generator."
-    init [block!] "Init code"
-    condition [block! blank!] "While condition"
-    iteration [block!] "Step code"
-][
-    let words: make block! 2
-    for-each x reduce [init condition iteration] [
-        if not block? x [continue]
-        let w: collect-words/deep/set x
-        if not empty? intersect w [count result] [ fail [
-            "count: and result: set-words aren't allowed in" mold x
-        ]]
-        append words w
-    ]
-    let spec: compose [/reset [block!] <static> ((unique words)) count]
-    let body: compose/deep [
-        if reset [count: reset return]
-        if block? count [
-            let result: bind count 'count
-            count: 1
-            return do result
-        ]
-        count: me + 1
-        let result: (to group! iteration)
-        ((either empty? condition
-            [[ return result ]]
-            [compose [ return if (to group! condition) [result] ]]
-        ))
-    ]
-    let f: function spec body
-    f/reset init
-    return :f
-]
-
 read-lines: func [
     {Makes a generator that yields lines from a file or port.}
     src [port! file! blank!]
@@ -1078,6 +1044,8 @@ read-lines: func [
 ][
     if blank? src [src: system/ports/input]
     if file? src [src: open src]
+
+    let crlf: charset "^/^M"
 
     let pos
     let rule: compose/deep/only either delimiter [
@@ -1093,31 +1061,39 @@ read-lines: func [
         ]
     ]
 
-    let f: function compose [
-        <static> buffer (to group! [make binary! 4096])
-        <static> port (groupify src)
-    ] compose/deep [
-        let crlf: charset "^/^M"
-        let data: _
-        let eof: false
+    let buffer: make binary! 4096
+    let data: _
+    let eof: false
+
+    return generator [
         cycle [
-            let pos: _
-            parse buffer (rule)
-            if pos [break]
-            ((if same? src system/ports/input
-                '[data: read port]
-                else
-                '[data: read/part port 4096]
-            ))
-            if empty? data [
-                eof: true
-                pos: tail of buffer
-                break
+            cycle [
+                pos: _
+                parse buffer rule
+                if pos [break]
+                if same? src system/ports/input [
+                    data: read src
+                ] else [
+                    data: read/part src 4096
+                ]
+                if empty? data [
+                    eof: true
+                    pos: tail of buffer
+                    break
+                ]
+                print ["data is" mold data]
+                append buffer data
             ]
-            append buffer data
+            all [
+                eof
+                empty? buffer
+            ] then [
+                stop
+            ]
+            let line: take/part buffer pos
+            if not binary [line: as text! line]
+            yield line
         ]
-        if all [eof empty? buffer] [return null]
-        ((if not binary '[to text!])) take/part buffer pos
     ]
 ]
 

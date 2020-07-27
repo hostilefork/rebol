@@ -155,6 +155,8 @@
 %functions/enclose.test.reb
 %functions/enfix.test.reb
 %functions/frame.test.reb
+%functions/generate.test.reb
+%functions/generator.test.reb
 %functions/hijack.test.reb
 %functions/invisible.test.reb
 %functions/let.test.reb
@@ -165,6 +167,7 @@
 %functions/redo.test.reb
 %functions/specialize.test.reb
 %functions/unwind.test.reb
+%functions/yielder.test.reb
 
 %math/absolute.test.reb
 %math/add.test.reb

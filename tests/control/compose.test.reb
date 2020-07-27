@@ -144,3 +144,30 @@
 ; ([a b c d e f] = compose /identity [([a b c]) (([d e f]))])
 ; ([[a b c] d e f] = compose /enblock [([a b c]) (([d e f]))])
 ; ([-30 70] = compose /negate [(10 + 20) ((30 + 40))])
+
+
+(
+    pathology: func [{Iterative pathologically deep block} n] [
+        res: <fin>
+        loop n [
+            res: compose/deep/only [(as group! [depth: depth + 1]) (res)]
+        ]
+        insert res [(depth: 0)]
+        return res
+    ]
+    depth: void
+    compose/deep pathology 1000
+    depth = 1000
+)(
+    pathology: func [{Recursive pathologically deep block} n /sub] [
+        case [
+            n = 0 [<fin>]
+            not sub [head insert/only pathology/sub n '(depth: 0)]
+        ] else [
+            compose/deep <*> [(depth: depth + 1) [(<*> pathology/sub n - 1)]]
+        ]
+    ]
+    depth: void
+    compose/deep pathology 1000
+    depth = 1000
+)

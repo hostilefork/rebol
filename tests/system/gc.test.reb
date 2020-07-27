@@ -64,3 +64,26 @@
 (
     (unspaced ["<" intersect [a b c] [d e f]  ">"]) = "<>"
 )
+
+; Contrived example to make a point about rule caching.
+(
+    obj: make object! [
+        n: 1
+        grow: does [
+            loop 100 [
+                append obj compose [
+                    (to set-word! rejoin ["var" n: n + 1]) <junk>
+                ]
+            ]
+            recycle
+        ]
+        rule: [quote 1 (
+            rule: copy rule
+            change next rule 1 + second rule
+        )]
+        test: does [
+            parse [1 2 3] [some [rule (grow)]]
+        ]
+    ]
+    [] = obj/test
+)

@@ -118,235 +118,6 @@ REBNATIVE(continue)
 }
 
 
-//
-//  Loop_Series_Common: C
-//
-static REB_R Loop_Series_Common(
-    REBVAL *out,
-    REBVAL *var, // Must not be movable from context expansion, see #2274
-    const REBVAL *body,
-    REBVAL *start,
-    REBINT end,
-    REBINT bump
-){
-    Init_Blank(out); // result if body never runs
-
-    // !!! This bounds incoming `end` inside the array.  Should it assert?
-    //
-    if (end >= cast(REBINT, VAL_LEN_HEAD(start)))
-        end = cast(REBINT, VAL_LEN_HEAD(start));
-    if (end < 0)
-        end = 0;
-
-    // A value cell exposed to the user is used to hold the state.  This means
-    // if they change `var` during the loop, it affects the iteration.  Hence
-    // it must be checked for changing to another series, or non-series.
-    //
-    Move_Value(var, start);
-    REBLEN *state = &VAL_INDEX(var);
-
-    // Run only once if start is equal to end...edge case.
-    //
-    REBINT s = VAL_INDEX(start);
-    if (s == end) {
-        if (Do_Branch_Throws(out, body)) {
-            bool broke;
-            if (not Catching_Break_Or_Continue(out, &broke))
-                return R_THROWN;
-            if (broke)
-                return nullptr;
-        }
-        return Voidify_If_Nulled_Or_Blank(out); // null->BREAK, blank->empty
-    }
-
-    // As per #1993, start relative to end determines the "direction" of the
-    // FOR loop.  (R3-Alpha used the sign of the bump, which meant it did not
-    // have a clear plan for what to do with 0.)
-    //
-    const bool counting_up = (s < end); // equal checked above
-    if ((counting_up and bump <= 0) or (not counting_up and bump >= 0))
-        return out; // avoid infinite loops
-
-    while (
-        counting_up
-            ? cast(REBINT, *state) <= end
-            : cast(REBINT, *state) >= end
-    ){
-        if (Do_Branch_Throws(out, body)) {
-            bool broke;
-            if (not Catching_Break_Or_Continue(out, &broke))
-                return R_THROWN;
-            if (broke)
-                return nullptr;
-        }
-        Voidify_If_Nulled_Or_Blank(out); // null->BREAK, blank->empty
-        if (
-            VAL_TYPE(var) != VAL_TYPE(start)
-            or VAL_SERIES(var) != VAL_SERIES(start)
-        ){
-            fail ("Can only change series index, not series to iterate");
-        }
-
-        // Note that since the array is not locked with SERIES_INFO_HOLD, it
-        // can be mutated during the loop body, so the end has to be refreshed
-        // on each iteration.  Review ramifications of HOLD-ing it.
-        //
-        if (end >= cast(REBINT, VAL_LEN_HEAD(start)))
-            end = cast(REBINT, VAL_LEN_HEAD(start));
-
-        *state += bump;
-    }
-
-    return out;
-}
-
-
-//
-//  Loop_Integer_Common: C
-//
-static REB_R Loop_Integer_Common(
-    REBVAL *out,
-    REBVAL *var,  // Must not be movable from context expansion, see #2274
-    const REBVAL *body,
-    REBI64 start,
-    REBI64 end,
-    REBI64 bump
-){
-    Init_Blank(out);  // result if body never runs
-
-    // A value cell exposed to the user is used to hold the state.  This means
-    // if they change `var` during the loop, it affects the iteration.  Hence
-    // it must be checked for changing to a non-integer form.
-    //
-    RESET_CELL(var, REB_INTEGER, CELL_MASK_NONE);
-    REBI64 *state = &VAL_INT64(var);
-    *state = start;
-
-    // Run only once if start is equal to end...edge case.
-    //
-    if (start == end) {
-        if (Do_Branch_Throws(out, body)) {
-            bool broke;
-            if (not Catching_Break_Or_Continue(out, &broke))
-                return R_THROWN;
-            if (broke)
-                return nullptr;
-        }
-        return Voidify_If_Nulled_Or_Blank(out); // null->BREAK, blank->empty
-    }
-
-    // As per #1993, start relative to end determines the "direction" of the
-    // FOR loop.  (R3-Alpha used the sign of the bump, which meant it did not
-    // have a clear plan for what to do with 0.)
-    //
-    const bool counting_up = (start < end);  // equal checked above
-    if ((counting_up and bump <= 0) or (not counting_up and bump >= 0))
-        return nullptr;  // avoid infinite loops
-
-    while (counting_up ? *state <= end : *state >= end) {
-        if (Do_Branch_Throws(out, body)) {
-            bool broke;
-            if (not Catching_Break_Or_Continue(out, &broke))
-                return R_THROWN;
-            if (broke)
-                return nullptr;
-        }
-        Voidify_If_Nulled_Or_Blank(out);  // null->BREAK, blank->empty
-
-        if (not IS_INTEGER(var))
-            fail (Error_Invalid_Type(VAL_TYPE(var)));
-
-        if (REB_I64_ADD_OF(*state, bump, state))
-            fail (Error_Overflow_Raw());
-    }
-
-    return out;
-}
-
-
-//
-//  Loop_Number_Common: C
-//
-static REB_R Loop_Number_Common(
-    REBVAL *out,
-    REBVAL *var,  // Must not be movable from context expansion, see #2274
-    const REBVAL *body,
-    REBVAL *start,
-    REBVAL *end,
-    REBVAL *bump
-){
-    Init_Blank(out); // result if body never runs
-
-    REBDEC s;
-    if (IS_INTEGER(start))
-        s = cast(REBDEC, VAL_INT64(start));
-    else if (IS_DECIMAL(start) or IS_PERCENT(start))
-        s = VAL_DECIMAL(start);
-    else
-        fail (start);
-
-    REBDEC e;
-    if (IS_INTEGER(end))
-        e = cast(REBDEC, VAL_INT64(end));
-    else if (IS_DECIMAL(end) or IS_PERCENT(end))
-        e = VAL_DECIMAL(end);
-    else
-        fail (end);
-
-    REBDEC b;
-    if (IS_INTEGER(bump))
-        b = cast(REBDEC, VAL_INT64(bump));
-    else if (IS_DECIMAL(bump) or IS_PERCENT(bump))
-        b = VAL_DECIMAL(bump);
-    else
-        fail (bump);
-
-    // As in Loop_Integer_Common(), the state is actually in a cell; so each
-    // loop iteration it must be checked to ensure it's still a decimal...
-    //
-    RESET_CELL(var, REB_DECIMAL, CELL_MASK_NONE);
-    REBDEC *state = &VAL_DECIMAL(var);
-    *state = s;
-
-    // Run only once if start is equal to end...edge case.
-    //
-    if (s == e) {
-        if (Do_Branch_Throws(out, body)) {
-            bool broke;
-            if (not Catching_Break_Or_Continue(out, &broke))
-                return R_THROWN;
-            if (broke)
-                return nullptr;
-        }
-        return Voidify_If_Nulled_Or_Blank(out);  // null->BREAK, blank->empty
-    }
-
-    // As per #1993, see notes in Loop_Integer_Common()
-    //
-    const bool counting_up = (s < e); // equal checked above
-    if ((counting_up and b <= 0) or (not counting_up and b >= 0))
-        return Init_Blank(out);  // avoid infinite loop, blank means never ran
-
-    while (counting_up ? *state <= e : *state >= e) {
-        if (Do_Branch_Throws(out, body)) {
-            bool broke;
-            if (not Catching_Break_Or_Continue(out, &broke))
-                return R_THROWN;
-            if (broke)
-                return nullptr;
-        }
-        Voidify_If_Nulled_Or_Blank(out);  // null->BREAK, blank->empty
-
-        if (not IS_DECIMAL(var))
-            fail (Error_Invalid_Type(VAL_TYPE(var)));
-
-        *state += b;
-    }
-
-    return out;
-}
-
-
 // Virtual_Bind_To_New_Context() allows LIT-WORD! syntax to reuse an existing
 // variables binding:
 //
@@ -779,78 +550,125 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
 //
 //  for: native [
 //
-//  {Evaluate a block over a range of values. (See also: REPEAT)}
+//  {Evaluate a block over a range of values.}
 //
 //      return: [<opt> any-value!]
-//      'word [word!]
-//          "Variable to hold current value"
-//      start [any-series! any-number!]
-//          "Starting value"
-//      end [any-series! any-number!]
-//          "Ending value"
-//      bump [any-number!]
-//          "Amount to skip each time"
-//      body [<const> block! action!]
-//          "Code to evaluate"
+//      'var "Variable to hold current value"
+//          [word!]
+//      start "Starting value"
+//          [any-number!]
+//      end "Ending value"
+//          [any-number!]
+//      bump "Amount to skip each time"
+//          [any-number!]
+//      body "Code to evaluate"
+//          [<const> block! action!]
 //  ]
 //
 REBNATIVE(for)
 {
     INCLUDE_PARAMS_OF_FOR;
 
+    enum {
+        ST_FOR_INITIAL_ENTRY = 0,
+        ST_FOR_SINGLE_RUN,  // edge case when start = end
+        ST_FOR_RUNNING_BODY
+    };
+
+    REBVAL *start = ARG(start);
+    REBVAL *end = ARG(end);
+    REBVAL *bump = ARG(bump);
+
+    REBVAL *counting_up = D_SPARE;
+
+    switch (D_STATE_BYTE) {
+      case ST_FOR_INITIAL_ENTRY: goto initial_entry;
+      case ST_FOR_SINGLE_RUN: goto body_finished_or_threw;  // checks state
+      case ST_FOR_RUNNING_BODY: goto body_finished_or_threw;  // checks state
+      default: assert(false);
+    }
+
     REBCTX *context;
+    REBVAL *var;  // not movable, see #2274
+
+  initial_entry: {
+    Init_Blank(D_OUT);  // result if body never runs
+
     Virtual_Bind_Deep_To_New_Context(
         ARG(body),  // may be updated, will still be GC safe
         &context,
-        ARG(word)
+        ARG(var)
     );
-    Init_Object(ARG(word), context);  // keep GC safe
+    Init_Object(ARG(var), context);  // keep GC safe
 
-    REBVAL *var = CTX_VAR(context, 1);  // not movable, see #2274
+    var = CTX_VAR(context, 1);
+    Move_Value(var, start);
 
+    // We actually hold the state in a cell; so each loop iteration it must
+    // be checked to ensure it's still a number...or risk erroring
+
+    // Run only once if start is equal to end...edge case.
+    //
+    if (rebDid(NATIVE_VAL(equal_q), start, end, rebEND)) {
+        D_STATE_BYTE = ST_FOR_SINGLE_RUN;
+        CONTINUE_CATCHABLE (ARG(body));
+    }
+
+    // As per #1993, start relative to end determines the "direction" of the
+    // FOR loop.  (R3-Alpha used the sign of the bump, which meant it did not
+    // have a clear plan for what to do with 0.)
+    //
+    Init_Logic(counting_up, rebDid(NATIVE_VAL(lesser_q), start, end, rebEND));
     if (
-        IS_INTEGER(ARG(start))
-        and IS_INTEGER(ARG(end))
-        and IS_INTEGER(ARG(bump))
+        (VAL_LOGIC(counting_up) and rebDid(bump, "<= 0", rebEND))
+        or (not VAL_LOGIC(counting_up) and rebDid(bump, ">= 0", rebEND))
     ){
-        return Loop_Integer_Common(
-            D_OUT,
-            var,
-            ARG(body),
-            VAL_INT64(ARG(start)),
-            IS_DECIMAL(ARG(end))
-                ? cast(REBI64, VAL_DECIMAL(ARG(end)))
-                : VAL_INT64(ARG(end)),
-            VAL_INT64(ARG(bump))
-        );
+        return Init_Blank(D_OUT);  // avoid infinite loop, blank -> never ran
     }
 
-    if (ANY_SERIES(ARG(start))) {
-        if (ANY_SERIES(ARG(end))) {
-            return Loop_Series_Common(
-                D_OUT,
-                var,
-                ARG(body),
-                ARG(start),
-                VAL_INDEX(ARG(end)),
-                Int32(ARG(bump))
-            );
-        }
-        else {
-            return Loop_Series_Common(
-                D_OUT,
-                var,
-                ARG(body),
-                ARG(start),
-                Int32s(ARG(end), 1) - 1,
-                Int32(ARG(bump))
-            );
-        }
+    goto decide_whether_to_run_body;
+  }
+
+  body_finished_or_threw: {
+    if (D_THROWING) {
+        bool broke;
+        if (not Catching_Break_Or_Continue(D_OUT, &broke))
+            return R_THROWN;
+        if (broke)
+            return nullptr;
     }
 
-    return Loop_Number_Common(
-        D_OUT, var, ARG(body), ARG(start), ARG(end), ARG(bump)
-    );
+    Voidify_If_Nulled_Or_Blank(D_OUT);  // null->BREAK, blank->empty
+
+    if (D_STATE_BYTE == ST_FOR_SINGLE_RUN)
+        return D_OUT;
+
+    context = VAL_CONTEXT(ARG(var));
+    var = CTX_VAR(context, 1);
+
+    if (not IS_DECIMAL(var) and not IS_INTEGER(var))
+        fail (Error_Invalid_Type(VAL_TYPE(var)));
+
+    REBVAL *sum = rebValue(var, "+", bump, rebEND);
+    Move_Value(var, sum);
+    rebRelease(sum);
+
+    goto decide_whether_to_run_body;
+  }
+
+  decide_whether_to_run_body: {
+    if (VAL_LOGIC(counting_up)) {
+        if (rebDid(NATIVE_VAL(greater_q), var, end, rebEND))
+            return D_OUT;
+    }
+    else {
+        if (rebDid(NATIVE_VAL(lesser_q), var, end, rebEND))
+            return D_OUT;
+    }
+
+    D_STATE_BYTE = ST_FOR_RUNNING_BODY;
+    CONTINUE_CATCHABLE (ARG(body));
+  }
 }
 
 
@@ -1635,56 +1453,6 @@ REBNATIVE(loop)
 
     return Voidify_If_Nulled_Or_Blank(D_OUT);  // null: BREAK, blank: empty
   }
-}
-
-
-//
-//  repeat: native [
-//
-//  {Evaluates a block a number of times or over a series.}
-//
-//      return: [<opt> any-value!]
-//          {Last body result or BREAK value}
-//      'word [word!]
-//          "Word to set each time"
-//      value [<blank> any-number! any-series!]
-//          "Maximum number or series to traverse"
-//      body [<const> block!]
-//          "Block to evaluate each time"
-//  ]
-//
-REBNATIVE(repeat)
-{
-    INCLUDE_PARAMS_OF_REPEAT;
-
-    REBVAL *value = ARG(value);
-
-    if (IS_DECIMAL(value) or IS_PERCENT(value))
-        Init_Integer(value, Int64(value));
-
-    REBCTX *context;
-    Virtual_Bind_Deep_To_New_Context(
-        ARG(body),
-        &context,
-        ARG(word)
-    );
-    Init_Object(ARG(word), context);  // keep GC safe
-
-    assert(CTX_LEN(context) == 1);
-
-    REBVAL *var = CTX_VAR(context, 1);  // not movable, see #2274
-    if (ANY_SERIES(value))
-        return Loop_Series_Common(
-            D_OUT, var, ARG(body), value, VAL_LEN_HEAD(value) - 1, 1
-        );
-
-    REBI64 n = VAL_INT64(value);
-    if (n < 1)  // Loop_Integer from 1 to 0 with bump of 1 is infinite
-        return Init_Blank(D_OUT);  // blank if loop condition never runs
-
-    return Loop_Integer_Common(
-        D_OUT, var, ARG(body), 1, VAL_INT64(value), 1
-    );
 }
 
 

@@ -131,7 +131,7 @@
 [https://github.com/metaeducation/ren-c/issues/923
     (
         a: copy #{60}
-        repeat i 16 [
+        count-up i 16 [
             append a a
             deline to-text a
         ]

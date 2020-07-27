@@ -694,7 +694,7 @@ count-down: redescribe [
         start: end
         end: 1
     ][
-        start: <overwritten-with-end>
+        start: 0  ; overwritten with end, just removing parameter
         bump: -1
     ]
 )

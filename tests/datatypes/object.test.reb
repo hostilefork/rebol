@@ -113,7 +113,7 @@
 
 (
     o-big: make object! collect [
-        repeat n 256 [
+        count-up n 256 [
             ;
             ; var-1: 1
             ; var-2: 2
@@ -124,7 +124,7 @@
                 (as word! unspaced ["var-" n]): (n)
             ]
         ]
-        repeat n 256 [
+        count-up n 256 [
             ;
             ; fun-1: method [] [var-1]
             ; fun-2: method [] [var-1 + var-2]
@@ -133,7 +133,7 @@
             ;
             keep compose [
                 (as word! unspaced ["meth-" n]): method [] (collect [
-                    repeat i n [
+                    count-up i n [
                         keep compose [
                             (as word! unspaced ["var-" i]) (if i <> n ['+])
                         ]
@@ -149,7 +149,7 @@
     ; derived binding allows the derived object's methods to see the derived
     ; object's values.
     ;
-    did repeat i 2048 [
+    did count-up i 2048 [
         derived: make o-big [var-1: 100000 + i]
         if 132639 + i <> derived/meth-255 [
             break

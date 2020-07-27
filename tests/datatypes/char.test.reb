@@ -203,11 +203,11 @@
         if size != length of to binary! c [
             fail "test character doesn't match expected size"
         ]
-        repeat len 64 [
+        count-up len 64 [
             s: copy {}
             e: copy {}
             picks: copy []
-            repeat i len [
+            count-up i len [
                 append s random/only codepoints
                 append e c
                 append picks i

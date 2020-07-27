@@ -36,30 +36,7 @@
     for i 1 1 1 [continue | success: false]
     success
 )]
-(
-    success: true
-    x: "a"
-    for i x tail of x 1 [continue | success: false]
-    success
-)
-; text! test
-(
-    out: copy ""
-    for i s: "abc" back tail of s 1 [append out i]
-    out = "abcbcc"
-)
-; block! test
-(
-    out: copy []
-    for i b: [1 2 3] back tail of b 1 [append out i]
-    out = [1 2 3 2 3 3]
-)
-; zero repetition block test
-(
-    success: true
-    for i b: [1] tail of :b -1 [success: false]
-    success
-)
+
 ; Test that return stops the loop
 (
     f1: func [] [for i 1 1 1 [return 1 2] 2]
@@ -74,13 +51,6 @@
 
 [ ; infinite loop tests
     (
-        num: 0
-        for i (b: next [1]) (back b) 1 [
-            num: num + 1
-            break
-        ]
-        num = 0
-    )(
         num: 0
         for i 1 0 1 [
             num: num + 1
@@ -166,8 +136,6 @@
         type of for i -1 -2 0 [break]
         type of for i 2 1 0 [break]
 )]
-; skip before head test
-([] = for i b: tail of [1] head of b -2 [i])
 ; "recursive safety", "locality" and "body constantness" test in one
 (for i 1 1 1 b: [not same? 'i b/3])
 ; recursivity
@@ -180,8 +148,9 @@
 )
 ; infinite recursion
 (
-    blk: [for i 1 1 1 blk]
-    error? trap blk
+    count: 0
+    blk: [if 2000 = count: count + 1 [throw <2000>] for i 1 1 1 blk]
+    <2000> = catch blk
 )
 ; local variable changeability - this is how it works in R3
 (

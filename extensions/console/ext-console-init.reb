@@ -564,7 +564,7 @@ ext-console-impl: function [
                 print newline
                 print "** Hit Ctrl-C to break into the console in 5 seconds"
 
-                repeat n 25 [
+                count-up n 25 [
                     if 1 = remainder n 5 [
                         write-stdout form (5 - to-integer (n / 5))
                     ] else [

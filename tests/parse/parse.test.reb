@@ -13,7 +13,7 @@
 
 [#206 (
     any-char: complement charset ""
-    repeat n 512 [
+    count-up n 512 [
         if n = 1 [continue]
         if "" != parse (append copy "" to char! n - 1) [set c any-char end] [
             fail "Parse didn't work"

@@ -128,14 +128,15 @@ void Unplug_Stack(
     assert(Is_Action_Frame(base));  // ...same goes for the base
     assert(not Is_Action_Frame_Fulfilling(base));  // ...etc.
 
+    REBFRM *temp = f;
     while (true) {
-        if (f->out == base->out) {
+        if (temp->out == base->out) {
             //
             // Reassign to mark the output as something randomly bad, but
             // still GC safe.  When the stack gets patched back in, it will
             // be recognized and reset to the new base's out.
             //
-            f->out = m_cast(REBVAL*, TRUE_VALUE);
+            temp->out = m_cast(REBVAL*, TRUE_VALUE);
         }
 
         // We make the baseline stack pointers in each frame relative to the
@@ -148,9 +149,9 @@ void Unplug_Stack(
         // it was would be wrong too.  This might suggest an EVAL_FLAG for
         // "don't believe the dsp".  Tricky.
         //
-        f->baseline.dsp -= base->baseline.dsp;
+        temp->baseline.dsp -= base->baseline.dsp;
 
-        if (f->prior == base) {
+        if (temp->prior == base) {
             //
             // The frame below the base was not fulfilling an argument, it
             // should be writing into the base's out cell.  But when the
@@ -159,16 +160,18 @@ void Unplug_Stack(
             // when we plug it back in.  Also we have to set it to something
             // legal to mark in GC as the cell will go stale.
             //
-            assert(f->out == TRUE_VALUE);  // should have matched base
-            f->prior = nullptr;  // show where the fragment of stack ends
+            assert(STATE_BYTE(temp->prior) != 0);  // must be a continuation
+            assert(temp->out == TRUE_VALUE);  // should have matched base
+            temp->prior = nullptr;  // show where the fragment of stack ends
             break;
         }
-        f = f->prior;
+        temp = temp->prior;
+        assert(STATE_BYTE(temp) != 0);  // must be a continuation
 
-        if (f == FS_TOP)  // "alive", but couldn't find it in the stack walk
+        if (temp == FS_TOP)  // "alive", but couldn't find in the stack walk
             fail ("Cannot yield to a generator that is suspended");
 
-        if (GET_EVAL_FLAG(f, ROOT_FRAME))
+        if (GET_EVAL_FLAG(temp, ROOT_FRAME))
             fail ("Cannot yield across frame that's not a continuation");
     }
 
@@ -244,6 +247,7 @@ void Replug_Stack(REBFRM *f, REBFRM *base, REBVAL *plug) {
         if (temp->prior == nullptr)
             break;
         temp = temp->prior;
+        assert(STATE_BYTE(temp) != 0);  // must be a continuation
     }
 
     // We chain the stack that was underneath the old base to the new base

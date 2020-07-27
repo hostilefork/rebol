@@ -472,7 +472,7 @@ inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
     Literal_Next_In_Feed((out), (f)->feed)
 
 
-inline static void Abort_Frame(REBFRM *f) {
+inline static void Abort_Frame_Core(REBFRM *f, bool rollback) {
     //
     // Abort_Frame() handles any work that wouldn't be done done naturally by
     // feeding a frame to its natural end.
@@ -519,15 +519,25 @@ inline static void Abort_Frame(REBFRM *f) {
 
   pop: {
     // Things like the data stack and mold buffer need to be returned to their
-    // position before this frame was pushed.
+    // position before this frame was pushed.  This doesn't apply to suspended
+    // frames, which reify the global state into Rebol structures and aren't
+    // running.
     //
-    Rollback_Globals_To_State(&f->baseline);
+    if (rollback) {
+        Rollback_Globals_To_State(&f->baseline);
+        assert(TG_Top_Frame == f);
+        TG_Top_Frame = f->prior;
+    }
 
-    assert(TG_Top_Frame == f);
-    TG_Top_Frame = f->prior;
     Free_Frame_Internal(f);
   }
 }
+
+#define Abort_Frame(f) \
+    Abort_Frame_Core((f), true)
+
+#define Abort_Frame_No_Rollback(f) \
+    Abort_Frame_Core((f), false)
 
 
 inline static void Drop_Frame_Core(REBFRM *f) {

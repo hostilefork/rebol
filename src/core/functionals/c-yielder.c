@@ -45,156 +45,185 @@ enum {
 //
 REB_R Yielder_Dispatcher(REBFRM *f)
 {
+    enum {
+        ST_YIELDER_WAS_INVOKED = 0,
+        ST_YIELDER_RUNNING_BODY
+    };
+
     REBACT *phase = FRM_PHASE(f);
     REBARR *details = ACT_DETAILS(phase);
     RELVAL *state = ARR_AT(details, IDX_YIELDER_STATE);
 
-    // Each time a new invocation of a function runs, the `spare` cell of the
-    // frame is set to END.  But if a dispatcher gets called back due to a
-    // continuation, it will be whatever the spare was left at.  This helps
-    // differentiate a call while the generator is running (illegal) from one
-    // that is a call after a yield (legal) by setting it to a non-END value
-    // (e.g. blank) before running a continuation.
+    switch (STATE_BYTE(f)) {
+      case ST_YIELDER_WAS_INVOKED: goto invoked;
+      case ST_YIELDER_RUNNING_BODY: goto body_finished;
+      default: assert(false);
+    }
+
+  invoked: {
     //
-    REBVAL *spare = FRM_SPARE(f);
+    // Because yielders accrue state as they run, more than on can't be in
+    // flight at a time.  Hence what would usually be an "initial entry" of
+    // a new call for other dispatchers, each call is effectively to the same
+    // "instance" of this yielder.  So the ACT_DETAILS() is modified while
+    // running, and it's the `state` we pay attention to.
+    //
+    // (Note the frame state is in an array, and thus can't be NULL.)
 
-    if (IS_BLANK(state)) {  // first run
-        Init_Void(state);  // indicate "running" (no recursions allowed)
-        Init_Blank(spare);  // differentiate continuation state from new call
+    if (IS_FRAME(state))  // we were suspended by YIELD, and want to resume
+        goto resume_body;
 
-        // Whatever we pass through here as the specifier has to stay working,
-        // because it will be threaded and preserved in variables by the
-        // running code (also, it's the binding of the YIELD statement, which
-        // needs to be able to find the right frame).
-        //
-        // If there is no yield, we want a callback so we can mark the
-        // generator as finished.
-        //
-        Push_Continuation_Details_0(f->out, f);  // re-enter after eval
-        return R_CONTINUATION;
-    }
+    if (IS_BLANK(state))  // set by the YIELDER creation routine
+        goto first_run;
 
-    if (IS_FRAME(state)) {  // interrupted frame stack fragment needs resuming
-        REBFRM *yielder_frame = f;  // alias for clarity
-        REBFRM *yield_frame = CTX_FRAME_IF_ON_STACK(VAL_CONTEXT(state));
-        assert(yield_frame != nullptr);
-
-        // The YIELD binding pointed to the context varlist we used in the
-        // original yielder dispatch.  That completed--but we need to reuse
-        // the identity for this new yielder frame for the YIELD to find it
-        // in the stack walk.
-        //
-        REBCTX *last_yielder_context = VAL_CONTEXT(
-            ARR_AT(details, IDX_YIELDER_LAST_YIELDER_CONTEXT)
-        );
-
-        // We want the identity of the old varlist to replace this yielder's
-        // varlist identity.  But we want the frame's values to reflect the
-        // args the user passed in to this invocation of the yielder.  So move
-        // those into the old varlist before replacing this varlist with that
-        // prior identity.
-        //
-        REBVAL *param = CTX_KEYS_HEAD(last_yielder_context);
-        REBVAL *dest = CTX_VARS_HEAD(last_yielder_context);
-        REBVAL *src = FRM_ARGS_HEAD(yielder_frame);
-        for (; NOT_END(src); ++param, ++dest, ++src) {
-            if (VAL_PARAM_CLASS(param) == REB_P_LOCAL)
-                continue;  // don't overwrite locals (including YIELD)
-            Move_Value(dest, src);  // all arguments/refinements are fair game
-        }
-        assert(IS_END(src));
-        assert(IS_END(dest));
-
-        // With variables extracted, we no longer need the varlist for this
-        // invocation (wrong identity) so we free it, if it isn't GC-managed,
-        // as it wouldn't get freed otherwise.
-        //
-        if (NOT_SERIES_FLAG(yielder_frame->varlist, MANAGED))
-            GC_Kill_Series(SER(yielder_frame->varlist));  // Note: no tracking
-
-        // When the last yielder dropped from the frame stack, it should have
-        // decayed its keysource from a REBFRM* to the action that was
-        // invoked (which could be an arbitrary specialization--e.g. different
-        // variants of the yielder with different f->original could be used
-        // between calls).  This means we can only compare underlying actions.
-        //
-        // Now we have a new REBFRM*, so we can reattach the context to that.
-        //
-        assert(
-            ACT_UNDERLYING(ACT(LINK_KEYSOURCE(last_yielder_context)))
-            == ACT_UNDERLYING(yielder_frame->original)
-        );
-        INIT_LINK_KEYSOURCE(last_yielder_context, NOD(yielder_frame));
-
-        // Now that the last call's context varlist is pointing at our current
-        // invocation frame, we point the other way from the frame to the
-        // varlist.  We also update the cached pointer to the rootvar of that
-        // frame (used to speed up FRM_PHASE() and FRM_BINDING())
-        //
-        f->varlist = CTX_VARLIST(last_yielder_context);
-        f->rootvar = CTX_ARCHETYPE(last_yielder_context);  // must match
-
-        RELVAL *data_stack = KNOWN(ARR_AT(details, IDX_YIELDER_DATA_STACK));
-
-        Replug_Stack(yield_frame, yielder_frame, KNOWN(data_stack));
-
-        // Restore the in-progress output cell state that was going on when
-        // the YIELD ran (e.g. if it interrupted a CASE or something, this
-        // would be what the case had in the out cell at moment of interrupt).
-        // Note special trick used to encode END inside an array by means of
-        // using the hidden identity of the details array itself.
-        //
-        REBVAL *out_copy = KNOWN(ARR_AT(details, IDX_YIELDER_OUT));
-        if (
-            KIND_BYTE_UNCHECKED(out_copy) == REB_BLOCK
-            and VAL_ARRAY(out_copy) == details
-        ){
-            SET_END(yielder_frame->out);
-        }
-        else
-            Move_Value(yielder_frame->out, out_copy);
-        if (out_copy->header.bits & CELL_FLAG_OUT_MARKED_STALE)
-            yielder_frame->out->header.bits |= CELL_FLAG_OUT_MARKED_STALE;
-
-        // We could make YIELD appear to return a VOID! when we jump back in
-         // to resume it.  But it's more interesting to return what the YIELD
-        // received as an arg (YIELD cached it in details before jumping)
-        //
-        Move_Value(
-            yield_frame->out,
-            KNOWN(ARR_AT(details, IDX_YIELDER_LAST_YIELD_RESULT))
-        );
-
-        // If the yielder actually reaches its end (instead of YIELD-ing)
-        // we need to know, so we can mark that it is finished.
-        //
-        assert(NOT_EVAL_FLAG(yielder_frame->out, DELEGATE_CONTROL));
-
-        Init_Void(state);  // indicate "running" (no recursions allowed)
-        Init_Blank(spare);  // differentiate continuation state from new call
-
-        return R_DEWIND;  // ...resuming where we left off
-    }
-
-    if (IS_LOGIC(state)) {  // finished...no more calls (!!! or error?)
-        assert(not VAL_LOGIC(state));  // only using `false` at the moment
+    if (IS_LOGIC(state)) {  // false means done (can't use NULLED in an array)
+        assert(not VAL_LOGIC(state));
         return nullptr;
     }
 
-    assert(IS_VOID(state));  // body is currently running, not yielded or new
+    assert(IS_VOID(state));
+    fail ("Yielder called while running; re-entrancy not allowed");
+  }
 
-    if (IS_END(FRM_SPARE(f)))  // running but this is a new call without yield
-        fail ("Generator called while running; recursions not allowed");
-
-    assert(IS_BLANK(FRM_SPARE(f)));  // differentiation for continuations
-    Init_False(state);  // indicate the run is finished
-
-    // Finished, and f->out is the actual result we get due to continuation.
-    // We discard it so that values don't accidentally "fall out" when there
-    // is no `yield`.  (Note RETURN is also 0-arity, so if you want to yield
-    // and return prematurely it's two steps: `yield value | return`
+  first_run: {
     //
-    return nullptr;
+    // Whatever we pass through here as the specifier has to stay working,
+    // because it will be threaded and preserved in variables by the
+    // running code (also, it's the binding of the YIELD statement, which
+    // needs to be able to find the right frame).
+    //
+    // If there is no yield, we want a callback so we can mark the
+    // generator as finished.
+    //
+    Push_Continuation_Details_0(f->out, f);  // re-enter after eval
+    STATE_BYTE(f) = ST_YIELDER_RUNNING_BODY;
+    Init_Void(state);  // indicate "running"
+    return R_CONTINUATION;
+  }
+
+  resume_body: {
+    assert(IS_FRAME(state));
+
+    REBFRM *yielder_frame = f;  // alias for clarity
+    REBFRM *yield_frame = CTX_FRAME_IF_ON_STACK(VAL_CONTEXT(state));
+    assert(yield_frame != nullptr);
+
+    // The YIELD binding pointed to the context varlist we used in the
+    // original yielder dispatch.  That completed--but we need to reuse
+    // the identity for this new yielder frame for the YIELD to find it
+    // in the stack walk.
+    //
+    REBCTX *last_yielder_context = VAL_CONTEXT(
+        ARR_AT(details, IDX_YIELDER_LAST_YIELDER_CONTEXT)
+    );
+
+    // We want the identity of the old varlist to replace this yielder's
+    // varlist identity.  But we want the frame's values to reflect the
+    // args the user passed in to this invocation of the yielder.  So move
+    // those into the old varlist before replacing this varlist with that
+    // prior identity.
+    //
+    REBVAL *param = CTX_KEYS_HEAD(last_yielder_context);
+    REBVAL *dest = CTX_VARS_HEAD(last_yielder_context);
+    REBVAL *src = FRM_ARGS_HEAD(yielder_frame);
+    for (; NOT_END(src); ++param, ++dest, ++src) {
+        if (VAL_PARAM_CLASS(param) == REB_P_LOCAL)
+            continue;  // don't overwrite locals (including YIELD)
+        Move_Value(dest, src);  // all arguments/refinements are fair game
+    }
+    assert(IS_END(src));
+    assert(IS_END(dest));
+
+    // With variables extracted, we no longer need the varlist for this
+    // invocation (wrong identity) so we free it, if it isn't GC-managed,
+    // as it wouldn't get freed otherwise.
+    //
+    if (NOT_SERIES_FLAG(yielder_frame->varlist, MANAGED)) {
+        //
+        // We only want to kill off this one frame; but the GC will think
+        // that we want to kill the whole stack of frames if we don't
+        // zero out the keylist node.
+        //
+        LINK(yielder_frame->varlist).custom.node = nullptr;
+
+        GC_Kill_Series(SER(yielder_frame->varlist));  // Note: no tracking
+    }
+
+    // When the last yielder dropped from the frame stack, it should have
+    // decayed its keysource from a REBFRM* to the action that was
+    // invoked (which could be an arbitrary specialization--e.g. different
+    // variants of the yielder with different f->original could be used
+    // between calls).  This means we can only compare underlying actions.
+    //
+    // Now we have a new REBFRM*, so we can reattach the context to that.
+    //
+    assert(
+        ACT_UNDERLYING(ACT(LINK_KEYSOURCE(last_yielder_context)))
+        == ACT_UNDERLYING(yielder_frame->original)
+    );
+    INIT_LINK_KEYSOURCE(last_yielder_context, NOD(yielder_frame));
+
+    // Now that the last call's context varlist is pointing at our current
+    // invocation frame, we point the other way from the frame to the
+    // varlist.  We also update the cached pointer to the rootvar of that
+    // frame (used to speed up FRM_PHASE() and FRM_BINDING())
+    //
+    f->varlist = CTX_VARLIST(last_yielder_context);
+    f->rootvar = CTX_ARCHETYPE(last_yielder_context);  // must match
+
+    RELVAL *data_stack = KNOWN(ARR_AT(details, IDX_YIELDER_DATA_STACK));
+
+    Replug_Stack(yield_frame, yielder_frame, KNOWN(data_stack));
+
+    // Restore the in-progress output cell state that was going on when
+    // the YIELD ran (e.g. if it interrupted a CASE or something, this
+    // would be what the case had in the out cell at moment of interrupt).
+    // Note special trick used to encode END inside an array by means of
+    // using the hidden identity of the details array itself.
+    //
+    REBVAL *out_copy = KNOWN(ARR_AT(details, IDX_YIELDER_OUT));
+    if (
+        KIND_BYTE_UNCHECKED(out_copy) == REB_BLOCK
+        and VAL_ARRAY(out_copy) == details
+    ){
+        SET_END(yielder_frame->out);
+    }
+    else
+        Move_Value(yielder_frame->out, out_copy);
+    if (out_copy->header.bits & CELL_FLAG_OUT_MARKED_STALE)
+        yielder_frame->out->header.bits |= CELL_FLAG_OUT_MARKED_STALE;
+
+    // We could make YIELD appear to return a VOID! when we jump back in
+    // to resume it.  But it's more interesting to return what the YIELD
+    // received as an arg (YIELD cached it in details before jumping)
+    //
+    Move_Value(
+        yield_frame->out,
+        KNOWN(ARR_AT(details, IDX_YIELDER_LAST_YIELD_RESULT))
+    );
+
+    // If the yielder actually reaches its end (instead of YIELD-ing)
+    // we need to know, so we can mark that it is finished.
+    //
+    assert(NOT_EVAL_FLAG(yielder_frame->out, DELEGATE_CONTROL));
+
+    STATE_BYTE(yielder_frame) = ST_YIELDER_RUNNING_BODY;
+    Init_Void(state);  // indicate running
+    return R_DEWIND;  // ...resuming where we left off
+  }
+
+  body_finished: {
+    Init_False(ARR_AT(details, IDX_YIELDER_STATE));  // "finished" indicator
+
+    // Clean up all the details fields so the GC can reclaim the memory
+    //
+    Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_LAST_YIELDER_CONTEXT));
+    Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_LAST_YIELD_RESULT));
+    Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_DATA_STACK));
+    Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_OUT));
+    
+    return nullptr;  // will return NULL for all future calls
+  }
 }
 
 
@@ -343,7 +372,7 @@ REBNATIVE(yield)
     // until the nullptr that we put at the root.
     //
     RELVAL *state = ARR_AT(yielder_details, IDX_YIELDER_STATE);
-    assert(IS_VOID(state));  // should be in "running" state
+    assert(IS_VOID(state));  // should be the signal for "currently running"
     Init_Frame(state, Context_For_Frame_May_Manage(yield_frame));
     ASSERT_ARRAY_MANAGED(VAL_CONTEXT(state));
     assert(CTX_FRAME_IF_ON_STACK(VAL_CONTEXT(state)) == yield_frame);

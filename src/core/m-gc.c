@@ -1049,8 +1049,39 @@ static REBLEN Sweep_Frames(void)
                 CLEAR_EVAL_FLAG(f, MARKED);
                 continue;
             }
-            Free_Frame_Internal(f);
-            ++count;
+
+            // A suspended frame, e.g. one held onto by a generator--but when
+            // the generator is being GC'd.  (Would not be getting GC'd if it
+            // was in active REBFRM* stack, because marking the frame stack
+            // would have kept it alive.)
+            //
+            // -BUT- we want to gracefully free stacks from the bottom to the
+            // top.  Use the STATE_BYTE() being 0 as a test of this being a
+            // non-continuation.
+            //
+            if (STATE_BYTE(f) != 0)
+                continue;
+
+            // !!! This is hacky code, which doesn't delegate to the executor
+            // to do cleanup (note it explicitly Drop_Action()s for the action
+            // frame, and marks all frames as ABRUPT_FAILURE so that they will
+            // forgive outstanding API handles).  It's just to try and get the
+            // generators to elegantly GC if they aren't completed by the time
+            // Revolt exits.
+            //
+            REBFRM *temp = f;
+            while (temp and NOT_EVAL_FLAG(temp, MARKED)) {
+                REBFRM *dead = temp;
+                temp = temp->prior;
+                if (temp) {
+                    assert(not IS_FREE_NODE(temp));
+                    assert(STATE_BYTE(temp) != 0);  // only deepest stack is 0
+                }
+                if (Is_Action_Frame(dead))
+                    Drop_Action(dead);
+                SET_EVAL_FLAG(dead, ABRUPT_FAILURE);
+                Abort_Frame_No_Rollback(dead);
+            }
         }
     }
 
@@ -1175,17 +1206,6 @@ REBLEN Recycle_Core(bool shutdown, REBSER *sweeplist)
     //
     TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
 
-    // The TG_Reuse list consists of entries which could grow to arbitrary
-    // length, and which aren't being tracked anywhere.  Cull them during GC
-    // in case the stack at one point got very deep and isn't going to use
-    // them again, and the memory needs reclaiming.
-    //
-    while (TG_Reuse) {
-        REBARR *varlist = TG_Reuse;
-        TG_Reuse = LINK(TG_Reuse).reuse;
-        GC_Kill_Series(SER(varlist)); // no track for Free_Unmanaged_Series()
-    }
-
     if (not shutdown) {
         Mark_Natives();
         Mark_Symbol_Series();
@@ -1207,6 +1227,18 @@ REBLEN Recycle_Core(bool shutdown, REBSER *sweeplist)
 
     ASSERT_NO_GC_MARKS_PENDING();
 
+    // If a frame doesn't wind up being marked, it needs to be freed.  But
+    // it has to be freed before Sweep_Series() happens, or the references
+    // the REBFRM* has (onto arrays for feeds, etc.) will be gone.
+    //
+    // However, frames have to be freed from the bottom to the top.  Yet
+    // frames only link up the stack--so how to tell if a given frame should
+    // be the one to start a cascade of unwinding?  We can use the idea that
+    // you cannot run a continuation unless your state byte is nonzero; and
+    // then only zero state bytes do the frame unwinding and freeing.
+    //
+    Sweep_Frames();
+
     REBLEN count = 0;
 
     if (sweeplist != NULL) {
@@ -1219,7 +1251,19 @@ REBLEN Recycle_Core(bool shutdown, REBSER *sweeplist)
     else
         count += Sweep_Series();
 
-    Sweep_Frames();
+    // The TG_Reuse list consists of entries which could grow to arbitrary
+    // length, and which aren't being tracked anywhere.  Cull them during GC
+    // in case the stack at one point got very deep and isn't going to use
+    // them again, and the memory needs reclaiming.
+    //
+    // BUT we have to do it after the frames have been freed, because
+    // Free_Frame_Internal() may add entries to the TG_Reuse list
+    //
+    while (TG_Reuse) {
+        REBARR *varlist = TG_Reuse;
+        TG_Reuse = LINK(TG_Reuse).reuse;
+        GC_Kill_Series(SER(varlist)); // no track for Free_Unmanaged_Series()
+    }
 
 #if !defined(NDEBUG)
     // Compute new stats:

@@ -130,6 +130,9 @@ void Unplug_Stack(
 
     REBFRM *temp = f;
     while (true) {
+        if (GET_EVAL_FLAG(temp, ROOT_FRAME))
+            fail ("Cannot yield across frame that's not a continuation");
+
         if (temp->out == base->out) {
             //
             // Reassign to mark the output as something randomly bad, but
@@ -165,14 +168,13 @@ void Unplug_Stack(
             temp->prior = nullptr;  // show where the fragment of stack ends
             break;
         }
+
         temp = temp->prior;
-        assert(STATE_BYTE(temp) != 0);  // must be a continuation
 
         if (temp == FS_TOP)  // "alive", but couldn't find in the stack walk
             fail ("Cannot yield to a generator that is suspended");
 
-        if (GET_EVAL_FLAG(temp, ROOT_FRAME))
-            fail ("Cannot yield across frame that's not a continuation");
+        assert(STATE_BYTE(temp) != 0);  // must be a continuation
     }
 
     // If any data stack has been accrued, we capture it into an array.  We

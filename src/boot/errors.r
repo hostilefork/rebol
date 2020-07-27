@@ -216,7 +216,7 @@ Script: [
     block-skip-wrong:   {Block is not even multiple of skip size}
 
     frame-already-used: [{Frame currently in use by a function call} :arg1]
-    frame-not-on-stack: {Frame is no longer running on the stack}
+    frame-not-on-stack: {Frame is not currently running on the stack}
 
     varargs-no-stack:   {Call originating VARARGS! has finished running}
     varargs-make-only:  {MAKE *shared* BLOCK! supported on VARARGS! (not TO)}
@@ -234,6 +234,9 @@ Script: [
     block-switch:       [{Literal block used as switch value} :arg1]
 
     native-unloaded:    [{Native has been unloaded:} :arg1]
+
+    yielder-reentered:  {Can't re-enter a YIELDER unless it is in YIELD state}
+    yielder-errored:    {A YIELDER cannot be resumed if it fails due to error}
 ]
 
 Math: [

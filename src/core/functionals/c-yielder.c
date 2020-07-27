@@ -56,7 +56,7 @@ REB_R Yielder_Dispatcher(REBFRM *f)
 
     switch (STATE_BYTE(f)) {
       case ST_YIELDER_WAS_INVOKED: goto invoked;
-      case ST_YIELDER_RUNNING_BODY: goto body_finished;
+      case ST_YIELDER_RUNNING_BODY: goto body_finished_or_threw;
       default: assert(false);
     }
 
@@ -76,13 +76,15 @@ REB_R Yielder_Dispatcher(REBFRM *f)
     if (IS_BLANK(state))  // set by the YIELDER creation routine
         goto first_run;
 
-    if (IS_LOGIC(state)) {  // false means done (can't use NULLED in an array)
-        assert(not VAL_LOGIC(state));
-        return nullptr;
+    if (IS_LOGIC(state)) {  // terminated due to finishing the body or error
+        if (VAL_LOGIC(state))
+            return nullptr;
+
+        return Init_Thrown_Failure(f->out, Error_Yielder_Errored_Raw());
     }
 
-    assert(IS_VOID(state));
-    fail ("Yielder called while running; re-entrancy not allowed");
+    assert(IS_VOID(state));  // currently on the stack and running
+    return Init_Thrown_Failure(f->out, Error_Yielder_Reentered_Raw());
   }
 
   first_run: {
@@ -95,7 +97,11 @@ REB_R Yielder_Dispatcher(REBFRM *f)
     // If there is no yield, we want a callback so we can mark the
     // generator as finished.
     //
-    Push_Continuation_Details_0(f->out, f);  // re-enter after eval
+    Push_Continuation_Details_0_Core(
+        f->out,
+        f,
+        EVAL_FLAG_DISPATCHER_CATCHES  // we want to see throws and errors
+    );
     STATE_BYTE(f) = ST_YIELDER_RUNNING_BODY;
     Init_Void(state);  // indicate "running"
     return R_CONTINUATION;
@@ -207,22 +213,41 @@ REB_R Yielder_Dispatcher(REBFRM *f)
     //
     assert(NOT_EVAL_FLAG(yielder_frame->out, DELEGATE_CONTROL));
 
-    STATE_BYTE(yielder_frame) = ST_YIELDER_RUNNING_BODY;
+    STATE_BYTE(yielder_frame) = ST_YIELDER_RUNNING_BODY;  // need to set again
+    SET_EVAL_FLAG(yielder_frame, DISPATCHER_CATCHES);  // need to set again
     Init_Void(state);  // indicate running
     return R_DEWIND;  // ...resuming where we left off
   }
 
-  body_finished: {
-    Init_False(ARR_AT(details, IDX_YIELDER_STATE));  // "finished" indicator
-
+  body_finished_or_threw: {
+    //
     // Clean up all the details fields so the GC can reclaim the memory
     //
     Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_LAST_YIELDER_CONTEXT));
     Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_LAST_YIELD_RESULT));
     Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_DATA_STACK));
     Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_OUT));
-    
-    return nullptr;  // will return NULL for all future calls
+
+    if (Is_Throwing(f)) {
+        if (IS_ERROR(VAL_THROWN_LABEL(f->out))) {
+            //
+            // We treat a failure as if it was an invalid termination of the
+            // yielder.  Future calls will raise an error.
+            //
+            Init_False(ARR_AT(details, IDX_YIELDER_STATE));
+        }
+        else {
+            // We treat a throw as if it was a valid termination of the
+            // yielder (e.g. a RETURN which crosses out of it).  Future calls
+            // will return NULL.
+            //
+            Init_True(ARR_AT(details, IDX_YIELDER_STATE));
+        }
+        return R_THROWN;
+    }
+
+    Init_True(ARR_AT(details, IDX_YIELDER_STATE));  // finished successfully
+    return nullptr;  // the true signals return NULL for all future calls
   }
 }
 

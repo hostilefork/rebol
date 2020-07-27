@@ -121,6 +121,23 @@ inline static REB_R Init_Thrown_With_Label(
     return R_THROWN; // for chaining to dispatcher output
 }
 
+
+// Failures can be abrupt (if issued via `fail()`), in which case they must
+// be caught by the Trampoline or rebRescue().  The frame in which the failure
+// occurred will be given a chance to clean up, but the frame also carries
+// the EVAL_FLAG_ABRUPT_FAILURE...which forgives API leaks and manuals.  Then
+// a thrown value with an ERROR! as a label will propagate up cooperatively.
+//
+// To avoid the overhead of the abrupt failure, another option is to just
+// cooperatively fail in the first place.  This will not forgive any leaks,
+// but if an Executor or Dispatcher wishes to use this mechanism then it
+// need not worry about getting called back to do cleanup.  It's cleaner and
+// a little bit faster.
+//
+#define Init_Thrown_Failure(out,error) \
+    Init_Thrown_With_Label((out), NULLED_CELL, CTX_ARCHETYPE(error))
+
+
 static inline void CATCH_THROWN(
     RELVAL *arg_out,
     REBVAL *thrown // Note: may be same pointer as arg_out

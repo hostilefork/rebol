@@ -152,6 +152,21 @@ bool Trampoline_Throws(REBFRM *f)
     // frames or change the executor of the frame it receives.
     //
     REB_R r = (f->executor)(f);  // Note: f may not be FS_TOP at this moment
+
+    if (r == R_CONTINUATION) {
+        //
+        // The frame stack is singly-linked from lower stacks to higher.  Yet
+        // the GC needs to find the bottom of stacks when sweeping, in order
+        // to gracefully unwind suspended stacks (e.g. a GENERATOR' YIELD)
+        // that have not been marked as "in use".
+        //
+        // A cheap concept which also helps a bit with error checking is to
+        // say that all continuations have nonzero state bytes.  Then things
+        // like YIELD will be at state byte zero: the root of an unwind.
+        //
+        assert(f == FS_TOP or STATE_BYTE(f) != 0);
+    }
+
     f = FS_TOP;  // refresh to whatever topmost frame is after call
 
     if (r == R_THROWN) {

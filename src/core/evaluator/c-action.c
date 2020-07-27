@@ -1314,6 +1314,8 @@ REB_R Action_Executor(REBFRM *f)
         // run the f->phase again.  The dispatcher may have changed the
         // value of what f->phase is, for instance.
 
+        STATE_BYTE(f) = ST_ACTION_INITIAL_ENTRY;  // clear dispatcher state
+
         if (not EXTRA(Any, r).flag)  // R_REDO_UNCHECKED
             goto redo_unchecked;
 
@@ -1571,6 +1573,7 @@ REB_R Action_Executor(REBFRM *f)
             INIT_FRM_PHASE(f, VAL_PHASE(f->out));
             FRM_BINDING(f) = VAL_BINDING(f->out);
 
+            STATE_BYTE(f) = ST_ACTION_INITIAL_ENTRY;  // reset
             goto redo_checked;
         }
     }

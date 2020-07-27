@@ -69,6 +69,7 @@ REBNATIVE(reduce)
         Push_Frame(D_OUT, subframe);
 
         SET_EVAL_FLAG(frame_, DELEGATE_CONTROL);
+        D_STATE_BYTE = 1;  // D_STATE_BYTE == 0 reserved for initial entry
         return R_CONTINUATION;
     }
 

@@ -144,6 +144,7 @@ REB_R Encloser_Dispatcher(REBFRM *f)
         SPECIFIED,
         rootvar  // `with` argument, see note above on copy for GC-safety
     );
+    STATE_BYTE(f) = 1;  // STATE_BYTE() == 0 is reserved for initial entry
     return R_CONTINUATION;
 }
 

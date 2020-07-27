@@ -193,6 +193,7 @@ REB_R Brancher_Executor(REBFRM *frame_)
 {
     if (IS_GROUP(D_SPARE) or IS_SYM_GROUP(D_SPARE)) {
         mutable_KIND_BYTE(D_SPARE) = mutable_MIRROR_BYTE(D_SPARE) = REB_BLOCK;
+        STATE_BYTE(frame_) = 1;  // STATE_BYTE() == 0 is initial_entry
         CONTINUE (D_SPARE);
     }
 
@@ -219,7 +220,9 @@ REB_R Brancher_Executor(REBFRM *frame_)
     // work in progress.  We can't say nullptr since we're returning a
     // continuation, so use the Finished_Executor().
     //
+    STATE_BYTE(frame_) = 0;  // !!! Hack to pass INIT_F_EXECUTOR() check
     INIT_F_EXECUTOR(frame_, &Finished_Executor);
+    STATE_BYTE(frame_) = 1;  // STATE_BYTE() == 0 is initial_entry
     CONTINUE (D_SPARE);
 }
 

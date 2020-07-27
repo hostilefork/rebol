@@ -70,6 +70,7 @@ REBNATIVE(reeval)
     Push_Frame(D_OUT, subframe);
 
     SET_EVAL_FLAG(frame_, DELEGATE_CONTROL);
+    STATE_BYTE(frame_) = 1;  // STATE_BYTE() == 0 reserved for initial entry
     return R_CONTINUATION;
 }
 
@@ -288,6 +289,7 @@ REBNATIVE(shove)
         Push_Frame(D_OUT, subframe);
     }
 
+    STATE_BYTE(frame_) = 1;  // STATE_BYTE() == 0 reserved for initial_entry
     return R_CONTINUATION;
 }
 
@@ -358,6 +360,7 @@ REBNATIVE(do)
         INIT_F_EXECUTOR(subframe, &New_Expression_Executor);
 
         SET_EVAL_FLAG(frame_, DELEGATE_CONTROL);
+        STATE_BYTE(frame_) = 1;  // STATE_BYTE() == 0 is for initial_entry
         return R_CONTINUATION; }
 
       case REB_VARARGS: {
@@ -449,6 +452,7 @@ REBNATIVE(do)
         INIT_F_EXECUTOR(subframe, &New_Expression_Executor);
 
         SET_EVAL_FLAG(frame_, DELEGATE_CONTROL);
+        STATE_BYTE(frame_) = 1;  // STATE_BYTE() == 0 is for initial_entry
         return R_CONTINUATION; }
 
       case REB_ERROR:

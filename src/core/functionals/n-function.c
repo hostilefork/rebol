@@ -76,9 +76,9 @@
 //  Void_Dispatcher: C
 //
 // If you write `func [return: <void> ...] []` it uses this dispatcher instead
-// of running Eval_Core() on an empty block.  This serves more of a point than
-// it sounds, because you can make fast stub actions that only cost if they
-// are HIJACK'd (e.g. ASSERT is done this way).
+// of running the evaluator on an empty block.  This is less useless than it
+// may sound: you can make fast stub actions that only cost if they are
+// HIJACK'd (e.g. ASSERT is done this way).
 //
 REB_R Void_Dispatcher(REBFRM *f)
 {
@@ -124,6 +124,7 @@ REB_R Null_Dispatcher(REBFRM *f)
 REB_R Unchecked_Dispatcher(REBFRM *f)
 {
     Push_Delegation_Details_0(f->out, f);  // no re-entry after eval
+    STATE_BYTE(f) = 1;  // STATE_BYTE() == 0 is reserved for initial entry
     return R_CONTINUATION;
 }
 
@@ -135,14 +136,26 @@ REB_R Unchecked_Dispatcher(REBFRM *f)
 //
 REB_R Voider_Dispatcher(REBFRM *f)
 {
-    if (IS_END(FRM_SPARE(f))) {  // first run
-        Init_Blank(FRM_SPARE(f));  // mark we are no longer on first entry
-        Push_Continuation_Details_0(f->out, f);  // re-enter after eval
-        return R_CONTINUATION;
-    }
-    assert(IS_BLANK(FRM_SPARE(f)));  // should not have changed
+    enum {
+        ST_VOIDER_INITIAL_ENTRY = 0,
+        ST_VOIDER_RUNNING_BODY
+    };
 
-    return Init_Void(f->out);  // on our second entry, so we're finished
+    switch (STATE_BYTE(f)) {
+      case ST_VOIDER_INITIAL_ENTRY: goto initial_entry;
+      case ST_VOIDER_RUNNING_BODY: goto body_ran;
+      default: assert(false);
+    }
+
+  initial_entry: {
+    Push_Continuation_Details_0(f->out, f);  // body lives in ACT_DETAILS[0]
+    STATE_BYTE(f) = ST_VOIDER_RUNNING_BODY;
+    return R_CONTINUATION;
+  }
+
+  body_ran: {
+    return Init_Void(f->out);  // discards whatever actual result was
+  }
 }
 
 
@@ -156,15 +169,27 @@ REB_R Voider_Dispatcher(REBFRM *f)
 //
 REB_R Returner_Dispatcher(REBFRM *f)
 {
-    if (IS_END(FRM_SPARE(f))) {  // first run
-        Init_Blank(FRM_SPARE(f));  // mark we are no longer on first entry
-        Push_Continuation_Details_0(f->out, f);  // re-enter after eval
-        return R_CONTINUATION;
-    }
-    assert(IS_BLANK(FRM_SPARE(f)));  // should not have changed
+    enum {
+        ST_RETURNER_INITIAL_ENTRY = 0,
+        ST_RETURNER_RUNNING_BODY
+    };
 
-    FAIL_IF_BAD_RETURN_TYPE(f);
-    return f->out;  // on our second entry, so we're finished
+    switch (STATE_BYTE(f)) {
+      case ST_RETURNER_INITIAL_ENTRY: goto initial_entry;
+      case ST_RETURNER_RUNNING_BODY: goto body_ran;
+      default: assert(false);
+    }
+
+  initial_entry: {
+    Push_Continuation_Details_0(f->out, f);  // body lives in ACT_DETAILS[0]
+    STATE_BYTE(f) = ST_RETURNER_RUNNING_BODY;
+    return R_CONTINUATION;
+  }
+
+  body_ran: {
+    FAIL_IF_BAD_RETURN_TYPE(f);  // all we do is check the return type
+    return f->out;
+  }
 }
 
 
@@ -191,20 +216,33 @@ REB_R Elider_Dispatcher(REBFRM *f)
     // spare cell, request a callback after the continuation is done, and put
     // it back.  Hopefully a better answer will come along.
 
-    if (IS_END(FRM_SPARE(f))) {  // first run
-        if (IS_END(f->out)) {  // could happen :-/ e.g. `do [comment "" ...]`
-            Init_Void(FRM_SPARE(f));
-            SET_CELL_FLAG(FRM_SPARE(f), SPARE_MARKED_END);  // be tricky
-        }
-        else {
-            Move_Value(FRM_SPARE(f), f->out);  // cache, mark first step done
-            if (GET_CELL_FLAG(f->out, UNEVALUATED))
-                SET_CELL_FLAG(FRM_SPARE(f), UNEVALUATED);  // proxy eval flag
-        }
-        Push_Continuation_Details_0(f->out, f);  // re-entry after eval
-        return R_CONTINUATION;
+    enum {
+        ST_ELIDER_INITIAL_ENTRY = 0,
+        ST_ELIDER_RUNNING_BODY
+    };
+
+    switch (STATE_BYTE(f)) {
+      case ST_ELIDER_INITIAL_ENTRY: goto initial_entry;
+      case ST_ELIDER_RUNNING_BODY: goto body_ran;
+      default: assert(false);
     }
 
+  initial_entry: {
+    if (IS_END(f->out)) {  // could happen :-/ e.g. `do [comment "" ...]`
+        Init_Void(FRM_SPARE(f));
+        SET_CELL_FLAG(FRM_SPARE(f), SPARE_MARKED_END);  // be tricky
+    }
+    else {
+        Move_Value(FRM_SPARE(f), f->out);  // cache, mark first step done
+        if (GET_CELL_FLAG(f->out, UNEVALUATED))
+            SET_CELL_FLAG(FRM_SPARE(f), UNEVALUATED);  // proxy eval flag
+    }
+    Push_Continuation_Details_0(f->out, f);  // re-entry after eval
+    STATE_BYTE(f) = ST_ELIDER_RUNNING_BODY;
+    return R_CONTINUATION;
+  }
+
+  body_ran: {
     if (GET_CELL_FLAG(FRM_SPARE(f), SPARE_MARKED_END)) {
         assert(IS_VOID(FRM_SPARE(f)));
         SET_END(f->out);
@@ -214,6 +252,7 @@ REB_R Elider_Dispatcher(REBFRM *f)
             SET_CELL_FLAG(f->out, UNEVALUATED);
     }
     return R_INVISIBLE;  // invisibles should always return this
+  }
 }
 
 

@@ -1110,7 +1110,6 @@ REBNATIVE(case)
     //
     INIT_F_EXECUTOR(f, &Finished_Executor);
 
-    D_STATE_BYTE = ST_CASE_EVALUATING_BRANCH;
     Push_Continuation_With_Core(
         D_OUT,
         f,
@@ -1119,6 +1118,7 @@ REBNATIVE(case)
         F_SPECIFIER(f),  // branch_specifier
         END_NODE  // with
     );
+    D_STATE_BYTE = ST_CASE_EVALUATING_BRANCH;
     return R_CONTINUATION;
   }
 

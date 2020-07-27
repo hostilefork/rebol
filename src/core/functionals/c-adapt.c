@@ -60,27 +60,35 @@ enum {
 //
 REB_R Adapter_Dispatcher(REBFRM *f)
 {
+    enum {
+        ST_ADAPTER_INITIAL_ENTRY = 0,
+        ST_ADAPTER_RUNNING_PRELUDE
+    };
+
     REBARR *details = ACT_DETAILS(FRM_PHASE(f));
     assert(ARR_LEN(details) == IDX_ADAPTER_MAX);
 
-    if (IS_END(FRM_SPARE(f))) {
-        //
-        // The first time we are called, we return with a request to run the
-        // prelude code.
-        //
-        // !!! Note: If the prelude throws--including a RETURN--that means the
-        // adaptee will not be run.
-        //
-        assert(IS_BLOCK(ARR_AT(details, IDX_ADAPTER_PRELUDE)));
-        Init_Blank(FRM_SPARE(f));  // Indicate we're on "phase two"
-        assert(IDX_ADAPTER_PRELUDE == 0);  // we run "Details_0"
-        Push_Continuation_Details_0(f->out, f);  // re-enter after eval
-        return R_CONTINUATION;
+    switch (STATE_BYTE(f)) {
+      case ST_ADAPTER_INITIAL_ENTRY: goto initial_entry;
+      case ST_ADAPTER_RUNNING_PRELUDE: goto prelude_finished;
+      default: assert(false);
     }
 
-    assert(IS_BLANK(FRM_SPARE(f)));  // how we indicated second run
+  initial_entry: {
+    //
+    // !!! Note: If the prelude throws--including a RETURN--that means the
+    // adaptee will not be run.
+    //
+    assert(IS_BLOCK(ARR_AT(details, IDX_ADAPTER_PRELUDE)));
+    assert(IDX_ADAPTER_PRELUDE == 0);
+    Push_Continuation_Details_0(f->out, f);  // we run ACT_DETAILS[0]
+    STATE_BYTE(f) = ST_ADAPTER_RUNNING_PRELUDE;
+    return R_CONTINUATION;
+  }
 
-    // We perform a "REDO_CHECKED" which is like a continuation that makes
+  prelude_finished: {
+    //
+    // Perform a "REDO_CHECKED" which is like a continuation that makes
     // sure none of the frame cells were given types that would potentially
     // confuse the adapted function (which might be native and could crash
     // if it thought there was typechecking but got unexpected bits).
@@ -90,6 +98,7 @@ REB_R Adapter_Dispatcher(REBFRM *f)
     FRM_BINDING(f) = VAL_BINDING(adaptee);
 
     return R_REDO_CHECKED;  // the redo will use the updated phase & binding
+  }
 }
 
 

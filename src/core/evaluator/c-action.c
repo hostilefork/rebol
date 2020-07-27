@@ -1504,7 +1504,7 @@ REB_R Action_Executor(REBFRM *f)
 
     if (IS_ACTION(label)) {
         if (
-            VAL_ACTION(label) == NAT_ACTION(unwind)
+            VAL_ACTION(label) == NATIVE_ACT(unwind)
             and VAL_BINDING(label) == NOD(f->varlist)
         ){
             // Eval_Core catches unwinds to the current frame, so throws
@@ -1521,7 +1521,7 @@ REB_R Action_Executor(REBFRM *f)
             goto dispatch_completed;
         }
         else if (
-            VAL_ACTION(label) == NAT_ACTION(redo)
+            VAL_ACTION(label) == NATIVE_ACT(redo)
             and VAL_BINDING(label) == NOD(f->varlist)
         ){
             // This was issued by REDO, and should be a FRAME! with

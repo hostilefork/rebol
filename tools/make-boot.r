@@ -804,7 +804,7 @@ e-bootblock/emit {
 
     #define NUM_NATIVES $<length of nats>
     const REBLEN Num_Natives = NUM_NATIVES;
-    REBVAL Natives[NUM_NATIVES];
+    REBACT *Natives[NUM_NATIVES];
 
     const REBNAT Native_C_Funcs[NUM_NATIVES] = {
         $(Nats),
@@ -894,7 +894,7 @@ e-boot/emit {
     /*
      * A canon ACTION! REBVAL of the native, accessible by native's index #
      */
-    EXTERN_C REBVAL Natives[];  /* size is Num_Natives */
+    EXTERN_C REBACT *Natives[];  /* size is Num_Natives */
 
     enum Native_Indices {
         $(Nids),

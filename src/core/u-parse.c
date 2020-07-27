@@ -264,7 +264,7 @@ void Pack_Subparse(
     assert(ANY_SERIES_KIND(CELL_KIND(VAL_UNESCAPED(input))));
 
     Push_Frame(out, f);  // checks for C stack overflow
-    Push_Action(f, NAT_ACTION(subparse), UNBOUND);
+    Push_Action(f, NATIVE_ACT(subparse), UNBOUND);
     Begin_Prefix_Action(f, Canon(SYM_SUBPARSE));
     Drop_Action(f);  // keep frame around.
     INIT_F_EXECUTOR(f, &Parse_Executor);
@@ -312,7 +312,7 @@ void Pack_Subparse(
     Init_Nulled(Prep_Stack_Cell(P_BEGIN_VALUE));
 
     assert(
-        f->rootvar + ACT_NUM_PARAMS(NAT_ACTION(subparse)) == P_BEGIN_VALUE
+        f->rootvar + ACT_NUM_PARAMS(NATIVE_ACT(subparse)) == P_BEGIN_VALUE
     );
 }
 
@@ -349,14 +349,14 @@ bool Unpack_Subparse_Throws(
     //
     const REBVAL *label = VAL_THROWN_LABEL(out);
     if (IS_ACTION(label)) {
-        if (VAL_ACTION(label) == NAT_ACTION(parse_reject)) {
+        if (VAL_ACTION(label) == NATIVE_ACT(parse_reject)) {
             CATCH_THROWN(out, out);
             assert(IS_NULLED(out));
             *interrupted_out = true;
             return false;
         }
 
-        if (VAL_ACTION(label) == NAT_ACTION(parse_accept)) {
+        if (VAL_ACTION(label) == NATIVE_ACT(parse_accept)) {
             CATCH_THROWN(out, out);
             assert(IS_INTEGER(out));
             *interrupted_out = true;
@@ -2066,7 +2066,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 Init_Thrown_With_Label(
                     P_OUT,
                     thrown_arg,
-                    NAT_VALUE(parse_accept)
+                    NATIVE_VAL(parse_accept)
                 );
                 goto return_thrown; }
 
@@ -2077,7 +2077,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
                 Init_Thrown_With_Label(
                     P_OUT,
                     NULLED_CELL,
-                    NAT_VALUE(parse_reject)
+                    NATIVE_VAL(parse_reject)
                 );
                 goto return_thrown; }
 
@@ -2968,7 +2968,7 @@ REB_R Parse_Executor(REBFRM *frame_) {
 
   return_thrown:
     if (not IS_BLANK(P_COLLECTION_VALUE))  // thrown so drop COLLECT additions
-        if (VAL_THROWN_LABEL(P_OUT) != NAT_VALUE(parse_accept))  // ...unless!
+        if (VAL_THROWN_LABEL(P_OUT) != NATIVE_VAL(parse_accept))  // ...unless!
             TERM_ARRAY_LEN(VAL_ARRAY(P_COLLECTION_VALUE), collection_tail);
 
     return R_THROWN;

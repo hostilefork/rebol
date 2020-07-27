@@ -473,7 +473,7 @@ REB_R Init_Thrown_Unwind_Value(
     const REBVAL *value,
     REBFRM *frame // required if level is INTEGER! or ACTION!
 ) {
-    Move_Value(out, NAT_VALUE(unwind));
+    Move_Value(out, NATIVE_VAL(unwind));
 
     if (IS_FRAME(level)) {
         INIT_BINDING(out, VAL_CONTEXT(level));
@@ -636,7 +636,7 @@ REBNATIVE(return)
 
     assert(f_binding->header.bits & ARRAY_FLAG_IS_VARLIST);
 
-    Move_Value(D_OUT, NAT_VALUE(unwind)); // see also Make_Thrown_Unwind_Value
+    Move_Value(D_OUT, NATIVE_VAL(unwind)); // see also Make_Thrown_Unwind_Value
     INIT_BINDING_MAY_MANAGE(D_OUT, f_binding);
 
     return Init_Thrown_With_Label(D_OUT, v, D_OUT);

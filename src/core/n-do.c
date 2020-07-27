@@ -734,7 +734,7 @@ REBNATIVE(redo)
     // of the frame.  Use REDO as the throw label that Eval_Core() will
     // identify for that behavior.
     //
-    Move_Value(D_OUT, NAT_VALUE(redo));
+    Move_Value(D_OUT, NATIVE_VAL(redo));
     INIT_BINDING(D_OUT, c);
 
     // The FRAME! contains its ->phase and ->binding, which should be enough

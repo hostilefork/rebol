@@ -343,7 +343,7 @@ bool Eval_Path_Throws_Core(
     if (IS_END(ARR_AT(array, index))) {
         if (label_out)
             *label_out = nullptr;
-        Move_Value(out, NAT_VALUE(path_0));
+        Move_Value(out, NATIVE_VAL(path_0));
         return false;
     }
 

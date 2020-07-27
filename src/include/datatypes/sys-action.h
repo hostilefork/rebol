@@ -455,11 +455,11 @@ inline static REBCTX *VAL_ACT_META(const REBCEL *v) {
 // routines for accessing them, which should compile to be as efficient as
 // fetching any global pointer.
 
-#define NAT_VALUE(name) \
-    (&Natives[N_##name##_ID])
+#define NATIVE_ACT(name) \
+    Natives[N_##name##_ID]
 
-#define NAT_ACTION(name) \
-    VAL_ACTION(NAT_VALUE(name))
+#define NATIVE_VAL(name) \
+    ACT_ARCHETYPE(NATIVE_ACT(name))
 
 
 // A fully constructed action can reconstitute the ACTION! REBVAL

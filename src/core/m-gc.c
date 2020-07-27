@@ -672,7 +672,7 @@ static void Mark_Natives(void)
 {
     REBLEN n;
     for (n = 0; n < Num_Natives; ++n)
-        Queue_Mark_Value_Deep(&Natives[n]);
+        Queue_Mark_Node_Deep(Natives[n]);
 
     Propagate_All_GC_Marks();
 }

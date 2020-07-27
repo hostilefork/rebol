@@ -1004,7 +1004,7 @@ REBNATIVE(case)
     if (IS_NULLED(predicate)) {
       #if !defined(NDEBUG)
         if (SPORADICALLY(5)) {  // test optimization for parity with IDENTITY
-            Move_Value(predicate, NAT_VALUE(identity));  // baseline predicate
+            Move_Value(predicate, NATIVE_VAL(identity));  // baseline predicate
             Init_Word(predicate_label, VAL_TYPESET_STRING(PAR(predicate)));
         }
       #endif
@@ -1543,7 +1543,7 @@ REBNATIVE(catch)
   evaluation_finished: {
     if (not Is_Throwing(D_FRAME)) {
         if (REF(result))
-            rebElideQ(NAT_VALUE(set), REF(result), D_OUT, rebEND);
+            rebElideQ(NATIVE_VAL(set), REF(result), D_OUT, rebEND);
 
         return nullptr;  // no throw means just return null
     }

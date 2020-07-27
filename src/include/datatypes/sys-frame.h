@@ -1334,7 +1334,7 @@ inline static REBFRM *Push_Continuation_Details_0_Core(
     if (GET_ACTION_FLAG(phase, HAS_RETURN)) {
         assert(VAL_PARAM_SYM(ACT_PARAMS_HEAD(phase)) == SYM_RETURN);
         REBVAL *cell = FRM_ARG(f, 1);
-        Move_Value(cell, NAT_VALUE(return));
+        Move_Value(cell, NATIVE_VAL(return));
         INIT_BINDING(cell, f->varlist);
         SET_CELL_FLAG(cell, ARG_MARKED_CHECKED);  // necessary?
     }

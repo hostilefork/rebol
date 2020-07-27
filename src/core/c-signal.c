@@ -120,7 +120,7 @@ bool Do_Signals_Throws(REBVAL *out)
         CLR_SIGNAL(SIG_HALT);
         Eval_Sigmask = saved_sigmask;
 
-        Init_Thrown_With_Label(out, NULLED_CELL, NAT_VALUE(halt));
+        Init_Thrown_With_Label(out, NULLED_CELL, NATIVE_VAL(halt));
         return true; // thrown
     }
 

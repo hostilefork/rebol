@@ -89,7 +89,7 @@ REBNATIVE(break)
 {
     INCLUDE_PARAMS_OF_BREAK;
 
-    return Init_Thrown_With_Label(D_OUT, NULLED_CELL, NAT_VALUE(break));
+    return Init_Thrown_With_Label(D_OUT, NULLED_CELL, NATIVE_VAL(break));
 }
 
 
@@ -113,7 +113,7 @@ REBNATIVE(continue)
     return Init_Thrown_With_Label(
         D_OUT,
         ARG(value), // null if missing, e.g. `do [continue]`
-        NAT_VALUE(continue)
+        NATIVE_VAL(continue)
     );
 }
 
@@ -1010,7 +1010,7 @@ REBNATIVE(stop)
         IS_ENDISH_NULLED(ARG(value))
             ? VOID_VALUE  // `if true [stop]`
             : ARG(value),  // `if true [stop 5]`, etc.
-        NAT_VALUE(stop)
+        NATIVE_VAL(stop)
     );
 }
 

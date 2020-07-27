@@ -66,7 +66,7 @@ bool Do_Breakpoint_Throws(
     REBVAL *inst = rebValue("debug-console", rebEND);
 
     if (IS_INTEGER(inst)) {
-        Init_Thrown_With_Label(out, inst, NAT_VALUE(quit));
+        Init_Thrown_With_Label(out, inst, NATIVE_VAL(quit));
         rebRelease(inst);
         return true;
     }
@@ -207,7 +207,7 @@ REBNATIVE(resume)
     }
 
     // We throw with /NAME as identity of the RESUME function.  (Note: there
-    // is no NAT_VALUE() for extensions, yet...extract from current frame.)
+    // is no NATIVE_VAL() for extensions, yet...extract from current frame.)
     //
     DECLARE_LOCAL (resume);
     Init_Action_Maybe_Bound(resume, FRM_PHASE(frame_), FRM_BINDING(frame_));
@@ -376,7 +376,7 @@ REBNATIVE(step)
     Init_Handle_Cfunc(hook, cast(CFUNC*, &Stepper_Eval_Hook_Throws));
 
     // We throw with /NAME as identity of the RESUME function.  (There is no
-    // NAT_VALUE() for extensions at this time.)
+    // NATIVE_VAL() for extensions at this time.)
     //
     REBVAL *resume = rebValue(":resume", rebEND);
 

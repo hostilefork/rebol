@@ -223,13 +223,13 @@ REBNATIVE(does)
         // !!! The error reports that DOES doesn't accept the type for its
         // specializee argument, vs. that DO doesn't accept it.
         //
-        REBVAL *typeset = ACT_PARAM(NAT_ACTION(do), 1);
+        REBVAL *typeset = ACT_PARAM(NATIVE_ACT(do), 1);
         REBVAL *param = PAR(specializee);
         if (not TYPE_CHECK(typeset, VAL_TYPE(specializee)))
             fail (Error_Arg_Type(frame_, param, VAL_TYPE(specializee)));
 
         exemplar = Make_Context_For_Action(
-            NAT_VALUE(do),
+            NATIVE_VAL(do),
             DSP,  // lower dsp would be if we wanted to add refinements
             nullptr  // don't set up a binder; just poke specializee in frame
         );
@@ -240,7 +240,7 @@ REBNATIVE(does)
         assert(VAL_KEY_SYM(CTX_KEY(exemplar, 1)) == SYM_RETURN);
         Move_Value(CTX_VAR(exemplar, 2), specializee);
         SET_CELL_FLAG(CTX_VAR(exemplar, 2), ARG_MARKED_CHECKED);
-        Move_Value(specializee, NAT_VALUE(do));
+        Move_Value(specializee, NATIVE_VAL(do));
     }
 
     REBACT *doer = Make_Action_From_Exemplar(exemplar);

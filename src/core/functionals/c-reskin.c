@@ -144,7 +144,7 @@ REB_R Skinner_Dispatcher(REBFRM *f)
     //
     Init_Action_Maybe_Bound(
         DS_PUSH(),
-        NAT_ACTION(skinner_return_helper),
+        NATIVE_ACT(skinner_return_helper),
         NOD(FRM_PHASE(f))
     );
 

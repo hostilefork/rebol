@@ -356,7 +356,7 @@ REBNATIVE(wait_p)  // See wrapping function WAIT in usermode code
         if (GET_SIGNAL(SIG_HALT)) {
             CLR_SIGNAL(SIG_HALT);
 
-            Init_Thrown_With_Label(D_OUT, NULLED_CELL, NAT_VALUE(halt));
+            Init_Thrown_With_Label(D_OUT, NULLED_CELL, NATIVE_VAL(halt));
             return R_THROWN;
         }
 

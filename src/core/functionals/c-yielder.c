@@ -315,7 +315,7 @@ REBNATIVE(generator)
 {
     INCLUDE_PARAMS_OF_GENERATOR;
 
-    return rebValue(NAT_VALUE(yielder), EMPTY_BLOCK, ARG(body), rebEND);
+    return rebValue(NATIVE_VAL(yielder), EMPTY_BLOCK, ARG(body), rebEND);
 }
 
 
@@ -350,7 +350,7 @@ REBNATIVE(yield)
     INCLUDE_PARAMS_OF_YIELD;
 
     assert(frame_ == TG_Top_Frame);  // frame_ is an implicit REBNATIVE() arg
-    assert(FRM_PHASE(frame_) == NAT_ACTION(yield));
+    assert(FRM_PHASE(frame_) == NATIVE_ACT(yield));
     REBFRM * const yield_frame = frame_;  // ...make synonyms more obvious
 
     REBNOD *f_binding = FRM_BINDING(yield_frame);

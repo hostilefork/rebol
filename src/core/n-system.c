@@ -37,7 +37,7 @@ REBNATIVE(halt)
 {
     INCLUDE_PARAMS_OF_HALT;
 
-    return Init_Thrown_With_Label(D_OUT, NULLED_CELL, NAT_VALUE(halt));
+    return Init_Thrown_With_Label(D_OUT, NULLED_CELL, NATIVE_VAL(halt));
 }
 
 
@@ -65,7 +65,7 @@ REBNATIVE(quit)
     return Init_Thrown_With_Label(
         D_OUT,
         IS_NULLED(ARG(value)) ? VOID_VALUE : ARG(value),
-        NAT_VALUE(quit)
+        NATIVE_VAL(quit)
     );
 }
 

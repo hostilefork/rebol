@@ -733,7 +733,7 @@ inline static bool IS_RELATIVE(const REBCEL *v) {
     // Review if this category of trick can be checked for more cleanly.
     if (
         KIND_BYTE_UNCHECKED(v) == REB_ACTION  // v-- VAL_NODE() is paramlist
-        and VAL_NODE(&Natives[N_skinner_return_helper_ID]) == VAL_NODE(v)
+        and NOD(Natives[N_skinner_return_helper_ID]) == VAL_NODE(v)
     ){
         return false;
     }

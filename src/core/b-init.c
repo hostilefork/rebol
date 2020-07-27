@@ -579,11 +579,9 @@ static REBARR *Startup_Natives(const REBVAL *boot_natives)
 
         // While the lib context natives can be overwritten, the system
         // currently depends on having a permanent list of the natives that
-        // does not change, see uses via NAT_VALUE() and NAT_ACT().
+        // does not change, see uses via NATIVE_VAL() and NATIVE_ACT().
         //
-        Prep_Non_Stack_Cell(&Natives[n]);
-        Move_Value(&Natives[n], native); // Note: Loses enfixedness (!)
-        SET_CELL_FLAG(&Natives[n], PROTECTED);
+        Natives[n] = VAL_ACTION(native);  // Note: Loses enfixedness (!)
 
         REBVAL *catalog_item = Move_Value(Alloc_Tail_Array(catalog), name);
         mutable_KIND_BYTE(catalog_item) = REB_WORD;

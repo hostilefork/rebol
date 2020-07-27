@@ -1412,7 +1412,7 @@ REB_R Lookahead_Executor(REBFRM *f)
         // compatibly with history.
 
         REBNOD *binding = nullptr;
-        Push_Action(f, NAT_ACTION(path_0), binding);
+        Push_Action(f, NATIVE_ACT(path_0), binding);
 
         REBSTR *opt_label = nullptr;
         Begin_Enfix_Action(f, opt_label);

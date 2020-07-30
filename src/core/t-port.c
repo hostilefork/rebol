@@ -193,3 +193,252 @@ REBTYPE(Port)
 
     return Do_Port_Action(frame_, port, verb);
 }
+
+
+//=//// EXPERIMENTAL CHANNEL WORK FOR STACKLESS BUILD /////////////////////=//
+//
+// Looking at models for "coroutine" interoperability in producer/consumer
+// type scenarios, Go seems to have a reasonable model based on "deep
+// coroutine" mechanics which Revolt seeks to achieve.
+//
+// This probably ties into PORT! (if PORT! had a coherent design).  But as
+// a test of being able to schedule "goroutine"-like things, this is just
+// an experiment which uses HANDLE! or whatever.
+//
+
+
+inline static void Ensure_Channel(const REBVAL *chan) {
+    if (rebNot("@channel = pick try match object!", chan, "'type", rebEND))
+        fail ("Not a channel");
+}
+
+
+//
+//  make-chan: native [
+//      return: [object!]
+//      /capacity [integer!]
+//  ]
+//
+REBNATIVE(make_chan)
+{
+    INCLUDE_PARAMS_OF_MAKE_CHAN;
+
+    if (not REF(capacity))
+        Init_Integer(ARG(capacity), 0);  // unbuffered cap(chan) in Go is 0
+
+    return rebValue(
+        "make object! [",
+            "type: @channel",
+            "capacity:", REF(capacity),
+            "closed: false",
+            "buffer: copy []",  // !!! should be made a circular buffer
+        "]",
+    rebEND);
+}
+
+
+//
+//  receive-chan: native [
+//      return: [<opt> any-value!]
+//      chan [object!]
+//  ]
+//
+REBNATIVE(receive_chan)
+//
+// * a receive operation on a closed channel can always proceed immediately
+// * can receive from closed channels so long as they are not empty
+//
+// Golang uses channel type's "zero value" if nothing received, we use NULL
+{
+    INCLUDE_PARAMS_OF_RECEIVE_CHAN;
+
+    enum {
+        ST_RECEIVE_CHAN_INITIAL_ENTRY = 0,
+        ST_RECEIVE_CHAN_BLOCKING
+    };
+
+    REBVAL* chan = ARG(chan);
+    Ensure_Channel(chan);
+
+    switch (D_STATE_BYTE) {
+      case ST_RECEIVE_CHAN_INITIAL_ENTRY: goto check_for_data;
+      case ST_RECEIVE_CHAN_BLOCKING: goto check_for_data;
+      default: assert(false);
+    }
+
+  check_for_data: {
+    REBVAL *v = rebValue("take pick", chan, "'buffer", rebEND);
+    if (v)
+        return v;
+
+    if (rebDid("pick", chan, "'closed", rebEND))
+        return nullptr;
+
+    // Here we have to block until a value is ready.  This requires us to put
+    // ourselves into a suspended state and allow other functions to run.
+    // Ideally we would communicate some sort of list of dependencies, but
+    // for now just say that we block.  The Trampoline will unwind us and
+    // then go try someone else.
+    //
+    D_STATE_BYTE = ST_RECEIVE_CHAN_BLOCKING;
+    return R_BLOCKING;
+  }
+}
+
+
+//
+//  send-chan: native [
+//      return: [any-value!]
+//      chan [object!]
+//      value [any-value!]
+//  ]
+//
+REBNATIVE(send_chan)
+//
+// * channel and value are eval uated before communication begins
+// * communication blocks until the send can proceed
+// * a send on an unbuffered channel can proceed if a receiver is ready
+// * a send on a buffered channel can proceed if there is room in the buffer
+// * a send on a closed channel proceeds by causing a run-time panic
+// * a send on a nil channel blocks forever  !!! (how to have "nil" channels?)
+//
+// !!! Go does not return values from a send().  Should we return what was
+// put in?  Should the channel be returned?  consider `wait [c <- x [...]]`
+//
+// !!! Should there be a way for sending a BLOCK! to mean "send the items in
+// the block individually"?  Should that be the default, overridden by /ONLY?
+{
+    INCLUDE_PARAMS_OF_SEND_CHAN;
+
+    enum {
+        ST_SEND_CHAN_INITIAL_ENTRY = 0,
+        ST_SEND_CHAN_BLOCKING
+    };
+
+    REBVAL *chan = ARG(chan);
+    Ensure_Channel(chan);
+
+    REBVAL *v = ARG(value);
+
+    switch (D_STATE_BYTE) {
+      case ST_SEND_CHAN_INITIAL_ENTRY: goto check_for_capacity;
+      case ST_SEND_CHAN_BLOCKING: goto check_for_capacity;
+      default: assert(false);
+    }
+
+  check_for_capacity: {
+    switch (rebUnboxInteger(
+        "case [",
+            "pick", chan, "'closed [0]",
+            "(length of pick", chan, "'buffer)",
+                    "<= (capacity-of-chan", chan, ") [",
+                "append/only pick", chan, "'buffer", rebQ1(v),
+                "1",
+            "]",
+            "true [2]"
+        "]",
+    rebEND)) {
+      case 0:
+        fail ("Attempt to SEND to a closed channel");
+
+      case 1:
+        RETURN (v);
+
+      case 2:
+        break;
+
+      default:
+        assert(false);
+    }
+
+    D_STATE_BYTE = ST_SEND_CHAN_BLOCKING;
+    return R_BLOCKING;
+  }
+}
+
+
+//
+//  close-chan: native [
+//      return: [void!]
+//      chan [object!]
+//  ]
+//
+REBNATIVE(close_chan)
+//
+// * don't close (or send values to) closed channels
+// * don't close a channel from the receiver side
+// * don't close a channel if the channel has multiple concurrent senders
+// * only close a channel in a sender goroutine if the sender is the
+//   only sender of the channel.
+// * "channels aren't like files; you don't usually need to close them--
+//   only when the receiver must be told there are no more values coming"
+//
+// Go has no test for if a channel is closed because it is believed that such
+// a call would be of limited use, as it could not be used for decision making
+// since the status could be different immediately after getting the return.
+{
+    INCLUDE_PARAMS_OF_CLOSE_CHAN;
+
+    REBVAL *chan = ARG(chan);
+
+    if (rebDid("pick", chan, "'closed", rebEND))
+        fail ("Closing an already closed channel");
+
+    rebElide("poke", chan, "'closed true", rebEND);
+
+    return Init_Void(D_OUT);
+}
+
+
+//
+//  length-of-chan: native [
+//      return: [integer!]
+//      chan [object!]
+//  ]
+//
+REBNATIVE(length_of_chan)
+//
+// * length of unbuffered channel in Go is returned as 0
+//
+// Having an API querying the length of a channel is of limited use to
+// receivers, as it could be different immediately after getting the return
+// value back.
+{
+    INCLUDE_PARAMS_OF_LENGTH_OF_CHAN;
+
+    REBVAL *chan = ARG(chan);
+
+    REBLEN capacity = rebUnboxInteger("pick", chan, "'capacity", rebEND);
+
+    REBVAL *buffer = rebValue("pick", chan, "'buffer", rebEND);
+    REBLEN length = VAL_LEN_AT(buffer);
+    rebRelease(buffer);
+
+    if (length > capacity) {
+        assert(length == capacity + 1);  // only allowed when blocking
+        return Init_Integer(D_OUT, length - 1);
+    }
+
+    return Init_Integer(D_OUT, length);
+}
+
+
+//
+//  capacity-of-chan: native [
+//
+//      return: [integer!]
+//      chan [object!]
+//  ]
+//
+REBNATIVE(capacity_of_chan)
+//
+// * capacity of unbuffered channel in Go is returned as 0
+{
+    INCLUDE_PARAMS_OF_CAPACITY_OF_CHAN;
+
+    REBVAL *chan = ARG(chan);
+
+    REBLEN capacity = rebUnboxInteger("pick", chan, "'capacity", rebEND);
+
+    return Init_Integer(D_OUT, capacity);
+}

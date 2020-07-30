@@ -29,7 +29,7 @@ enum {
     IDX_YIELDER_STATE = 1,  // can't be frame spare (that's reset each call!)
     IDX_YIELDER_LAST_YIELDER_CONTEXT = 2,  // frame stack fragment to resume
     IDX_YIELDER_LAST_YIELD_RESULT = 3,  // so that `z: yield 1 + 2` is useful
-    IDX_YIELDER_DATA_STACK = 4,  // saved if you YIELD during REDUCE, etc.
+    IDX_YIELDER_PLUG = 4,  // saved if you YIELD, captures data stack etc.
     IDX_YIELDER_OUT = 5,  // whatever f->out in-progress was when interrupted
     IDX_YIELDER_MAX
 };
@@ -177,9 +177,9 @@ REB_R Yielder_Dispatcher(REBFRM *f)
     f->varlist = CTX_VARLIST(last_yielder_context);
     f->rootvar = CTX_ARCHETYPE(last_yielder_context);  // must match
 
-    RELVAL *data_stack = KNOWN(ARR_AT(details, IDX_YIELDER_DATA_STACK));
-
-    Replug_Stack(yield_frame, yielder_frame, KNOWN(data_stack));
+    RELVAL *plug = KNOWN(ARR_AT(details, IDX_YIELDER_PLUG));
+    Replug_Stack(yield_frame, yielder_frame, KNOWN(plug));
+    Init_Unreadable_Blank(plug);  // Replug trashes, make GC safe
 
     // Restore the in-progress output cell state that was going on when
     // the YIELD ran (e.g. if it interrupted a CASE or something, this
@@ -225,7 +225,7 @@ REB_R Yielder_Dispatcher(REBFRM *f)
     //
     Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_LAST_YIELDER_CONTEXT));
     Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_LAST_YIELD_RESULT));
-    Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_DATA_STACK));
+    Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_PLUG));
     Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_OUT));
 
     if (Is_Throwing(f)) {
@@ -295,7 +295,7 @@ REBNATIVE(yielder)
     Init_Blank(ARR_AT(details, IDX_YIELDER_STATE));  // starting
     Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_LAST_YIELDER_CONTEXT));
     Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_LAST_YIELD_RESULT));
-    Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_DATA_STACK));
+    Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_PLUG));
     Init_Unreadable_Blank(ARR_AT(details, IDX_YIELDER_OUT));
 
     return Init_Action_Unbound(D_OUT, yielder);
@@ -388,8 +388,9 @@ REBNATIVE(yield)
     if (yielder_frame->out->header.bits & CELL_FLAG_OUT_MARKED_STALE)
         out_copy->header.bits |= CELL_FLAG_OUT_MARKED_STALE;
 
-    RELVAL *data_stack = ARR_AT(yielder_details, IDX_YIELDER_DATA_STACK);
-    Unplug_Stack(data_stack, yield_frame, yielder_frame);
+    RELVAL *plug = ARR_AT(yielder_details, IDX_YIELDER_PLUG);
+    assert(IS_UNREADABLE_DEBUG(plug));
+    Unplug_Stack(plug, yield_frame, yielder_frame);
 
     // We preserve the fragment of call stack leading from the yield up to the
     // yielder in a FRAME! value that the yielder holds in its `details`.

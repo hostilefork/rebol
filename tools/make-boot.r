@@ -272,6 +272,7 @@ e-types/emit {
         REB_G_XYF = PSEUDOTYPE_SEVEN,  /* used by GOB, compact 2xfloat */
 
         PSEUDOTYPE_EIGHT,
+        REB_R_BLOCKING,
         REB_TS_SKIN_EXPANDED = PSEUDOTYPE_EIGHT,
         REB_V_SIGN_INTEGRAL_WIDE = PSEUDOTYPE_EIGHT,  /* used by VECTOR! */
 

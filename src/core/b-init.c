@@ -750,6 +750,9 @@ static void Init_Root_Vars(void)
     Prep_Non_Stack_Cell(&PG_R_Dewind);
     RESET_CELL(&PG_R_Dewind, REB_R_DEWIND, CELL_MASK_NONE);
 
+    Prep_Non_Stack_Cell(&PG_R_Blocking);
+    RESET_CELL(&PG_R_Blocking, REB_R_BLOCKING, CELL_MASK_NONE);
+
     REBSER *locker = nullptr;
 
     Root_Empty_Block = Init_Block(Alloc_Value(), PG_Empty_Array);
@@ -934,22 +937,20 @@ static void Init_Contexts_Object(void)
 
 
 //
-//  Startup_Task: C
+//  Startup_Tasks: C
 //
-// !!! Prior to the release of R3-Alpha, there had apparently been some amount
-// of effort to take single-threaded assumptions and globals, and move to a
-// concept where thread-local storage was used for some previously assumed
-// globals.  This would be a prerequisite for concurrency but not enough: the
-// memory pools would need protection from one thread to share any series with
-// others, due to contention between reading and writing.
+// Revolt's concept of concurrency is based on Go's "goroutines".  At the
+// moment (and for foreseeable moments) this is done with usermode scheduling,
+// based on the idea of being able to arbitrarily suspend and resume stacks
+// via the "stackless" model.  If OS threads were used, this would present
+// new challenges that would likely require a "Global Interpreter Lock" to
+// address...since the memory model Revolt inherits from Rebol's R3-Alpha is
+// based on a single set of pools unprotected by things like mutexes.
 //
-// Revolt kept the separation, but if threading were to be a priority it would
-// likely be approached a different way.  A nearer short-term feature would be
-// "isolates", where independent interpreters can be loaded in the same
-// process, just not sharing objects with each other.
-//
-void Startup_Task(void)
+void Startup_Tasks(void)
 {
+    assert(PG_Tasks == nullptr);
+
     Trace_Level = 0;
     TG_Jump_List = nullptr;
 
@@ -992,10 +993,44 @@ void Startup_Task(void)
     Prep_Non_Stack_Cell(&TG_Thrown_Label_Debug);
     SET_END(&TG_Thrown_Label_Debug); // see notes, only used "SPORADICALLY()"
   #endif
+}
 
-    Startup_Raw_Print();
-    Startup_Scanner();
-    Startup_String();
+
+//
+//  Shutdown_Tasks: C
+//
+void Shutdown_Tasks(void) {
+    if (not PG_Tasks)
+        return;
+
+    REBTSK *task = PG_Tasks;
+    do {
+        // !!! Clean shutdown needs to do the right Drop_Frame() calls on all
+        // the task plugs in order to balance memory.  "Unclean" shutdown
+        // doesn't need to do this.
+
+        if (task->plug_frame) {
+            REBFRM *base = FS_TOP;
+            Replug_Stack(task->plug_frame, FS_TOP, KNOWN(&task->plug));
+
+            // !!! Suboptimal drop strategy; doesn't delegate to executors.
+            // Review as this concept matures.
+            //
+            REBFRM *f = task->plug_frame;
+            while (f != base) {
+                if (Is_Action_Frame(f))
+                    Drop_Action(f);
+                Abort_Frame(f);
+                f = FS_TOP;
+            }
+        }
+
+        REBTSK *temp = task;
+        task = task->next;
+        FREE(REBTSK, temp);
+    } while (task != PG_Tasks);
+
+    PG_Tasks = nullptr;
 }
 
 
@@ -1264,7 +1299,11 @@ void Startup_Core(void)
 
 //=//// INITIALIZE (SINGULAR) TASK ////////////////////////////////////////=//
 
-    Startup_Task();
+    Startup_Tasks();
+
+    Startup_Raw_Print();
+    Startup_Scanner();
+    Startup_String();
 
     Init_Action_Spec_Tags(); // Note: uses MOLD_BUF, not available until here
 
@@ -1457,6 +1496,8 @@ void Shutdown_Core(void)
   #endif
 
     assert(TG_Jump_List == nullptr);
+
+    Shutdown_Tasks();
 
     // !!! Currently the molding logic uses a test of the Boot_Phase to know
     // if it's safe to check the system object for how many digits to mold.

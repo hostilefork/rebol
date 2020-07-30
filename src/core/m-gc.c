@@ -728,6 +728,7 @@ static void Queue_Mark_Frame_And_Priors(REBFRM *f) {
     // in the recycle process (don't want to create new arrays once the
     // recycling has started...)
     //
+    assert(not IS_FREE_NODE(f->feed));
     assert(not f->feed->vaptr or IS_POINTER_TRASH_DEBUG(f->feed->vaptr));
 
     // Note: f->feed->pending should either live in f->feed->array, or it may
@@ -880,6 +881,31 @@ static void Mark_Frame_Stack_Deep(void)
 {
     Queue_Mark_Node_Deep(FS_TOP);  // recursively queues f->prior
     Propagate_All_GC_Marks();
+}
+
+
+//
+//  Mark_Tasks: C
+//
+static void Mark_Tasks(void)
+{
+    if (not PG_Tasks)
+        return;
+
+    REBTSK *task = PG_Tasks;
+    do {
+        // Note: the task->go_frame is above the task->plug_frame in the
+        // stack, so it will be marked when the plug_frame is marked.
+
+        if (task->plug_frame) {
+            Queue_Mark_Node_Deep(task->plug_frame);
+            Queue_Mark_Opt_End_Cell_Deep(&task->plug);
+        }
+        else
+            assert(IS_TRASH_DEBUG(&task->plug));
+
+        Propagate_All_GC_Marks();
+    } while (task->next != PG_Tasks);  // circular list
 }
 
 
@@ -1212,6 +1238,7 @@ REBLEN Recycle_Core(bool shutdown, REBSER *sweeplist)
         Mark_Data_Stack();
         Mark_Guarded_Nodes();
         Mark_Frame_Stack_Deep();
+        Mark_Tasks();
         Mark_Devices_Deep();
     }
 

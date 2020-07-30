@@ -1282,6 +1282,9 @@ REB_R Action_Executor(REBFRM *f)
         assert(FS_TOP != f);  // should have pushed a frame
         return R_CONTINUATION;
 
+      case REB_R_BLOCKING:
+        return R_BLOCKING;
+
         // !!! Thrown values used to be indicated with a bit on the value
         // itself, but now it's conveyed through a return value.  This
         // means typical return values don't have to run through a test

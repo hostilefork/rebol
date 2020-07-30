@@ -218,8 +218,15 @@ void Unplug_Stack(
 void Replug_Stack(REBFRM *f, REBFRM *base, REBVAL *plug) {
     assert(base == FS_TOP);  // currently can only plug in atop topmost frame
 
-    assert(Is_Action_Frame(base));  // only actions can initiate repluggings
-    assert(not Is_Action_Frame_Fulfilling(base));  // ...and just running ones
+    // Only actions can initiate repluggings...with exception made for the
+    // Shutdown_Tasks() which installs tasks directly onto FS_BOTTOM after
+    // the main execution path has terminated.  (This rule may change if the
+    // scheduler starts up tasks outside of R_BLOCKING.)
+    //
+    if (base != FS_BOTTOM) {
+        assert(Is_Action_Frame(base));
+        assert(not Is_Action_Frame_Fulfilling(base));  // ...must be running
+    }
 
     assert(Is_Action_Frame(f));  // ...same goes for the plug going in
     assert(not Is_Action_Frame_Fulfilling(f));  // ...etc.
@@ -281,7 +288,7 @@ void Replug_Stack(REBFRM *f, REBFRM *base, REBVAL *plug) {
         DS_DROP();
     };
 
-    Init_Blank(plug);  // no longer needed, let it be GC'd
+    TRASH_CELL_IF_DEBUG(plug);  // no longer needed, let it be GC'd
 
     TG_Top_Frame = f;  // make the jump deeper into the stack official...
 }

@@ -1379,7 +1379,7 @@ bool Get_If_Word_Or_Path_Throws(
         }
     }
     else {
-        *opt_name_out = NULL;
+        *opt_name_out = nullptr;
         Derelativize(out, v, specifier);
     }
 

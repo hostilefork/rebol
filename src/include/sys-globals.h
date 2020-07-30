@@ -101,6 +101,7 @@ PVAR REBVAL PG_R_Reference;  // "pseudotype" REB_R_REFERENCE
 PVAR REBVAL PG_R_Thrown;  // has "pseudotype" REB_R_THROWN
 PVAR REBVAL PG_R_Continuation;  // has "pseudotype" REB_R_CONTINUATION
 PVAR REBVAL PG_R_Dewind;  // has "pseudotype" REB_R_DEWIND
+PVAR REBVAL PG_R_Blocking;  // has "pseudotype" REB_R_BLOCKING
 
 // These are root variables which used to be described in %root.r and kept
 // alive by keeping that array alive.  Now they are API handles, kept alive
@@ -220,6 +221,8 @@ TVAR uintptr_t TG_Stack_Limit;    // Limit address for CPU stack.
 TVAR REBFRM *TG_Top_Frame;
 TVAR REBFRM *TG_Bottom_Frame;
 TVAR REBFED TG_Frame_Feed_End;
+
+PVAR REBTSK *PG_Tasks;
 
 
 // When Drop_Frame() happens, it may have an allocated varlist REBARR that

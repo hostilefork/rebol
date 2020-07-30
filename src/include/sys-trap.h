@@ -267,3 +267,41 @@ inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_Jump *j) {
             } while (0)
     #endif
 #endif
+
+
+// Do insertion into single-linked circular list of tasks (if there's a list
+// already, the point where it loops back to PG_Tasks has to be found and
+// updated to the new PG_Tasks we are inserting as task).
+//
+inline static void Circularly_Link_Task(REBTSK *task) {
+    if (PG_Tasks == nullptr)
+        task->next = task;
+    else {
+        REBTSK *temp = PG_Tasks;
+        while (temp->next != PG_Tasks)
+            temp = temp->next;
+        temp->next = task;
+
+        task->next = PG_Tasks;
+    }
+    PG_Tasks = task;
+}
+
+
+// Reverse the process in Circularly_Link_Task().  Currently only works for
+// the topmost task.
+//
+inline static void Circularly_Unlink_Task(REBTSK *task) {
+    assert(PG_Tasks == task);
+    assert(task->plug_frame == nullptr);
+    if (PG_Tasks->next == task)
+        PG_Tasks = nullptr;
+    else {
+        REBTSK *temp = PG_Tasks;
+        while (temp->next != PG_Tasks)
+            temp = temp->next;
+        temp->next = PG_Tasks->next;
+
+        PG_Tasks = PG_Tasks->next;
+    }
+}

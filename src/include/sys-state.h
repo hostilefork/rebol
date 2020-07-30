@@ -87,6 +87,35 @@ struct Reb_State {
 };
 
 
+// !!! Experimental concept of being able to cycle through tasks.  Currently
+// the only way to think of this is in terms of plugs; if a task is unplugged
+// then it is necessary to plug it back in before it can run.
+//
+// As a first implementation, the main execution path is left plugged in so
+// its stack levels are above the GO routines...this prevents having to climb
+// above the console's stackful calls.  It also avoids needing to reify the
+// main execution path and flush its global state.  Arguably stacks could keep
+// themselves plugged in until they had to be unplugged; it could be more
+// efficient, but right now each task unplugs itself when it blocks.
+//
+struct Reb_Task {
+    REBFRM *go_frame;  // frame of the ACTION! at the root of the GO
+
+    // !!! Should `plug_frame` be a FRAME! value that's part of plug?  It
+    // would ensure the top frame after applying is part-and-parcel of the
+    // plug.  On the downside, this would force reification if it were made a
+    // FRAME! value (and take up 4 platform pointers instead of 1, also).
+    // As it happens, the other usage in YIELD currently forces reification
+    // because it reifies the REBFRM* into state inside the yielder to pass
+    // it back...this is not strictly needed.
+    //
+    RELVAL plug;
+    REBFRM *plug_frame;
+
+    struct Reb_Task *next;
+};
+
+
 // Capture a measure of the current global state.
 //
 // !!! This is a macro because it may be that since snapping the state is

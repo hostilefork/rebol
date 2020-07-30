@@ -837,15 +837,12 @@ REBVAL *First_Unspecialized_Arg(REBVAL **opt_param_out, REBFRM *f)
 //
 bool Make_Invocation_Frame_Throws(
     REBFRM *f,
-    REBVAL **first_arg_ptr,  // returned so that MATCH can steal it
-    const REBVAL *action
+    const REBVAL *action,
+    REBSTR *opt_label
 ){
     assert(IS_ACTION(action));
     assert(f == FS_TOP);
 
-    // === END FIRST PART OF CODE FROM DO_SUBFRAME ===
-
-    REBSTR *opt_label = nullptr; // !!! for now
     Push_Action(f, VAL_ACTION(action), VAL_BINDING(action));
     Begin_Prefix_Action(f, opt_label);
 
@@ -888,44 +885,7 @@ bool Make_Invocation_Frame_Throws(
     if (threw)
         return true;
 
-    assert(IS_NULLED(f->out)); // guaranteed by dummy, for the skipped action
-
-    // === END SECOND PART OF CODE FROM DO_SUBFRAME ===
-
-    *first_arg_ptr = nullptr;
-
-    REBVAL *refine = nullptr;
-    REBVAL *param = CTX_KEYS_HEAD(CTX(f->varlist));
-    REBVAL *arg = CTX_VARS_HEAD(CTX(f->varlist));
-    for (; NOT_END(param); ++param, ++arg) {
-        Reb_Param_Class pclass = VAL_PARAM_CLASS(param);
-        if (TYPE_CHECK(param, REB_TS_REFINEMENT)) {
-            refine = param;
-        }
-        else switch (pclass) {
-          case REB_P_NORMAL:
-          case REB_P_HARD_QUOTE:
-          case REB_P_MODAL:
-          case REB_P_SOFT_QUOTE:
-            if (not refine or VAL_LOGIC(refine)) {
-                *first_arg_ptr = arg;
-                goto found_first_arg_ptr;
-            }
-            break;
-
-          case REB_P_LOCAL:
-            break;
-
-          default:
-            panic ("Unknown PARAM_CLASS");
-        }
-    }
-
-    fail ("ACTION! has no args to MAKE FRAME! from...");
-
-  found_first_arg_ptr:
-
-    // DS_DROP_TO(lowest_ordered_dsp);
+    assert(IS_NULLED(f->out));  // for now, set due to EVAL_FLAG_FULFILL_ONLY
 
     return false;
 }
@@ -976,7 +936,6 @@ bool Make_Frame_From_Varargs_Throws(
         Drop_Frame(f);
         return true;
     }
-    UNUSED(opt_label); // not used here
 
     if (not IS_ACTION(out))
         fail (specializee);
@@ -992,13 +951,10 @@ bool Make_Frame_From_Varargs_Throws(
     // semantics...which can be useful in their own right, plus the
     // resulting function will run faster.
 
-    REBVAL *first_arg;
-    if (Make_Invocation_Frame_Throws(f, &first_arg, action)) {
+    if (Make_Invocation_Frame_Throws(f, action, opt_label)) {
         DROP_GC_GUARD(action);
         return true;
     }
-
-    UNUSED(first_arg); // MATCH uses to get its answer faster, we don't need
 
     REBACT *act = VAL_ACTION(action);
 

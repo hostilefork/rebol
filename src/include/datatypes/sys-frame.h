@@ -1259,6 +1259,11 @@ inline static REBFRM *Push_Continuation_With_Core(
         SPECIFIED, \
         (with))
 
+// !!! Delegation doesn't want to use the frame that's pushed.  It leaves it
+// on the stack for sanity of debug tracing, but it could be more optimal
+// if the delegating frame were freed before running what's underneath it...
+// at least it could be collapsed into a more primordial state.  Review.
+//
 #define DELEGATE(branch) \
     do { \
         Push_Continuation_With(frame_->out, \

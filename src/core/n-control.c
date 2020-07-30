@@ -157,7 +157,7 @@ inline static bool Single_Test_Throws(
         DECLARE_LOCAL (dequoted_test); // wouldn't need if Get took any escape
         Dequotify(Derelativize(dequoted_test, test, test_specifier));
 
-        REBSTR *opt_label = NULL;
+        REBSTR *opt_label;
         REBDSP lowest_ordered_dsp = DSP;
         if (Get_If_Word_Or_Path_Throws( // !!! take any escape level?
             out,
@@ -580,7 +580,7 @@ REBNATIVE(match)
         );
         Push_Frame(D_OUT, f);
 
-        REBSTR *opt_label = NULL;
+        REBSTR *opt_label;
         if (Get_If_Word_Or_Path_Throws(
             D_OUT,
             &opt_label,
@@ -612,12 +612,12 @@ REBNATIVE(match)
         // but actually captures its first argument.  That will be MATCH's
         // return value if the filter function returns a truthy result.
 
-        REBVAL *first_arg;
-        if (Make_Invocation_Frame_Throws(f, &first_arg, test)) {
+        if (Make_Invocation_Frame_Throws(f, test, opt_label)) {
             Drop_Frame(f);
             return R_THROWN;
         }
 
+        REBVAL *first_arg = First_Unspecialized_Arg(nullptr, f);
         if (not first_arg)
             fail ("MATCH with a function pattern must take at least 1 arg");
 

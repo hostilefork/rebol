@@ -198,12 +198,14 @@ struct Reb_Collector;
 //
 
 struct Reb_Feed;
-struct Reb_Frame;
+typedef struct Reb_Feed REBFED;
 
+struct Reb_Frame;
 typedef struct Reb_Frame REBFRM;
 typedef struct Reb_Frame REBPVS;
 
-typedef struct Reb_Feed REBFED;
+struct Reb_Task;
+typedef struct Reb_Task REBTSK;
 
 struct Reb_State;
 struct Reb_Jump;

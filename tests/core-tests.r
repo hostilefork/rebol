@@ -263,9 +263,10 @@
 %string/transcode.test.reb
 %string/utf8.test.reb
 
-%system/system.test.reb
+%system/channel.test.reb
 %system/file.test.reb
 %system/gc.test.reb
+%system/system.test.reb
 
 
 ; !!! These tests require the named extensions to be built in.  Whether the

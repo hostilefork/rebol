@@ -208,9 +208,11 @@ get-current-exec: file-to-local: local-to-file: what-dir: change-dir: void
 
 
 main-startup: function [
-    "Usermode command-line processing: handles args, security, scripts"
+    {Usermode command-line processing: handles args, security, scripts}
 
-    argv {Raw command line argument block received by main() as STRING!s}
+    return: "Whether to run the console or not"
+        [logic!]
+    argv "Raw command line argument block received by main() as STRING!s"
         [block!]
     <with>
     main-startup host-prot  ; unset when finished with them
@@ -231,89 +233,6 @@ main-startup: function [
     ensure action! :about
     ensure action! :usage
     sys/export [about usage license]
-
-    ; We hook the RETURN function so that it actually returns an instruction
-    ; that the code can build up from multiple EMIT statements.
-
-    instruction: copy []
-
-    emit: function [
-        {Builds up sandboxed code to submit to C, hooked RETURN will finalize}
-
-        item "ISSUE! directive, TEXT! comment, (<*> composed) code BLOCK!"
-            [block! issue! text!]
-        <with> instruction
-    ][
-        switch type of item [
-            issue! [
-                if not empty? instruction [append/line instruction '|]
-                insert instruction item
-            ]
-            text! [
-                append/line instruction compose [comment (item)]
-            ]
-            block! [
-                if not empty? instruction [append/line instruction '|]
-                append/line instruction compose/deep <*> item
-            ]
-            unreachable
-        ]
-    ]
-
-    return: function [
-        {Hooked RETURN function which finalizes any gathered EMIT lines}
-
-        state "Describes the RESULT that the next call to HOST-CONSOLE gets"
-            [integer! tag! group! datatype!]
-        <with> instruction prior
-        <local> return-to-c (:return)  ; capture HOST-CONSOLE's RETURN
-    ][
-        switch state [
-            <start-console> [
-                ; Done actually via #start-console, but we return something
-            ]
-            <prompt> [
-                emit [system/console/print-gap]
-                emit [system/console/print-prompt]
-                emit [reduce [
-                    system/console/input-hook
-                ]]  ; gather first line (or BLANK!), put in BLOCK!
-            ]
-            <halt> [
-                emit [halt]
-                emit [fail {^-- Shouldn't get here, due to HALT}]
-            ]
-            <die> [
-                emit [quit 1]  ; catch-all bash code for general errors
-                emit [fail {^-- Shouldn't get here, due to QUIT}]
-            ]
-            <bad> [
-                emit #no-unskin-if-error
-                emit [print mold '(<*> prior)]
-                emit [fail ["Bad REPL continuation:" '(<*> result)]]
-            ]
-        ] then [
-            return-to-c instruction
-        ]
-
-        return-to-c switch type of state [
-            integer! [  ; just tells the calling C loop to exit() process
-                assert [empty? instruction]
-                state
-            ]
-            datatype! [  ; type assertion, how to enforce this?
-                emit spaced ["^-- Result should be" an state]
-                instruction
-            ]
-            group! [  ; means "submit user code"
-                assert [empty? instruction]
-                state
-            ]
-            default [
-                emit [fail [{Bad console instruction:} (<*> mold state)]]
-            ]
-        ]
-    ]
 
     ; The core presumes no built-in I/O ability in the release build, hence
     ; during boot PANIC and PANIC-VALUE can only do printf() in the debug
@@ -392,7 +311,7 @@ main-startup: function [
                 "!! use --verbose for more detail"
             ]
         ]
-        return <die>
+        exit-revolt 1
     ]
 
     to-dir: function [
@@ -504,8 +423,10 @@ main-startup: function [
     ; during the startup instruction will exit with code 130, and any errors
     ; that arise will be reported and result in exit code 1.
     ;
-
-    emit #quit-if-halt
+    comment [
+        emit #quit-if-halt
+        emit #die-if-error
+    ]
 
     ; !!! Counting down on command line script errors was making the console
     ; extension dependent on EVENT!, which the WebAssembly build did not want.
@@ -515,7 +436,6 @@ main-startup: function [
     ; https://github.com/metaeducation/ren-c/issues/1000
     ;
     comment [emit #countdown-if-error]
-    emit #die-if-error
 
     is-script-implicit: true
 
@@ -561,8 +481,8 @@ main-startup: function [
 
                 is-script-implicit: false  ; must use --script
 
-                emit {Use /ONLY so that QUIT/WITH quits, vs. return DO value}
-                emit [do/only (<*> param-or-die "DO")]
+                ; Use /ONLY so that QUIT/WITH quits, vs. return DO value
+                do/only param-or-die "DO"
             )
         |
             ["--halt" | "-h"] end (
@@ -833,18 +753,17 @@ main-startup: function [
     ;     r3 --do "do %script1.reb" --do "do %script2.reb"
     ;
     if file? o/script [
-        emit {Use DO/ONLY so QUIT/WITH exits vs. being DO's return value}
-        emit [do/only/args (<*> o/script) (<*> script-args)]
+        ;
+        ; Use DO/ONLY so QUIT/WITH exits vs. being DO's return value
+        ;
+        do/only/args o/script script-args
     ]
 
     main-startup: 'done
 
     if quit-when-done [
-        emit [quit 0]
-        return <unreachable>
+        return false
     ]
 
-    emit #start-console
-
-    return <start-console>
+    return true
 ]

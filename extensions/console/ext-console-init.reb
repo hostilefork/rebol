@@ -7,7 +7,7 @@ REBOL [
     Options: []  ; !!! If ISOLATE, wouldn't see LIB/PRINT changes, etc.
 
     Rights: {
-        Copyright 2016-2018 Revolt Open Source Contributors
+        Copyright 2016-2020 Revolt Open Source Contributors
     }
     License: {
         Licensed under the Apache License, Version 2.0
@@ -165,7 +165,7 @@ console!: make object! [
     ]
 
     print-halted: method [] [
-        print "[interrupted by Ctrl-C or HALT instruction]"
+        print "** Interrupted by Ctrl-C or HALT instruction"
     ]
 
     print-info: method [s] [print [info reduce s]]
@@ -333,396 +333,272 @@ start-console: function [
 ]
 
 
-ext-console-impl: function [
+ext-console-impl: func [
     {Revolt ACTION! that is called from C in a loop to implement the console}
 
-    return: "Code for C caller to sandbox, exit status, RESUME code, or hook"
-        [block! group! integer! sym-group! handle!]  ; RETURN is hooked below!
-    prior "BLOCK! or GROUP! that last invocation of HOST-CONSOLE requested"
-        [blank! block! group!]
-    result "Quoted result from evaluating PRIOR, or non-quoted error"
-        [blank! quoted! error!]
+    return: "Console is run as a GO routine, so return result does not matter"
+        <void>
+    requests "Channel to make sandboxed evaluation requests on"
+        [object!]
+    responses "Channel of (quoted) responses from evaluator (else ERROR!s)"
+        [object!]
     resumable "Is the RESUME function allowed to exit this console"
         [logic!]
     skin "Console skin to use if the console has to be launched"
         [<opt> object! file!]
 ][
-    === HOOK RETURN FUNCTION TO GIVE EMITTED INSTRUCTION ===
+    let execute: func [
+        {Ask the C engine to run code with Ctrl-C enabled}
 
-    ; The C caller can be given a BLOCK! representing an code the console is
-    ; executing on its own behalf, as part of its "skin".  Building these
-    ; blocks is made easier by collaboration between EMIT and a hooked version
-    ; of the underlying RETURN of this function.
-
-    instruction: copy []
-
-    emit: function [
-        {Builds up sandboxed code to submit to C, hooked RETURN will finalize}
-
-        item "ISSUE! directive, TEXT! comment, (<*> composed) code BLOCK!"
-            [block! issue! text!]
-        <with> instruction
+        return: [<opt> any-value!]
+        instruction "BLOCK! is code, INTEGER! is exit request"
+            [integer! block!]
+        /error "Return errors to caller vs. raising console internal error"
+            [<output>]
+        /debuggable "Should the execution be able to be debugged"
     ][
-        switch type of item [
-            issue! [
-                if not empty? instruction [append/line instruction '|]
-                insert instruction item
-            ]
-            text! [
-                append/line instruction compose [comment (item)]
-            ]
-            block! [
-                if not empty? instruction [append/line instruction '|]
-                append/line instruction compose/deep <*> item
-            ]
-            fail
-        ]
-    ]
-
-    return: function [
-        {Hooked RETURN function which finalizes any gathered EMIT lines}
-
-        state "Describes the RESULT that the next call to HOST-CONSOLE gets"
-            [integer! tag! group! datatype! sym-group! handle!]
-        <with> instruction prior
-        <local> return-to-c (:return)  ; capture HOST-CONSOLE's RETURN
-    ][
-        switch state [
-            <prompt> [
-                emit [system/console/print-gap]
-                emit [system/console/print-prompt]
-                emit [reduce [
-                    try system/console/input-hook
-                ]]  ; gather first line (or null), put in BLOCK!
-            ]
-            <halt> [
-                emit [halt]
-                emit [fail {^-- Shouldn't get here, due to HALT}]
-            ]
-            <die> [
-                emit [quit 1]  ; bash exit code for any generic error
-                emit [fail {^-- Shouldn't get here, due to QUIT}]
-            ]
-            <bad> [
-                emit #no-unskin-if-error
-                emit [print mold '(<*> prior)]
-                emit [fail ["Bad REPL continuation:" (<*> result)]]
-            ]
+        all [
+            not debuggable
+            block? instruction
         ] then [
-            return-to-c instruction
+            instruction: as group! instruction  ; signal debugger invisibility
         ]
 
-        return-to-c switch type of state [
-            integer! [  ; just tells the calling C loop to exit() process
-                assert [empty? instruction]
-                state
-            ]
-            datatype! [  ; type assertion, how to enforce this?
-                emit spaced ["^-- Result should be" an state]
-                instruction
-            ]
-            group! [  ; means "submit user code"
-                assert [empty? instruction]
-                state
-            ]
-            sym-group! [  ; means "resume instruction"
-                state
-            ]
-            handle! [  ; means "evaluator hook request" (handle is the hook)
-                state
-            ]
-            default [
-                emit [fail [{Bad console instruction:} (<*> mold state)]]
-            ]
-        ]
-    ]
+        send-chan requests instruction
 
-    === DO STARTUP HOOK IF THIS IS THE FIRST TIME THE CONSOLE HAS RUN ===
-
-    if not prior [
+        ; The initial protocol for the `result` is that it is quoted if it
+        ; is valid, or an ERROR! if an error occurred.  Hence a QUOTED! error
+        ; means that the code actually evaluated to an ERROR! value.
         ;
-        ; !!! This was the first call before, and it would do some startup.
-        ; Now it's probably reasonable to assume if there's anything to be
-        ; done on a first call (printing notice of "you broke into debug" or
-        ; something like that) then whoever broke into the REPL takes
-        ; care of that.
-        ;
-        assert [blank? :result]
-        if (unset? 'system/console) or [not system/console] [
-            emit [start-console/skin '(<*> skin)]
+        let r: receive-chan responses
+
+        === {QUIT HANDLING} ===
+
+        ; A QUIT can be issued from either code asked to be executed on behalf
+        ; of the user, or from console code...even PRINT-PROMPT (!)  At the
+        ; moment this is allowed, but maybe there should be rules about it.
+
+        ; https://en.wikipedia.org/wiki/Exit_status
+        all [
+            error? :r
+            r/id = 'no-catch
+            :r/arg2 = :QUIT  ; throw's /NAME
+        ] then [
+            execute switch type of get* 'r/arg1 [
+                void! [0]  ; plain QUIT, no /WITH, call that success
+
+                logic! [either :r/arg1 [0] [1]]  ; logic true is success
+
+                integer! [r/arg1]  ; Note: may be too big for status range
+
+                error! [1]  ; no default error-to-int mapping at present
+
+                default [1]  ; generic error code
+            ]
+            assert ["Unreachable (should we overload RETURN or EXIT?)"]
+            return
         ]
-        return <prompt>
-    ]
 
-    === GATHER DIRECTIVES ===
+        === {OTHER ERROR HANDLING} ===
 
-    ; #directives may be at the head of BLOCK!s the console ran for itself.
-    ;
-    directives: collect [
-        if block? prior [
-            parse prior [some [set i: issue! (keep i)] end]
-        ]
-    ]
+        ; If the caller requested the /ERROR return result, then it will be
+        ; returned alongside a void result.  But if no error was requested,
+        ; then this will fail...triggering a console internal error.
 
-    if find directives #start-console [
-        emit [start-console/skin '(<*> skin)]
-        return <prompt>
-    ]
-
-    === QUIT handling ===
-
-    ; https://en.wikipedia.org/wiki/Exit_status
-
-    all [
-        error? :result
-        result/id = 'no-catch
-        :result/arg2 = :QUIT  ; throw's /NAME
-    ] then [
-        return switch type of get* 'result/arg1 [
-            void! [0]  ; plain QUIT, no /WITH, call that success
-
-            logic! [either :result/arg1 [0] [1]]  ; logic true is success
-
-            integer! [result/arg1]  ; Note: may be too big for status range
-
-            error! [1]  ; currently there's no default error-to-int mapping
-
-            default [1]  ; generic error code
-        ]
-    ]
-
-    === HALT handling (e.g. Ctrl-C or Escape) ===
-
-    all [
-        error? :result
-        result/id = 'no-catch
-        :result/arg2 = :HALT  ; throw's /NAME
-    ] then [
-        if find directives #quit-if-halt [
-            return 128 + 2 ; standard cancellation exit status for bash
-        ]
-        if find directives #console-if-halt [
-            emit [start-console/skin '(<*> skin)]
-            return <prompt>
-        ]
-        if find directives #unskin-if-halt [
-            print "** UNSAFE HALT ENCOUNTERED IN CONSOLE SKIN"
-            print "** REVERTING TO DEFAULT SKIN"
-            system/console: make console! []
-            print mold prior  ; Might help debug to see what was running
-        ]
-        emit #unskin-if-halt
-        emit [system/console/print-halted]
-        return <prompt>
-    ]
-
-    === RESUME handling ===
-
-    ; !!! This is based on debugger work-in-progress.  A nested console that
-    ; has been invoked via a breakpoint the console will sandbox most errors
-    ; and throws.  But if it recognizes a special "resume instruction" being
-    ; thrown, it will consider its nested level to be done and yield that
-    ; result so the program can continue.
-
-    all [
-        in lib 'resume
-        error? :result
-        result/id = 'no-catch
-        :result/arg2 = :LIB/RESUME  ; throw's /NAME
-    ] then [
-        assert [match [sym-group! handle!] :result/arg1]
-        if not resumable [
-            e: make error! "Can't RESUME top-level CONSOLE (use QUIT to exit)"
-            e/near: result/near
-            e/where: result/where
-            emit [system/console/print-error (<*> e)]
-            return <prompt>
-        ]
-        return :result/arg1
-    ]
-
-    if error? :result [  ; all other errors
-        ;
-        ; Errors can occur during MAIN-STARTUP, before the SYSTEM/CONSOLE has
-        ; a chance to be initialized (it may *never* be initialized if the
-        ; interpreter is being called non-interactively from the shell).
-        ;
-        if object? system/console [
-            emit [system/console/print-error (<*> :result)]
+        if error? r [
+            if error [
+                set error r
+                return void
+            ] else [
+                fail r  ; ...will cause reversion to the default skin
+            ]
         ] else [
-            emit [print [(<*> :result)]]
+            if error [
+                set error null
+            ]
         ]
-        if find directives #die-if-error [
-            return <die>
-        ]
-        if find directives #halt-if-error [
-            return <halt>
-        ]
-        if find directives #countdown-if-error [
-            emit #console-if-halt
-            emit [
-                print newline
-                print "** Hit Ctrl-C to break into the console in 5 seconds"
 
-                count-up n 25 [
-                    if 1 = remainder n 5 [
-                        write-stdout form (5 - to-integer (n / 5))
-                    ] else [
-                        write-stdout "."
+        return unquote r  ; If not an error, R was the quoted eval result
+    ]
+
+    === {DO STARTUP HOOK IF THIS IS THE FIRST TIME THE CONSOLE HAS RUN} ===
+
+    ; !!! This was the first call before, and it would do some startup.
+    ; Now it's probably reasonable to assume if there's anything to be
+    ; done on a first call (printing notice of "you broke into debug" or
+    ; something like that) then whoever broke into the REPL takes
+    ; care of that.
+    ;
+    if (unset? 'system/console) or [not system/console] [
+        execute compose [start-console/skin '(skin)]
+    ]
+
+    === {(PROMPT,) READ, EVAL, PRINT LOOP: (P)REPL)} ===
+
+    ; This loop is enclosed in a TRAP, because an EXECUTE that does not ask
+    ; to trap errors is running console skin code.  An error in that code
+    ; means basic console functionality isn't working... so the error needs
+    ; to be reported with the skin rolled back to the stock implementation.
+    ;
+    ; (Such recoveries are done once, and then a user must be able to
+    ; successfully evaluate an expression to be willing to recover again.)
+
+    let no-recover: false
+
+    cycle [ trap [
+
+        execute [system/console/print-gap]
+        execute [system/console/print-prompt]
+
+        let lines: copy []  ; lines of TEXT! accumulated by multi-line input
+        let code: void  ; loaded code from lines of text
+
+        === {LOOP FOR GATHERING MULTI-LINE INPUT} ===
+
+        cycle [
+            let error: void
+            let line: void
+            [line error]: execute [system/console/input-hook]
+
+            ; Allow a Ctrl-C to terminate the INPUT-HOOK
+
+            if error [
+                all [
+                    error/id = 'no-catch
+                    :error/arg2 = :HALT  ; throw's /NAME
+                ] then [
+                    execute [system/console/print-halted]
+                    break  ; end multi-line input, causes CONTINUE below
+                ]
+
+                fail error  ; have other INPUT-HOOK fails cause internal error
+            ]
+
+            append lines line
+
+            trap [
+                code: load/all delimit newline lines
+                assert [block? code]  ; e.g. `load/all "word"` => `[word]`
+            ]
+            then error => [
+                ;
+                ; If loading gave back an error, check to see if it was the
+                ; kind of error that comes from having partial input.  If so,
+                ; CONTINUE and read more data until it's complete.
+                ;
+                if error/id = 'scan-missing [
+                    ;
+                    ; Error message tells you what's missing, not what's open
+                    ; and needs to be closed.  Invert the symbol.
+                    ;
+                    switch error/arg1 [
+                        "}" ["{"]
+                        ")" ["("]
+                        "]" ["["]
                     ]
-                    wait 0.25
+                    also unclosed => [
+                        ;
+                        ; Backslash is used in the second column to help make
+                        ; a pattern that isn't legal in Revolt code, which is
+                        ; also uncommon in program output.
+                        ;
+                        ; !!! This could enable detection of transcripts,
+                        ; potentially to replay them without running program
+                        ; output or evaluation results.
+                        ;
+                        write-stdout unspaced [unclosed "\" space space]
+                        continue  ; get the next line
+                    ]
                 ]
-                print newline
+
+                ; Could be an unclosed double quote (unclosed tag?) which more
+                ; input on a new line cannot legally close ATM.
+                ;
+                execute compose [system/console/print-error (error)]
+                break
             ]
-            emit {Only gets here if user did not hit Ctrl-C}
-            return <die>
+
+            stop <done>  ; code is ready
         ]
-        if block? prior [
-            case [
-                find directives #host-console-error [
-                    print "** HOST-CONSOLE ACTION! ITSELF RAISED ERROR"
-                    print "** SAFE RECOVERY NOT LIKELY, BUT TRYING ANYWAY"
-                ]
-                not find directives #no-unskin-if-error [
-                    print "** UNSAFE ERROR ENCOUNTERED IN CONSOLE SKIN"
-                ]
-                print mold result
+        else [
+            continue  ; CYCLE was stopped with BREAK on unrecoverable error
+        ]
+
+        === {HANDLE CODE THAT HAS BEEN SUCCESSFULLY LOADED} ===
+
+        let shortcut: select system/console/shortcuts try first code
+        if shortcut [
+            ;
+            ; Shortcuts like `q => [quit]`, `d => [dump]`
+            ;
+            if (bound? code/1) and [not void? get* 'code/1] [
+                ;
+                ; Help confused user who might not know about the shortcut not
+                ; panic by giving them a message.  Reduce noise for the casual
+                ; shortcut by only doing so when a non-void variable exists.
+                ;
+                execute compose [system/console/print-warning (
+                    spaced [
+                        uppercase to text! code/1
+                            "interpreted by console as:" mold :shortcut
+                    ]
+                )]
+                execute compose [system/console/print-warning (
+                    spaced ["use" to get-word! code/1 "to get variable."]
+                )]
+            ]
+            take code
+            insert code shortcut
+        ]
+
+        ; Run the "dialect hook", which can transform the completed code block
+        ;
+        code: execute compose [system/console/dialect-hook (code)]
+
+        let error: void
+        let result: void
+        [result error]: execute/debuggable ensure block! code
+
+        if error [
+            assert [void? get* 'result]
+
+            all [
+                error/id = 'no-catch
+                :error/arg2 = :HALT  ; throw's /NAME
             ] then [
-                print "** REVERTING TO DEFAULT SKIN"
-                system/console: make console! []
-                print mold prior  ; Might help debug to see what was running
+                execute [system/console/print-halted]
+                continue
             ]
+
+            execute compose [system/console/print-error (error)]
         ]
-        return <prompt>
-    ]
-
-    assert [quoted? :result]
-
-    === HANDLE RESULT FROM EXECUTION OF CODE ON USER'S BEHALF ===
-
-    if group? prior [
-        emit [system/console/print-result (<*> result)]
-        return <prompt>
-    ]
-
-    === HANDLE CONTINUATION THE CONSOLE SENT TO ITSELF ===
-
-    assert [block? prior]
-
-    ; `result` of console instruction can be:
-    ;
-    ; GROUP! - code to be run in a sandbox on behalf of the user
-    ; BLOCK! - block of gathered input lines so far, need another one
-    ;
-    result: unquote result
-
-    if group? result [
-        return result  ; GROUP! signals we're running user-requested code
-    ]
-
-    if not block? result [
-        return <bad>
-    ]
-
-    === TRY ADDING LINE OF INPUT TO CODE REGENERATED FROM BLOCK ===
-
-    ; Note: INPUT-HOOK has already run once per line in this block
-
-    assert [not empty? result]  ; should have at least one item
-
-    if blank? last result [
-        ;
-        ; It was aborted.  This comes from ESC on POSIX (which is the ideal
-        ; behavior), Ctrl-D on Windows (because ReadConsole() can't trap ESC),
-        ; Ctrl-D on POSIX (just to be compatible with Windows).
-        ;
-        emit [system/console/print-result void]
-        return <prompt>
-    ]
-
-    trap [
-        ; Note that LOAD/ALL makes BLOCK! even for a single item,
-        ; e.g. `load/all "word"` => `[word]`
-        ;
-        code: load/all delimit newline result
-        assert [block? code]
-
-    ] then error => [
-        ;
-        ; If loading the string gave back an error, check to see if it
-        ; was the kind of error that comes from having partial input
-        ; (scan-missing).  If so, CONTINUE and read more data until
-        ; it's complete (or until an empty line signals to just report
-        ; the error as-is)
-        ;
-        if error/id = 'scan-missing [
+        else [
+            ; !!! Comment said "not all users may want CONST result, review
+            ; configurability".
             ;
-            ; Error message tells you what's missing, not what's open and
-            ; needs to be closed.  Invert the symbol.
-            ;
-            switch error/arg1 [
-                "}" ["{"]
-                ")" ["("]
-                "]" ["["]
-            ] also unclosed => [
-                ;
-                ; Backslash is used in the second column to help make a
-                ; pattern that isn't legal in Revolt code, which is also
-                ; uncommon in program output.  This enables detection of
-                ; transcripts, potentially to replay them without running
-                ; program output or evaluation results.
-                ;
-                write-stdout unspaced [unclosed "\" _ _]
-                emit [reduce [  ; reduce will runs in sandbox
-                    ((<*> result))  ; splice previous inert literal lines
-                    system/console/input-hook  ; hook to run in sandbox
-                ]]
-
-                return block!
-            ]
+            execute compose [system/console/print-result '(get/any 'result)]
         ]
 
-        ; Could be an unclosed double quote (unclosed tag?) which more input
-        ; on a new line cannot legally close ATM
-        ;
-        emit [system/console/print-error (<*> error)]
-        return <prompt>
+        no-recover: false  ; once success with read-eval-print, forgive fail
+
+        comment </trap>
     ]
+    then error => [
 
-    === HANDLE CODE THAT HAS BEEN SUCCESSFULLY LOADED ===
-
-    if shortcut: select system/console/shortcuts try first code [
-        ;
-        ; Shortcuts like `q => [quit]`, `d => [dump]`
-        ;
-        if (bound? code/1) and [set? code/1] [
-            ;
-            ; Help confused user who might not know about the shortcut not
-            ; panic by giving them a message.  Reduce noise for the casual
-            ; shortcut by only doing so when a bound variable exists.
-            ;
-            emit [system/console/print-warning (<*>
-                spaced [
-                    uppercase to text! code/1
-                        "interpreted by console as:" mold :shortcut
-                ]
-            )]
-            emit [system/console/print-warning (<*>
-                spaced ["use" to get-word! code/1 "to get variable."]
-            )]
+        if no-recover [
+            print "** CONSOLE INTERNAL ERROR LOOP, PANICKING"
+            panic-value error
         ]
-        take code
-        insert code shortcut
-    ]
 
-    ; Run the "dialect hook", which can transform the completed code block
-    ;
-    emit #unskin-if-halt  ; Ctrl-C during dialect hook is a problem
-    emit [
-        comment {not all users may want CONST result, review configurability}
-        as group! system/console/dialect-hook (<*> code)
-    ]
-    return group!  ; a group RESULT should come back to HOST-CONSOLE
+        print "** CONSOLE (OR CONSOLE SKIN) RAISED INTERNAL ERROR"
+        print mold error
+        print "** REVERTING TO DEFAULT SKIN (...IT MIGHT HELP :-/)"
+
+        system/console: make console! []
+
+        no-recover: true  ; require sucessful console eval to recover again
+
+    ] comment </cycle>]
 ]
 
 

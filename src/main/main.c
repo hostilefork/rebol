@@ -283,7 +283,7 @@ int main(int argc, char *argv_ansi[])
     if (rebDid("error?", trapped, rebEND))  // error in MAIN-STARTUP itself
         rebJumps("PANIC", trapped, rebEND);  // terminates
 
-    REBVAL *code = rebValue("first", trapped, rebEND); // entrap's output
+    bool run_console = rebDid("first", trapped, rebEND);  // entrap's output
     rebRelease(trapped);  // don't need the outer block any more
 
     // !!! For the moment, the CONSOLE extension does all the work of running
@@ -294,9 +294,13 @@ int main(int argc, char *argv_ansi[])
     // kinds of errors.  Hence there is a /PROVOKE refinement to CONSOLE
     // which feeds it an instruction, as if the console gave it to itself.
 
-    REBVAL *result = rebValue("console/provoke", rebR(code), rebEND);
-
-    int exit_status = rebUnboxInteger(rebR(result), rebEND);
+    int exit_status;
+    if (run_console) {
+        REBVAL *result = rebValue("console", rebEND);
+        exit_status = rebUnboxInteger(rebR(result), rebEND);
+    }
+    else
+        exit_status = 0;
 
     const bool clean = false;  // process exiting, not necessary
     rebShutdown(clean);  // Note: debug build runs a clean shutdown anyway

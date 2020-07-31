@@ -225,12 +225,10 @@ static REBVAL *Run_Sandboxed_Group(REBVAL *group) {
 //
 //  export console: native [
 //
-//  {Runs customizable Read-Eval-Print Loop, may "provoke" code before input}
+//  {Runs customizable Read-Eval-Print Loop}
 //
 //      return: "Exit code, RESUME instruction, or handle to evaluator hook"
 //          [integer! sym-group! handle!]
-//      /provoke "Block must return a console state, group is cancellable"
-//          [block! group!]
 //      /resumable "Allow RESUME instruction (will return a SYM-GROUP!)"
 //      /skin "File containing console skin, or MAKE CONSOLE! derived object"
 //          [file! object!]
@@ -286,23 +284,22 @@ REBNATIVE(console)
     REBINT Save_Trace_Level = Trace_Level;
     REBINT Save_Trace_Depth = Trace_Depth;
 
-    REBVAL *result = nullptr;
-    bool no_recover = false;  // allow one try at HOST-CONSOLE internal error
+    REBVAL *responses = rebValueQ("make-chan/capacity 1", rebEND);
+    REBVAL *requests = rebValueQ("make-chan/capacity 1", rebEND);
+
+    rebElideQ(
+        "go ext-console-impl",  // action! that takes 2 args, run it
+        requests,
+        responses,  // prior result quoted, or error (or blank!)
+        rebL(did REF(resumable)),
+        REF(skin),
+        rebEND
+    );
 
     REBVAL *code;
-    if (REF(provoke)) {
-        code = rebArg("provoke", rebEND);  // fetch as an API handle
-        goto provoked;
-    }
-    else {
-        code = rebBlank();
-        result = rebBlank();
-    }
 
     while (true) {
-       assert(not halting_enabled);  // not while HOST-CONSOLE is on the stack
-
-      recover: ;  // Note: semicolon needed as next statement is declaration
+        assert(not halting_enabled);  // not if HOST-CONSOLE is on the stack
 
         // This runs the HOST-CONSOLE, which returns *requests* to execute
         // arbitrary code by way of its return results.  The ENTRAP is thus
@@ -310,44 +307,8 @@ REBNATIVE(console)
         // for the user (or on behalf of the console skin) are done in
         // Run_Sandboxed_Group().
         //
-        REBVAL *trapped;  // Note: goto would cross initialization
-        trapped = rebValueQ(
-            "entrap [",
-                "ext-console-impl",  // action! that takes 2 args, run it
-                code,  // group! or block! executed prior (or blank!)
-                result,  // prior result quoted, or error (or blank!)
-                rebL(did REF(resumable)),
-                REF(skin),
-            "]", rebEND
-        );
 
-        rebRelease(code);
-        rebRelease(result);
-
-        if (rebDidQ("error?", trapped, rebEND)) {
-            //
-            // If the HOST-CONSOLE function has any of its own implementation
-            // that could raise an error (or act as an uncaught throw) it
-            // *should* be returned as a BLOCK!.  This way the "console skin"
-            // can be reset to the default.  If HOST-CONSOLE itself fails
-            // (e.g. a typo in the implementation) there's probably not much
-            // use in trying again...but give it a chance rather than just
-            // crash.  Pass it back something that looks like an instruction
-            // it might have generated (a BLOCK!) asking itself to crash.
-
-            if (no_recover)
-                rebJumpsQ("PANIC", trapped, rebEND);
-
-            code = rebValueQ("[#host-console-error]", rebEND);
-            result = trapped;
-            no_recover = true;  // no second chances until user code runs
-            goto recover;
-        }
-
-        code = rebValueQ("first", trapped, rebEND);  // entrap []'s the output
-        rebRelease(trapped); // don't need the outer block any more
-
-      provoked:
+        code = rebValueQ("receive-chan", requests, rebEND);
 
         if (rebDidQ("integer?", code, rebEND))
             break;  // when HOST-CONSOLE returns INTEGER! it means exit code
@@ -357,19 +318,11 @@ REBNATIVE(console)
             break;
         }
 
-        bool is_console_instruction = rebDidQ("block?", code, rebEND);
+        bool debuggable = rebDidQ("block?", code, rebEND);
         REBVAL *group;
 
-        if (is_console_instruction) {
-            group = rebValueQ("as group!", code, rebEND);  // to run without DO
-        }
-        else {
-            group = rebValueQ(code, rebEND);  // rebRelease() w/o affecting code
-
-            // If they made it to a user mode instruction, the console skin
-            // must not be broken beyond all repair.  So re-enable recovery.
-            //
-            no_recover = false;
+        if (debuggable) {
+            group = rebValueQ("as group!", code, rebEND);  // to run w/o DO
 
             // Restore custom DO and APPLY hooks, but only if it was a GROUP!
             // initially (indicating running code initiated by the user).
@@ -383,6 +336,11 @@ REBNATIVE(console)
             Trace_Level = Save_Trace_Level;
             Trace_Depth = Save_Trace_Depth;
         }
+        else {
+            group = rebValueQ(code, rebEND);  // release w/o affecting `code`
+        }
+
+        rebRelease(code);
 
         // Both console-initiated and user-initiated code is cancellable with
         // Ctrl-C (though it's up to HOST-CONSOLE on the next iteration to
@@ -390,15 +348,18 @@ REBNATIVE(console)
         // condition or a reason to fall back to the default skin).
         //
         Enable_Halting();
-        result = rebRescue(cast(REBDNG*, &Run_Sandboxed_Group), group);
+        REBVAL *result = rebRescue(cast(REBDNG*, &Run_Sandboxed_Group), group);
         rebRelease(group);  // Note: does not release `code`
         Disable_Halting();
+
+        rebElideQ("send-chan", responses, result, rebEND);
+        rebRelease(result);
 
         // If the custom DO and APPLY hooks were changed by the user code,
         // then save them...but restore the unhooked versions for the next
         // iteration of HOST-CONSOLE.  Same for Trace_Level seen by PARSE.
         //
-        if (not is_console_instruction) {
+        if (debuggable) {
             saved_eval_hook = PG_Trampoline_Throws;
             saved_dispatch_hook = PG_Dispatch;
             PG_Trampoline_Throws = &Trampoline_Throws;
@@ -416,6 +377,14 @@ REBNATIVE(console)
         Enable_Halting();
 
     rebElideQ("system/console:", rebR(old_console), rebEND);
+
+    // !!! Go lore says "don't close a channel from the receiver side".  This
+    // means we should not close `requests`?
+    //
+    rebElideQ("close-chan", responses, rebEND);
+
+    rebRelease(responses);
+    rebRelease(requests);
 
     return code;  // http://stackoverflow.com/q/1101957/
 }

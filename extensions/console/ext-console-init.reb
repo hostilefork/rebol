@@ -333,7 +333,7 @@ start-console: function [
 ]
 
 
-ext-console-impl: func [
+console-impl: func [
     {Revolt ACTION! that is called from C in a loop to implement the console}
 
     return: "Console is run as a GO routine, so return result does not matter"
@@ -645,7 +645,7 @@ upgrade: function [
 ;
 append lib compose [
     console!: (ensure object! console!)
-    ext-console-impl: (:ext-console-impl)
+    console-impl: (:console-impl)
 ]
 
 ; !!! The whole host startup/console is currently very manually loaded

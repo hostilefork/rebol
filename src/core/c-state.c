@@ -125,8 +125,8 @@ void Unplug_Stack(
     assert(Is_Action_Frame(f));  // only actions can initiate unpluggings
     assert(not Is_Action_Frame_Fulfilling(f));  // ...and just running ones
 
-    assert(Is_Action_Frame(base));  // ...same goes for the base
-    assert(not Is_Action_Frame_Fulfilling(base));  // ...etc.
+    /*assert(Is_Action_Frame(base));  // ...same goes for the base
+    assert(not Is_Action_Frame_Fulfilling(base));  // ...etc. */
 
     REBFRM *temp = f;
     while (true) {

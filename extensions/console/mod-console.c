@@ -201,27 +201,6 @@ void Enable_Halting(void)
 #endif  //=///////////////////////////////////////////////////////////////=//
 
 
-
-// This is called when either the console is running some untrusted skin code
-// for its own implementation, or when it wants to execute code on the user's
-// behalf.  If the code is on the user's behalf, then any tracing or debug
-// hooks will have been enabled before the rebRescue() call invoking this.
-//
-//
-static REBVAL *Run_Sandboxed_Group(REBVAL *group) {
-    //
-    // DON'T ADD ANY MORE LIBREVOLT CODE HERE.  If this is a user-requested
-    // evaluation, then any extra libRevolt code run here will wind up being
-    // shown in a TRACE.  The only thing that's acceptable to see in the
-    // backtrace is the GROUP! itself that we are running.  (If we didn't
-    // want that, getting rid of it would take some magic).
-    //
-    // So don't add superfluous libRevolt calls here, except to debug.
-    //
-    return rebQuoteInterruptible(group, rebEND);  // ownership gets proxied
-}
-
-
 //
 //  export console: native [
 //
@@ -232,6 +211,7 @@ static REBVAL *Run_Sandboxed_Group(REBVAL *group) {
 //      /resumable "Allow RESUME instruction (will return a SYM-GROUP!)"
 //      /skin "File containing console skin, or MAKE CONSOLE! derived object"
 //          [file! object!]
+//      <local> responses requests old-console was-halting-enabled
 //  ]
 //
 REBNATIVE(console)
@@ -247,6 +227,21 @@ REBNATIVE(console)
 {
     CONSOLE_INCLUDE_PARAMS_OF_CONSOLE;
 
+    enum {
+        ST_CONSOLE_INITIAL_ENTRY = 0,
+        ST_CONSOLE_RECEIVING_REQUEST,
+        ST_CONSOLE_EVALUATING_REQUEST
+    };
+
+    switch (D_STATE_BYTE) {
+      case ST_CONSOLE_INITIAL_ENTRY: goto initial_entry;
+      case ST_CONSOLE_RECEIVING_REQUEST: goto process_request;
+      case ST_CONSOLE_EVALUATING_REQUEST: goto send_response;
+      default: assert(false);
+    }
+
+  initial_entry: {
+    //
     // !!! The initial usermode console implementation was geared toward a
     // single `system/console` object.  But the debugger raised the issue of
     // nested sessions which might have a different skin.  So save whatever
@@ -255,9 +250,11 @@ REBNATIVE(console)
     REBVAL *old_console = rebValue(":system/console", rebEND);
     if (REF(skin))
         rebElide("system/console: _", rebEND);  // !!! needed for now
+    Move_Value(ARG(old_console), old_console);
+    rebRelease(old_console);
 
     // We only enable halting (e.g. Ctrl-C, or Escape, or whatever) when user
-    // code is running...not when the HOST-CONSOLE function itself is, or
+    // code is running...not when the CONSOLE-IMPL function itself is, or
     // during startup.  (Enabling it during startup would require a special
     // "kill" mode that did not call rebHalt(), as basic startup cannot
     // meaningfully be halted--the system would be in an incomplete state.)
@@ -265,30 +262,15 @@ REBNATIVE(console)
     bool was_halting_enabled = halting_enabled;
     if (was_halting_enabled)
         Disable_Halting();
-
-    // The DO and APPLY hooks are used to implement things like tracing
-    // or debugging.  If they were allowed to run during the host
-    // console, they would create a fair amount of havoc (the console
-    // is supposed to be "invisible" and not show up on the stack...as if
-    // it were part of the C codebase, even though it isn't written in C)
-    //
-    REBEVL *saved_eval_hook = PG_Trampoline_Throws;
-    REBNAT saved_dispatch_hook = PG_Dispatch;
-
-    // !!! While the new mode of TRACE (and other code hooking function
-    // execution) is covered by `saved_eval_hook/saved_apply_hook`, there
-    // is independent tracing code in PARSE which is also enabled by TRACE ON
-    // and has to be silenced during console-related code.  Review how hooks
-    // into PARSE and other services can be avoided by the console itself
-    //
-    REBINT Save_Trace_Level = Trace_Level;
-    REBINT Save_Trace_Depth = Trace_Depth;
+    Init_Logic(ARG(was_halting_enabled), was_halting_enabled);
 
     REBVAL *responses = rebValueQ("make-chan/capacity 1", rebEND);
     REBVAL *requests = rebValueQ("make-chan/capacity 1", rebEND);
 
+    // !!! TBD: Make sure `debuggable` is not enabled on this GO
+    //
     rebElideQ(
-        "go ext-console-impl",  // action! that takes 2 args, run it
+        "go console-impl",  // action! that takes 2 args, run it
         requests,
         responses,  // prior result quoted, or error (or blank!)
         rebL(did REF(resumable)),
@@ -296,95 +278,75 @@ REBNATIVE(console)
         rebEND
     );
 
-    REBVAL *code;
+    Move_Value(ARG(responses), responses);
+    Move_Value(ARG(requests), requests);
+    
+    rebRelease(responses);
+    rebRelease(requests);
 
-    while (true) {
-        assert(not halting_enabled);  // not if HOST-CONSOLE is on the stack
+    goto receive_request;
+  }
 
-        // This runs the HOST-CONSOLE, which returns *requests* to execute
-        // arbitrary code by way of its return results.  The ENTRAP is thus
-        // here to intercept bugs *in HOST-CONSOLE itself*.  Any evaluations
-        // for the user (or on behalf of the console skin) are done in
-        // Run_Sandboxed_Group().
-        //
+  receive_request: {
+    assert(not halting_enabled);  // Don't want CONSOLE-IMPL on the stack
 
-        code = rebValueQ("receive-chan", requests, rebEND);
+    D_STATE_BYTE = ST_CONSOLE_RECEIVING_REQUEST;
+    CONTINUE_WITH (NATIVE_VAL(receive_chan), ARG(requests));
+  }
 
-        if (rebDidQ("integer?", code, rebEND))
-            break;  // when HOST-CONSOLE returns INTEGER! it means exit code
+  process_request: {
+    if (rebDidQ("integer?", D_OUT, rebEND))
+        goto return_exit_code;  // INTEGER! request means exit code
 
-        if (rebDidQ("match [sym-group! handle!]", code, rebEND)) {
-            assert(REF(resumable));
-            break;
-        }
+    /*if (rebDidQ("match [sym-group! handle!]", code, rebEND)) {
+        assert(REF(resumable));
+        break;
+    }*/   // resume requests from nested consoles...being rethought
 
-        bool debuggable = rebDidQ("block?", code, rebEND);
-        REBVAL *group;
+    assert(IS_GROUP(D_OUT) or IS_BLOCK(D_OUT));  // current invariant
 
-        if (debuggable) {
-            group = rebValueQ("as group!", code, rebEND);  // to run w/o DO
+    bool debuggable = rebDidQ("block?", D_OUT, rebEND);
+    UNUSED(debuggable);  // !!! Should be used, somehow
 
-            // Restore custom DO and APPLY hooks, but only if it was a GROUP!
-            // initially (indicating running code initiated by the user).
-            //
-            // (We do not want to trace/debug/instrument Revolt code that the
-            // console is using to implement *itself*, which it does with
-            // BLOCK! Same for Trace_Level seen by PARSE.
-            //
-            PG_Trampoline_Throws = saved_eval_hook;
-            PG_Dispatch = saved_dispatch_hook;
-            Trace_Level = Save_Trace_Level;
-            Trace_Depth = Save_Trace_Depth;
-        }
-        else {
-            group = rebValueQ(code, rebEND);  // release w/o affecting `code`
-        }
+    // Both console-initiated and user-initiated code is cancellable with
+    // Ctrl-C (though it's up to HOST-CONSOLE on the next iteration to
+    // decide whether to accept the cancellation or consider it an error
+    // condition or a reason to fall back to the default skin).
+    //
+    Enable_Halting();
 
-        rebRelease(code);
+    D_STATE_BYTE = ST_CONSOLE_EVALUATING_REQUEST;
+    CONTINUE_CATCHABLE (D_OUT);
+  }
 
-        // Both console-initiated and user-initiated code is cancellable with
-        // Ctrl-C (though it's up to HOST-CONSOLE on the next iteration to
-        // decide whether to accept the cancellation or consider it an error
-        // condition or a reason to fall back to the default skin).
-        //
-        Enable_Halting();
-        REBVAL *result = rebRescue(cast(REBDNG*, &Run_Sandboxed_Group), group);
-        rebRelease(group);  // Note: does not release `code`
-        Disable_Halting();
+  send_response: {
+    //
+    // !!! halting was enabled while the sandbox was run, but should not be
+    // the CONSOLE-IMPL gets the result.  This should be a property tied to
+    // that particular routine as being "kernel" and done by the trampoline.
+    //
+    Disable_Halting();
 
-        rebElideQ("send-chan", responses, result, rebEND);
-        rebRelease(result);
+    Quotify(D_OUT, 1);
 
-        // If the custom DO and APPLY hooks were changed by the user code,
-        // then save them...but restore the unhooked versions for the next
-        // iteration of HOST-CONSOLE.  Same for Trace_Level seen by PARSE.
-        //
-        if (debuggable) {
-            saved_eval_hook = PG_Trampoline_Throws;
-            saved_dispatch_hook = PG_Dispatch;
-            PG_Trampoline_Throws = &Trampoline_Throws;
-            PG_Dispatch = &Dispatch_Internal;
-            Save_Trace_Level = Trace_Level;
-            Save_Trace_Depth = Trace_Depth;
-            Trace_Level = 0;
-            Trace_Depth = 0;
-        }
-    }
+    rebElideQ("send-chan", ARG(responses), D_OUT, rebEND);
 
-    // Exit code is now an INTEGER! or a resume instruction PATH!
+    goto receive_request;
+  }
 
-    if (was_halting_enabled)
-        Enable_Halting();
-
-    rebElideQ("system/console:", rebR(old_console), rebEND);
+  return_exit_code: {
+    rebElideQ("system/console:", ARG(old_console), rebEND);
 
     // !!! Go lore says "don't close a channel from the receiver side".  This
     // means we should not close `requests`?
     //
-    rebElideQ("close-chan", responses, rebEND);
+    rebElideQ("close-chan", ARG(responses), rebEND);
 
-    rebRelease(responses);
-    rebRelease(requests);
+    // Exit code is now an INTEGER! or a resume instruction PATH!
 
-    return code;  // http://stackoverflow.com/q/1101957/
+    if (VAL_LOGIC(ARG(was_halting_enabled)))
+        Enable_Halting();
+
+    return D_OUT;  // http://stackoverflow.com/q/1101957/
+  }
 }

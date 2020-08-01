@@ -949,8 +949,6 @@ static void Init_Contexts_Object(void)
 //
 void Startup_Tasks(void)
 {
-    assert(PG_Tasks == nullptr);
-
     Trace_Level = 0;
     TG_Jump_List = nullptr;
 
@@ -993,6 +991,20 @@ void Startup_Tasks(void)
     Prep_Non_Stack_Cell(&TG_Thrown_Label_Debug);
     SET_END(&TG_Thrown_Label_Debug); // see notes, only used "SPORADICALLY()"
   #endif
+
+    assert(PG_Tasks == nullptr);
+
+    DECLARE_END_FRAME (dummy, EVAL_MASK_DEFAULT | EVAL_FLAG_ROOT_FRAME);
+    Push_Frame(nullptr, dummy);
+
+    REBTSK *task = TRY_ALLOC(REBTSK);
+    task->plug_frame = nullptr;
+    Prep_Non_Stack_Cell(&task->plug);
+    TRASH_CELL_IF_DEBUG(&task->plug);
+    task->go_frame = dummy;
+
+    Circularly_Link_Task(task);
+    assert(PG_Tasks == task);
 }
 
 
@@ -1030,7 +1042,7 @@ void Shutdown_Tasks(void) {
         FREE(REBTSK, temp);
     } while (task != PG_Tasks);
 
-    PG_Tasks = nullptr;
+    assert(PG_Tasks == nullptr);  // Circular unlinks should have emptied it
 }
 
 
@@ -1435,7 +1447,7 @@ void Startup_Core(void)
 
     PG_Boot_Phase = BOOT_MEZZ;
 
-    assert(DSP == 0 and FS_TOP == FS_BOTTOM);
+    assert(DSP == 0 /* and FS_TOP == FS_BOTTOM */);
 
     REBVAL *error = rebRescue(cast(REBDNG*, &Startup_Mezzanine), boot);
     if (error) {
@@ -1458,7 +1470,7 @@ void Startup_Core(void)
         panic (error);
     }
 
-    assert(DSP == 0 and FS_TOP == FS_BOTTOM);
+    assert(DSP == 0 /*and FS_TOP == FS_BOTTOM */);
 
     DROP_GC_GUARD(boot_array);
 

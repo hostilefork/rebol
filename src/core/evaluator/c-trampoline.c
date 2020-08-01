@@ -170,40 +170,34 @@ bool Trampoline_Throws(REBFRM *f)
     if (r == R_BLOCKING) {
         assert(f == FS_TOP);
 
-        if (not PG_Tasks)
-            fail ("Deadlock reached (main thread blocking with no tasks)");
+        assert(not PG_Tasks->plug_frame);  // plugged in, so plug is null
 
-        if (not PG_Tasks->plug_frame) {  // it's plugged in, so plug is null
-            //
-            // A task is running and it blocked.  Unplug it, move it to the
-            // back of the line, and give the main thread a chance.
-            //
-            assert(GET_EVAL_FLAG(PG_Tasks->go_frame, ROOT_FRAME));
-            CLEAR_EVAL_FLAG(PG_Tasks->go_frame, ROOT_FRAME);  // for unplug
-            assert(not PG_Tasks->plug_frame);
-            PG_Tasks->plug_frame = f;
-            Unplug_Stack(
-                &PG_Tasks->plug,
-                f,
-                PG_Tasks->go_frame->prior
-            );
-            PG_Tasks = PG_Tasks->next;  // circularly linked
-        }
-        else {
-            // Main is running and there are tasks.  Go ahead and start up
-            // the first one available (last one to execute).
-            //
-            Replug_Stack(PG_Tasks->plug_frame, f, KNOWN(&PG_Tasks->plug));
-            assert(IS_TRASH_DEBUG(&PG_Tasks->plug));
-            PG_Tasks->plug_frame = nullptr;
+        // A task is running and it blocked.  Unplug it, and move it to the
+        // back of the line.
+        //
+        assert(GET_EVAL_FLAG(PG_Tasks->go_frame, ROOT_FRAME));
+        CLEAR_EVAL_FLAG(PG_Tasks->go_frame, ROOT_FRAME);  // for unplug
+        assert(not PG_Tasks->plug_frame);
+        PG_Tasks->plug_frame = f;
+        Unplug_Stack(
+            &PG_Tasks->plug,
+            f,
+            PG_Tasks->go_frame->prior
+        );
+        PG_Tasks = PG_Tasks->next;  // circularly linked
 
-            // The scheduler tests when root frames are reached if that root
-            // frame is the function frame of the GO action of the currently
-            // running task (PG_Task).  If so, that task is disposed of.
-            //
-            assert(NOT_EVAL_FLAG(PG_Tasks->go_frame, ROOT_FRAME));
-            SET_EVAL_FLAG(PG_Tasks->go_frame, ROOT_FRAME);  // uncrossable
-        }
+        // Now start up the first task available (last one to execute).
+        //
+        Replug_Stack(PG_Tasks->plug_frame, f, KNOWN(&PG_Tasks->plug));
+        assert(IS_TRASH_DEBUG(&PG_Tasks->plug));
+        PG_Tasks->plug_frame = nullptr;
+
+        // The scheduler tests when root frames are reached if that root
+        // frame is the function frame of the GO action of the currently
+        // running task (PG_Task).  If so, that task is disposed of.
+        //
+        assert(NOT_EVAL_FLAG(PG_Tasks->go_frame, ROOT_FRAME));
+        SET_EVAL_FLAG(PG_Tasks->go_frame, ROOT_FRAME);  // uncrossable
 
         r = R_CONTINUATION;
     }

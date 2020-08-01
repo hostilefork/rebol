@@ -274,8 +274,10 @@ inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_Jump *j) {
 // updated to the new PG_Tasks we are inserting as task).
 //
 inline static void Circularly_Link_Task(REBTSK *task) {
-    if (PG_Tasks == nullptr)
+    if (PG_Tasks == nullptr) {
         task->next = task;
+        PG_Tasks = task;
+    }
     else {
         REBTSK *temp = PG_Tasks;
         while (temp->next != PG_Tasks)
@@ -284,7 +286,6 @@ inline static void Circularly_Link_Task(REBTSK *task) {
 
         task->next = PG_Tasks;
     }
-    PG_Tasks = task;
 }
 
 

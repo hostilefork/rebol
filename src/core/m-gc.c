@@ -182,15 +182,20 @@ static void Queue_Mark_Node_Deep(void *p)
     if (GET_SERIES_INFO(s, INACCESSIBLE)) {
         //
         // !!! All inaccessible nodes should be collapsed and canonized into
-        // a universal inaccessible node so the stub can be freed.  For now,
-        // just collapse each stub to make it uniform like that canon form.
+        // a universal inaccessible node so the stub can be freed.  But since
+        // bound words depend on contexts to supply their spellings (to free
+        // up space in the word cell), we'd need to notice inaccessible word
+        // bindings and move their spellings back into them.  (This would
+        // make them decay to being unbound, which causes an error, but it
+        // would be more helpful to have a flag to indicate their binding
+        // went stale...some other cell flag?)  For now, just leave it.
         //
-        TRASH_POINTER_IF_DEBUG(MISC(s).trash);
+        /*TRASH_POINTER_IF_DEBUG(MISC(s).trash);
         TRASH_POINTER_IF_DEBUG(LINK(s).trash);
         s->header.bits &= ~(
             SERIES_FLAG_LINK_NODE_NEEDS_MARK
                 | SERIES_FLAG_MISC_NODE_NEEDS_MARK
-        );
+        );*/
         s->header.bits |= NODE_FLAG_MARKED;
         return;
     }

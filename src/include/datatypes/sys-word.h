@@ -213,27 +213,19 @@ inline static bool SAME_STR(const REBSTR *s1, const REBSTR *s2) {
 // But they won't if there are any words outstanding that hold that spelling,
 // so this is a safe technique as long as these words are GC-mark-visible.
 //
-inline static REBSTR *VAL_STORED_CANON(unstable REBCEL(const*) v) {
-    assert(ANY_WORD_KIND(CELL_HEART(v)));
-    REBSTR *str = STR(PAYLOAD(Any, v).first.node);
+inline static const REBSTR *VAL_STORED_CANON(unstable REBCEL(const*) v) {
+    const REBSTR *str = VAL_WORD_SPELLING(v);
     assert(GET_SERIES_INFO(str, STRING_CANON));
     return str;
 }
 
 inline static OPT_REBSYM VAL_WORD_SYM(unstable REBCEL(const*) v) {
     assert(PG_Symbol_Canons);  // all syms are 0 prior to Init_Symbols()
-    assert(ANY_WORD_KIND(CELL_HEART(v)));
-    return STR_SYMBOL(STR(PAYLOAD(Any, v).first.node));
+    return STR_SYMBOL(VAL_WORD_SPELLING(v));
 }
 
-#define INIT_WORD_INDEX_UNCHECKED(v,i) \
-    PAYLOAD(Any, (v)).second.i32 = cast(REBINT, i)
-
 inline static void INIT_WORD_INDEX(unstable RELVAL *v, REBLEN i) {
-  #if !defined(NDEBUG)
-    INIT_WORD_INDEX_Extra_Checks_Debug(v, i); // not inline, needs FRM_PHASE()
-  #endif
-    INIT_WORD_INDEX_UNCHECKED(v, i);
+    PAYLOAD(Any, v).second.i32 = cast(REBINT, i);
 }
 
 inline static REBVAL *Init_Any_Word(
@@ -242,10 +234,10 @@ inline static REBVAL *Init_Any_Word(
     const REBSTR *spelling
 ){
     RESET_CELL(out, kind, CELL_FLAG_FIRST_IS_NODE);
-    INIT_VAL_NODE(out, spelling);
-    INIT_BINDING(out, UNBOUND);
+    INIT_VAL_NODE(out, nullptr);  // !!! TBD: specifier cache
+    INIT_BINDING(out, NOD(spelling));
   #if !defined(NDEBUG)
-    INIT_WORD_INDEX_UNCHECKED(out, -1);  // index not heeded if no binding
+    INIT_WORD_INDEX(out, -1);  // index not heeded if no binding
   #endif
     return cast(REBVAL*, out);
 }
@@ -258,12 +250,11 @@ inline static REBVAL *Init_Any_Word(
 inline static REBVAL *Init_Any_Word_Bound(
     unstable RELVAL *out,
     enum Reb_Kind type,
-    const REBSTR *spelling,
-    REBCTX *context,
+    REBCTX *context,  // spelling determined by context and index
     REBLEN index
 ){
     RESET_CELL(out, type, CELL_FLAG_FIRST_IS_NODE);
-    INIT_VAL_NODE(out, spelling);
+    INIT_VAL_NODE(out, nullptr);  // TBD: specifier cache
     INIT_BINDING(out, context);
     INIT_WORD_INDEX(out, index);
     return cast(REBVAL*, out);

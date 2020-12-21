@@ -2566,6 +2566,7 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
         //
         if (
             GET_CELL_FLAG(DS_TOP, FIRST_IS_NODE)
+            and VAL_NODE(DS_TOP) != nullptr  // null legal in node slots ATM
             and IS_SER_ARRAY(VAL_NODE(DS_TOP))
         ){
             REBARR *a = ARR(VAL_NODE(DS_TOP));

@@ -597,7 +597,7 @@ void Startup_Symbols(REBARR *words)
     unstable RELVAL *word = ARR_HEAD(words);
     for (; NOT_END(word); ++word) {
         assert(IS_WORD(word));  // real word, not fake (e.g. `/` as -slash-0-)
-        REBSTR *canon = VAL_STORED_CANON(word);
+        REBSTR *canon = m_cast(REBSTR*, VAL_STORED_CANON(word));
 
         sym = cast(REBSYM, cast(REBLEN, sym) + 1);
         *SER_AT(REBSTR*, PG_Symbol_Canons, cast(REBLEN, sym)) = canon;
@@ -693,31 +693,3 @@ void Shutdown_Interning(void)
 
     Free_Unmanaged_Series(PG_Canons_By_Hash);
 }
-
-
-#if !defined(NDEBUG)
-
-//
-//  INIT_WORD_INDEX_Extra_Checks_Debug: C
-//
-// Previously used VAL_WORD_CONTEXT() to check that the spelling was legit.
-// However, that would incarnate running frames.
-//
-void INIT_WORD_INDEX_Extra_Checks_Debug(unstable RELVAL *v, REBLEN i)
-{
-    assert(IS_WORD_BOUND(v));
-    REBNOD *binding = VAL_BINDING(v);
-    REBARR *keysource;
-    if (NOT_SERIES_FLAG(binding, MANAGED))
-        keysource = ACT_PARAMLIST(FRM_PHASE(FRM(LINK_KEYSOURCE(binding))));
-    else if (GET_ARRAY_FLAG(binding, IS_DETAILS))
-        keysource = ACT_PARAMLIST(ACT(binding));
-    else
-        keysource = CTX_KEYLIST(CTX(binding));
-    assert(SAME_STR(
-        VAL_KEY_SPELLING(ARR_AT(keysource, i)),
-        VAL_WORD_SPELLING(v)
-    ));
-}
-
-#endif

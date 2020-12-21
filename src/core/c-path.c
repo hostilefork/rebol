@@ -645,16 +645,17 @@ bool Eval_Path_Throws_Core(
         unstable REBVAL *bottom = DS_AT(dsp_orig + 1);
         unstable REBVAL *top = DS_TOP;
 
+        DECLARE_LOCAL (temp);
         while (top > bottom) {
             assert(IS_SYM_WORD(bottom) and not IS_WORD_BOUND(bottom));
             assert(IS_SYM_WORD(top) and not IS_WORD_BOUND(top));
 
-            // It's faster to just swap the spellings.  (If binding
-            // mattered, we'd need to swap the whole cells).
+            // We used to be able to just swap the spellings here, but now
+            // the spellings tie into the binding so we have to swap cells.
             //
-            const REBSTR *temp = VAL_WORD_SPELLING(bottom);
-            INIT_VAL_NODE(bottom, VAL_WORD_SPELLING(top));
-            INIT_VAL_NODE(top, temp);
+            Blit_Specific(temp, bottom);
+            Blit_Specific(bottom, top);
+            Blit_Specific(top, temp);
 
             top--;
             bottom++;

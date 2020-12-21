@@ -452,7 +452,7 @@ bool Is_Value_Frozen_Deep(unstable const RELVAL *v) {
         return true;  // payloads that live in cell are immutable
 
     REBNOD *node = VAL_NODE(cell);
-    if (node->header.bits & NODE_BYTEMASK_0x01_CELL)
+    if (node == nullptr or (node->header.bits & NODE_BYTEMASK_0x01_CELL))
         return true;  // !!! Will all non-quoted Pairings be frozen?
 
     // Frozen deep should be set even on non-arrays, e.g. all frozen shallow

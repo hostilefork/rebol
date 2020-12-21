@@ -194,7 +194,13 @@ inline static REBFRM *CTX_FRAME_MAY_FAIL(REBCTX *c) {
     SER_AT(REBVAL, SER(CTX_VARLIST(c)), 1) // may fail() if inaccessible
 
 inline static REBVAL *CTX_KEY(REBCTX *c, REBLEN n) {
-    assert(NOT_SERIES_INFO(c, INACCESSIBLE));
+    //
+    // !!! Inaccessible contexts have to retain their keylists, at least
+    // until all words bound to them have been adjusted somehow, because the
+    // words depend on those keys for their spellings (once bound)
+    //
+    /* assert(NOT_SERIES_INFO(c, INACCESSIBLE)); */
+
     assert(GET_ARRAY_FLAG(CTX_VARLIST(c), IS_VARLIST));
     assert(n != 0 and n <= CTX_LEN(c));
     return cast(REBVAL*, cast(REBSER*, CTX_KEYLIST(c))->content.dynamic.data)

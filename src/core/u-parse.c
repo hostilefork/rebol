@@ -142,13 +142,18 @@
 // bit lower level to try and still have protections but speed up some--and
 // since there's no inlining in the debug build, FETCH_TO_BAR_OR_END=>macro
 //
-inline static bool IS_BAR(const RELVAL *v)
-    { return IS_WORD(v) and VAL_NODE(v) == NOD(PG_Bar_Canon); }
+// !!! The quick check that was here was undermined by words no longer always
+// storing their symbols in the word; this will likely have to hit a keylist.
+//
+inline static bool IS_BAR(const RELVAL *v) {
+    return KIND3Q_BYTE_UNCHECKED(v) == REB_WORD
+        and VAL_WORD_SPELLING(v) == PG_Bar_Canon;  // caseless | always canon
+}
 
 #define FETCH_TO_BAR_OR_END(f) \
     while (NOT_END(P_RULE) and not ( \
         KIND3Q_BYTE_UNCHECKED(P_RULE) == REB_WORD \
-        and VAL_NODE(P_RULE) == NOD(PG_Bar_Canon) \
+        and VAL_WORD_SPELLING(P_RULE) == PG_Bar_Canon \
     )){ \
         FETCH_NEXT_RULE(f); \
     }

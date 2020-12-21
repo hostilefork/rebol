@@ -346,14 +346,17 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
       case REB_SYM_WORD: {
         assert(GET_CELL_FLAG(v, FIRST_IS_NODE));
 
-        const REBSTR *spelling = STR(PAYLOAD(Any, v).first.node);
+        assert(PAYLOAD(Any, v).first.node == nullptr);  // for future use
+
+        const REBSTR *spelling = VAL_WORD_SPELLING(v);
         assert(Is_Series_Frozen(SER(spelling)));
 
-        // A word marks the specific spelling it uses, but not the canon
-        // value.  That's because if the canon value gets GC'd, then
-        // another value might become the new canon during that sweep.
+        // !!! Whether you can count at this point on a spelling being GC
+        // marked depends on whether it's the binding or not; this is a
+        // change from when spellings were always pointed to by the cell.
         //
-        assert(Is_Marked(spelling));
+        if (IS_WORD_UNBOUND(v))
+            assert(Is_Marked(spelling));
 
         assert(  // GC can't run during binding, only time bind indices != 0
             NOT_SERIES_INFO(spelling, STRING_CANON)

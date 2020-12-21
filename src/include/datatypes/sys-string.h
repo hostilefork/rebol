@@ -751,9 +751,13 @@ inline static REBCHR(*) STR_AT(const_if_c REBSTR *s, REBLEN at) {
       { return STR_AT(m_cast(REBSTR*, s), at); }
 #endif
 
+inline static const REBSTR* VAL_WORD_SPELLING(unstable REBCEL(const*) v);
+
 inline static const REBSTR *VAL_STRING(unstable REBCEL(const*) v) {
-    assert(ANY_STRING_KIND(CELL_HEART(v)) or ANY_WORD_KIND(CELL_HEART(v)));
-    return STR(VAL_NODE(v));  // VAL_SERIES() would assert
+    if (ANY_STRING_KIND(CELL_HEART(v)))
+        return STR(VAL_NODE(v));  // VAL_SERIES() would assert
+
+    return VAL_WORD_SPELLING(v);  // asserts ANY_WORD_KIND() for heart
 }
 
 #define VAL_STRING_ENSURE_MUTABLE(v) \

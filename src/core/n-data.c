@@ -275,7 +275,6 @@ REBNATIVE(in)
                         return Init_Any_Word_Bound(
                             D_OUT,
                             VAL_TYPE(word),
-                            VAL_WORD_SPELLING(word),
                             VAL_CONTEXT(v),
                             index
                         );
@@ -303,7 +302,6 @@ REBNATIVE(in)
     Init_Any_Word_Bound(
         D_OUT,
         VAL_TYPE(word),
-        VAL_WORD_SPELLING(word),
         VAL_CONTEXT(context),
         index
     );

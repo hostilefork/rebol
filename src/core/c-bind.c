@@ -387,12 +387,9 @@ static void Clonify_And_Bind_Relative(
             INIT_BINDING(v, relative);  // "incomplete func" (LETs gathering?)
 
             // !!! Right now we don't actually add the parameters as we go.
-            // This means INIT_WORD_INDEX() will complain when binding the
-            // LET cases because it doesn't see a corresponding key.  The
-            // efficiency may not be worth not just trusting the expansion
-            // logic--review.  For now, don't check when we set the index.
+            // This means INIT_WORD_INDEX()
             //
-            INIT_WORD_INDEX_UNCHECKED(v, n);
+            INIT_WORD_INDEX(v, n);
         }
     }
     else if (ANY_ARRAY_OR_PATH_KIND(heart)) {

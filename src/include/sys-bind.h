@@ -398,21 +398,18 @@ inline static void INIT_BINDING_MAY_MANAGE(
 }
 
 
+// The unbound state for an ANY-WORD! is to hold its spelling.  Once bound,
+// the spelling is derived by indexing into the keylist of the binding (if
+// bound directly to a context) or into the paramlist (if relative to an
+// action, requiring a frame specifier to fully resolve).
+//
 inline static bool IS_WORD_UNBOUND(unstable REBCEL(const*) v) {
     assert(ANY_WORD_KIND(CELL_HEART(v)));
-    return not EXTRA(Binding, v).node;
+    return GET_SERIES_FLAG(SER(EXTRA(Binding, v).node), IS_STRING);
 }
 
 #define IS_WORD_BOUND(v) \
     (not IS_WORD_UNBOUND(v))
-
-inline static const REBSTR *VAL_WORD_SPELLING(unstable REBCEL(const*) v) {
-    assert(ANY_WORD_KIND(CELL_HEART(v)));
-    return STR(PAYLOAD(Any, v).first.node);
-}
-
-#define VAL_WORD_CANON(v) \
-    STR_CANON(VAL_WORD_SPELLING(v))
 
 inline static REBLEN VAL_WORD_INDEX(unstable REBCEL(const*) v) {
     assert(IS_WORD_BOUND(v));
@@ -422,9 +419,10 @@ inline static REBLEN VAL_WORD_INDEX(unstable REBCEL(const*) v) {
 }
 
 inline static void Unbind_Any_Word(unstable RELVAL *v) {
-    INIT_BINDING(v, UNBOUND);
+    const REBSTR *spelling = VAL_WORD_SPELLING(v);
+    INIT_BINDING(v, NOD(spelling));
   #if !defined(NDEBUG)
-    INIT_WORD_INDEX_UNCHECKED(v, -1);
+    INIT_WORD_INDEX(v, -1);
   #endif
 }
 
@@ -440,6 +438,27 @@ inline static REBCTX *VAL_WORD_CONTEXT(unstable const REBVAL *v) {
     FAIL_IF_INACCESSIBLE_CTX(c);
     return c;
 }
+
+// When a word is bound, its spelling is derived from the context it is bound
+// to.  This means getting at the spelling will cost slightly more, but frees
+// up space in word cell for other features.  Note that this means if a
+// context is freed, its keylist must be retained to provide the words.
+//
+inline static const REBSTR *VAL_WORD_SPELLING(unstable REBCEL(const*) v) {
+    assert(ANY_WORD_KIND(CELL_HEART(v)));
+    if (IS_WORD_UNBOUND(v))
+        return STR(EXTRA(Any, v).node);
+
+    const REBARR *binding = ARR(VAL_BINDING(v));
+    if (GET_ARRAY_FLAG(binding, IS_DETAILS))  // relative
+        return VAL_PARAM_SPELLING(ACT_PARAM(ACT(binding), VAL_WORD_INDEX(v)));
+
+    assert(GET_ARRAY_FLAG(binding, IS_VARLIST));  // specific
+    return CTX_KEY_SPELLING(CTX(binding), VAL_WORD_INDEX(v));
+}
+
+#define VAL_WORD_CANON(v) \
+    STR_CANON(VAL_WORD_SPELLING(v))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -687,8 +706,11 @@ inline static REBVAL *Derelativize(
 
     REBNOD *binding = EXTRA(Binding, v).node;
 
-    if (not binding) {
-        EXTRA(Binding, out).node = UNBOUND;
+    if (
+        not binding  // v-- unbound word stores spelling in binding slot
+        or (binding->header.bits & SERIES_FLAG_IS_STRING)
+    ){
+        EXTRA(Binding, out).node = binding;
     }
     else if (binding->header.bits & ARRAY_FLAG_IS_DETAILS) {
         //

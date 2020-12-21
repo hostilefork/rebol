@@ -143,6 +143,7 @@ REBCTX *Make_Context_For_Action_Push_Partials(
 
     REBLEN num_slots = ACT_NUM_PARAMS(act) + 1;  // +1 is for CTX_ARCHETYPE()
     REBARR *varlist = Make_Array_Core(num_slots, SERIES_MASK_VARLIST);
+    INIT_CTX_KEYLIST_SHARED(CTX(varlist), ACT_PARAMLIST(act));
 
     REBVAL *rootvar = RESET_CELL(
         ARR_HEAD(varlist),
@@ -212,7 +213,6 @@ REBCTX *Make_Context_For_Action_Push_Partials(
             Init_Any_Word_Bound( // push a SYM-WORD! to data stack
                 DS_PUSH(),
                 REB_SYM_WORD,
-                VAL_STORED_CANON(special),
                 exemplar,
                 partial_index
             );
@@ -229,7 +229,7 @@ REBCTX *Make_Context_For_Action_Push_Partials(
 
             assert(not IS_WORD_BOUND(ordered));  // we bind only one
             INIT_BINDING(ordered, varlist);
-            INIT_WORD_INDEX_UNCHECKED(ordered, index);
+            INIT_WORD_INDEX(ordered, index);
 
             if (not Is_Typeset_Empty(param))  // needs argument
                 goto continue_unspecialized;
@@ -250,7 +250,6 @@ REBCTX *Make_Context_For_Action_Push_Partials(
     TERM_ARRAY_LEN(varlist, num_slots);
     MISC_META_NODE(varlist) = nullptr;  // GC sees this, we must initialize
 
-    INIT_CTX_KEYLIST_SHARED(CTX(varlist), ACT_PARAMLIST(act));
     return CTX(varlist);
 }
 
@@ -417,7 +416,6 @@ bool Specialize_Action_Throws(
                         Init_Any_Word_Bound(
                             arg,
                             REB_SYM_WORD,
-                            VAL_STORED_CANON(ordered),
                             exemplar,
                             VAL_WORD_INDEX(ordered)
                         );

@@ -875,6 +875,10 @@ inline static REBVAL *SPECIFIC(const_if_c RELVAL *v) {
 
 inline static REBNOD *VAL_BINDING(unstable REBCEL(const*) v) {
     assert(Is_Bindable(v));
+    if (not EXTRA(Binding, v).node)
+        return UNBOUND;
+    if (EXTRA(Binding, v).node->header.bits & SERIES_FLAG_IS_STRING)
+        return UNBOUND;
     return EXTRA(Binding, v).node;
 }
 
@@ -883,8 +887,8 @@ inline static void INIT_BINDING(unstable RELVAL *v, const void *p) {
     EXTRA(Binding, v).node = m_cast(REBNOD*, binding);
 
   #if !defined(NDEBUG)
-    if (not binding)
-        return;  // e.g. UNBOUND
+    if (not binding or (binding->header.bits & SERIES_FLAG_IS_STRING))
+        return;  // e.g. UNBOUND (words use strings to indicate unbounds)
 
     assert(Is_Bindable(v));  // works on partially formed values
 

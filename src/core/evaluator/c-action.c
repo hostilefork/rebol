@@ -310,7 +310,7 @@ bool Process_Action_Maybe_Stale_Throws(REBFRM * const f)
             //
             if (IS_SYM_WORD(f->special)) {
                 REBLEN partial_index = VAL_WORD_INDEX(f->special);
-                REBSTR *partial_canon = VAL_STORED_CANON(f->special);
+                const REBSTR *partial_canon = VAL_STORED_CANON(f->special);
 
                 Init_Sym_Word(DS_PUSH(), partial_canon);
                 INIT_BINDING(DS_TOP, f->varlist);

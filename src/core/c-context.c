@@ -919,7 +919,6 @@ REBARR *Context_To_Array(const RELVAL *context, REBINT mode)
             Init_Any_Word_Bound(
                 DS_PUSH(),
                 (mode & 2) ? REB_SET_WORD : REB_WORD,
-                VAL_KEY_SPELLING(key),
                 VAL_CONTEXT(context),
                 n
             );

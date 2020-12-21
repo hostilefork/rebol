@@ -575,15 +575,15 @@ void Rebind_Values_Deep(
             // binding pointer (in the function's value cell) is changed to
             // be this object.
             //
-            REBSPC *binding = VAL_BINDING(v);
-            if (binding == UNBOUND) {
+            REBCTX *stored = VAL_ACTION_BINDING(v);
+            if (stored == UNBOUND) {
                 //
                 // Leave NULL bindings alone.  Hence, unlike in R3-Alpha, an
                 // ordinary FUNC won't forward its references.  An explicit
                 // BIND to an object must be performed, or METHOD should be
                 // used to do it implicitly.
             }
-            else if (REB_FRAME == CTX_TYPE(CTX(binding))) {
+            else if (REB_FRAME == CTX_TYPE(stored)) {
                 //
                 // Leave bindings to frame alone, e.g. RETURN's definitional
                 // reference...may be an unnecessary optimization as they
@@ -591,9 +591,8 @@ void Rebind_Values_Deep(
                 // frames" (would that ever make sense?)
             }
             else {
-                REBCTX *stored = CTX(binding);
                 if (Is_Overriding_Context(stored, dst))
-                    INIT_BINDING(v, dst);
+                    INIT_VAL_ACTION_BINDING(v, dst);
                 else {
                     // Could be bound to a reified frame context, or just
                     // to some other object not related to this derivation.

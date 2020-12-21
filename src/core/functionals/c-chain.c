@@ -125,7 +125,7 @@ REB_R Chainer_Dispatcher(REBFRM *f)
     REBFRM *sub = Push_Downshifted_Frame(FRM_SPARE(f), f);
 
     INIT_FRM_PHASE(sub, VAL_ACTION(chained));
-    FRM_BINDING(sub) = VAL_BINDING(chained);
+    FRM_BINDING(sub) = NOD(VAL_ACTION_BINDING(chained));
 
     sub->original = VAL_ACTION(chained);
     sub->label = VAL_ACTION_LABEL(chained);
@@ -155,7 +155,7 @@ REB_R Chainer_Dispatcher(REBFRM *f)
         if (IS_END(chained))
             break;
 
-        Push_Action(sub, VAL_ACTION(chained), VAL_BINDING(chained));
+        Push_Action(sub, VAL_ACTION(chained), VAL_ACTION_BINDING(chained));
 
         // We use the same mechanism as enfix operations do...give the
         // next chain step its first argument coming from f->out

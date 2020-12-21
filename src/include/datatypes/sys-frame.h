@@ -624,7 +624,7 @@ inline static void Begin_Action_Core(
 inline static void Push_Action(
     REBFRM *f,
     REBACT *act,
-    REBNOD *binding
+    REBCTX *binding  // actions may only be bound to contexts ATM
 ){
     assert(NOT_EVAL_FLAG(f, FULFILL_ONLY));
     assert(NOT_EVAL_FLAG(f, RUNNING_ENFIX));
@@ -689,7 +689,7 @@ inline static void Push_Action(
   sufficient_allocation:
 
     INIT_VAL_CONTEXT_PHASE(f->rootvar, act);  // FRM_PHASE() (can be dummy)
-    EXTRA(Binding, f->rootvar).node = binding; // FRM_BINDING()
+    EXTRA(Binding, f->rootvar).node = NOD(binding);  // FRM_BINDING()
 
     s->content.dynamic.used = num_args + 1;
     unstable RELVAL *tail = ARR_TAIL(f->varlist);

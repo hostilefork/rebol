@@ -297,6 +297,6 @@ REBNATIVE(hijack)
         D_OUT,
         victim,
         VAL_ACTION_LABEL(ARG(victim)),
-        VAL_BINDING(ARG(hijacker))
+        VAL_ACTION_BINDING(ARG(hijacker))
     );
 }

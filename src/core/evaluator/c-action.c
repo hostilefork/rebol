@@ -1070,7 +1070,7 @@ bool Process_Action_Maybe_Stale_Throws(REBFRM * const f)
         if (IS_ACTION(label)) {
             if (
                 VAL_ACTION(label) == NATIVE_ACT(unwind)
-                and VAL_BINDING(label) == NOD(f->varlist)
+                and VAL_ACTION_BINDING(label) == CTX(f->varlist)
             ){
                 // Eval_Core catches unwinds to the current frame, so throws
                 // where the "/name" is the JUMP native with a binding to
@@ -1087,7 +1087,7 @@ bool Process_Action_Maybe_Stale_Throws(REBFRM * const f)
             }
             else if (
                 VAL_ACTION(label) == NATIVE_ACT(redo)
-                and VAL_BINDING(label) == NOD(f->varlist)
+                and VAL_ACTION_BINDING(label) == CTX(f->varlist)
             ){
                 // This was issued by REDO, and should be a FRAME! with
                 // the phase and binding we are to resume with.

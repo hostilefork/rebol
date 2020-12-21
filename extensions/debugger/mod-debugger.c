@@ -212,7 +212,7 @@ REBNATIVE(resume)
         resume,
         FRM_PHASE(frame_),
         FRM_LABEL(frame_),
-        FRM_BINDING(frame_)
+        CTX(FRM_BINDING(frame_))
     );
 
     // We don't want to run the expression yet.  If we tried to run code from

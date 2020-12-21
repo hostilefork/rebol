@@ -35,7 +35,7 @@ static bool Same_Action(REBCEL(const*) a, REBCEL(const*) b)
         // paramlist, but the binding is different in the REBVAL instances
         // in order to know where to "exit from".
         //
-        return VAL_BINDING(a) == VAL_BINDING(b);
+        return VAL_ACTION_BINDING(a) == VAL_ACTION_BINDING(b);
     }
 
     return false;
@@ -97,7 +97,7 @@ REB_R MAKE_Action(
             out,
             Make_Action_From_Exemplar(exemplar),
             VAL_FRAME_LABEL(arg),
-            VAL_BINDING(arg)  // is this right?
+            CTX(VAL_BINDING(arg))  // is this right?
         );
     }
 
@@ -246,7 +246,7 @@ REBTYPE(Action)
             D_OUT,
             proxy,
             VAL_ACTION_LABEL(action),  // keep symbol (if any) from original
-            VAL_BINDING(action)  // same binding (e.g. RETURN to same frame)
+            VAL_ACTION_BINDING(action)  // same (e.g. RETURN to same frame)
         ); }
 
       case SYM_REFLECT: {

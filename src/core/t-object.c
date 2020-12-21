@@ -807,7 +807,7 @@ REBTYPE(Context)
                 D_OUT,
                 VAL_PHASE_ELSE_ARCHETYPE(context),  // archetypal, no binding
                 VAL_FRAME_LABEL(context),
-                VAL_BINDING(context)  // e.g. where RETURN returns to
+                CTX(VAL_BINDING(context))  // e.g. where RETURN returns to
             );
         }
 

@@ -863,7 +863,7 @@ REBNATIVE(applique)
     // f->param assigned above
     f->special = f->arg; // signal only type-check the existing data
     INIT_FRM_PHASE(f, VAL_ACTION(applicand));
-    FRM_BINDING(f) = VAL_BINDING(applicand);
+    FRM_BINDING(f) = NOD(VAL_ACTION_BINDING(applicand));
 
     Begin_Prefix_Action(f, VAL_ACTION_LABEL(applicand));
 

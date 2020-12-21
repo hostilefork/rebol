@@ -152,7 +152,7 @@ bool Interpreted_Dispatch_Details_1_Throws(
         if (
             IS_ACTION(label)
             and VAL_ACTION(label) == NATIVE_ACT(unwind)
-            and VAL_BINDING(label) == NOD(f->varlist)
+            and VAL_ACTION_BINDING(label) == CTX(f->varlist)
         ){
             // !!! Historically, UNWIND was caught by the main action
             // evaluation loop.  However, because throws bubble up through

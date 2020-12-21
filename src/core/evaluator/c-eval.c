@@ -267,7 +267,7 @@ bool Eval_Maybe_Stale_Throws(REBFRM * const f)
             Push_Action(
                 subframe,
                 VAL_ACTION(f->u.reval.value),
-                VAL_BINDING(f->u.reval.value)
+                VAL_ACTION_BINDING(f->u.reval.value)
             );
             Begin_Enfix_Action(subframe, VAL_ACTION_LABEL(f->u.reval.value));
                 // ^-- invisibles cache NO_LOOKAHEAD
@@ -456,7 +456,7 @@ bool Eval_Maybe_Stale_Throws(REBFRM * const f)
     Push_Action(
         subframe, 
         VAL_ACTION(unwrap(gotten)),
-        VAL_BINDING(unwrap(gotten))
+        VAL_ACTION_BINDING(unwrap(gotten))
     );
     Begin_Enfix_Action(subframe, VAL_WORD_SPELLING(v));
 
@@ -524,7 +524,7 @@ bool Eval_Maybe_Stale_Throws(REBFRM * const f)
       case REB_ACTION: {
         DECLARE_ACTION_SUBFRAME (subframe, f);
         Push_Frame(f->out, subframe);
-        Push_Action(subframe, VAL_ACTION(v), VAL_BINDING(v));
+        Push_Action(subframe, VAL_ACTION(v), VAL_ACTION_BINDING(v));
         Begin_Prefix_Action(subframe, VAL_ACTION_LABEL(v));
 
         // We'd like `10 -> = 5 + 5` to work, and to do so it reevaluates in
@@ -624,7 +624,7 @@ bool Eval_Maybe_Stale_Throws(REBFRM * const f)
 
             DECLARE_ACTION_SUBFRAME (subframe, f);
             Push_Frame(f->out, subframe);
-            Push_Action(subframe, act, VAL_BINDING(unwrap(gotten)));
+            Push_Action(subframe, act, VAL_ACTION_BINDING(unwrap(gotten)));
             Begin_Action_Core(
                 subframe,
                 VAL_WORD_SPELLING(v),  // use word as label
@@ -849,7 +849,11 @@ bool Eval_Maybe_Stale_Throws(REBFRM * const f)
 
             DECLARE_ACTION_SUBFRAME (subframe, f);
             Push_Frame(f->out, subframe);
-            Push_Action(subframe, VAL_ACTION(where), VAL_BINDING(where));
+            Push_Action(
+                subframe,
+                VAL_ACTION(where),
+                VAL_ACTION_BINDING(where)
+            );
             Begin_Prefix_Action(subframe, VAL_ACTION_LABEL(where));
 
             if (where == subframe->out)
@@ -1005,7 +1009,11 @@ bool Eval_Maybe_Stale_Throws(REBFRM * const f)
             //
             DECLARE_ACTION_SUBFRAME (subframe, f);
             Push_Frame(f->out, subframe);
-            Push_Action(subframe, VAL_ACTION(f_spare), VAL_BINDING(f_spare));
+            Push_Action(
+                subframe,
+                VAL_ACTION(f_spare),
+                VAL_ACTION_BINDING(f_spare)
+            );
             Begin_Prefix_Action(subframe, nullptr);  // no label
 
             goto process_action;
@@ -1524,7 +1532,7 @@ bool Eval_Maybe_Stale_Throws(REBFRM * const f)
 
     DECLARE_ACTION_SUBFRAME (subframe, f);
     Push_Frame(f->out, subframe);
-    Push_Action(subframe, enfixed, VAL_BINDING(unwrap(f_next_gotten)));
+    Push_Action(subframe, enfixed, VAL_ACTION_BINDING(unwrap(f_next_gotten)));
     Begin_Enfix_Action(subframe, VAL_WORD_SPELLING(f_next));
 
     Fetch_Next_Forget_Lookback(f);  // advances next

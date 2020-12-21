@@ -152,7 +152,7 @@ REBCTX *Make_Context_For_Action_Push_Partials(
     );
     INIT_VAL_CONTEXT_VARLIST(rootvar, varlist);
     INIT_VAL_CONTEXT_PHASE(rootvar, VAL_ACTION(action));
-    INIT_BINDING(rootvar, VAL_BINDING(action));
+    INIT_BINDING(rootvar, VAL_ACTION_BINDING(action));
 
     const REBVAL *param = ACT_PARAMS_HEAD(act);
     REBVAL *arg = rootvar + 1;
@@ -816,7 +816,7 @@ bool Make_Invocation_Frame_Throws(
     // === END FIRST PART OF CODE FROM DO_SUBFRAME ===
 
     option(const REBSTR*) label = nullptr;  // !!! for now
-    Push_Action(f, VAL_ACTION(action), VAL_BINDING(action));
+    Push_Action(f, VAL_ACTION(action), VAL_ACTION_BINDING(action));
     Begin_Prefix_Action(f, label);
 
     // Use this special mode where we ask the dispatcher not to run, just to

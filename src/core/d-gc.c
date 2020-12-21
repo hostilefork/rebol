@@ -57,7 +57,8 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
     REBNOD *binding;
     if (
         IS_BINDABLE_KIND(heart)
-        and (binding = VAL_BINDING(v))
+        and (binding = EXTRA(Binding, v).node)
+        and not (binding->header.bits & SERIES_FLAG_IS_STRING)
         and NOT_SERIES_INFO(binding, INACCESSIBLE)
     ){
         if (not Is_Node_Cell(binding)) {

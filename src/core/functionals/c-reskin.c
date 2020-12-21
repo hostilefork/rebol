@@ -427,7 +427,7 @@ REBNATIVE(reskinned)
         D_OUT,
         defers,  // REBACT* archetype doesn't contain a binding
         VAL_ACTION_LABEL(ARG(action)),
-        VAL_BINDING(ARG(action))  // inherit binding (user can rebind)
+        VAL_ACTION_BINDING(ARG(action))  // inherit binding (user can rebind)
     );
 }
 

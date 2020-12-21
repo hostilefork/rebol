@@ -150,10 +150,31 @@
 #define VAL_ACTION_SPECIALTY_OR_LABEL_NODE(v) \
     PAYLOAD(Any, (v)).second.node  // lvalue, but a node
 
+#define VAL_ACTION_BINDING_NODE(v) \
+    EXTRA(Any, (v)).node
+
 
 inline static REBARR *ACT_DETAILS(REBACT *a) {
     assert(GET_ARRAY_FLAG(&a->details, IS_DETAILS));
     return &a->details;
+}
+
+inline static REBCTX *VAL_ACTION_BINDING(unstable REBCEL(const*) v) {
+    assert(CELL_HEART(v) == REB_ACTION);
+    REBNOD *binding = VAL_ACTION_BINDING_NODE(v);
+    assert(
+        binding == nullptr
+        or (binding->header.bits & ARRAY_FLAG_IS_VARLIST)
+    );
+    return CTX(binding);  // !!! should do assert above, review build flags
+}
+
+inline static void INIT_VAL_ACTION_BINDING(
+    unstable RELVAL *v,
+    REBCTX *binding
+){
+    assert(IS_ACTION(v));
+    VAL_ACTION_BINDING_NODE(v) = NOD(binding);
 }
 
 
@@ -392,7 +413,7 @@ static inline REBVAL *Init_Action(
     unstable RELVAL *out,
     REBACT *a,
     option(const REBSTR*) label,  // allowed to be ANONYMOUS
-    REBNOD *binding  // allowed to be UNBOUND
+    REBCTX *binding  // allowed to be UNBOUND
 ){
   #if !defined(NDEBUG)
     Extra_Init_Action_Checks_Debug(a);
@@ -404,8 +425,8 @@ static inline REBVAL *Init_Action(
     else {
         // leave as the array from the archetype (array means not a label)
     }
-    assert(VAL_BINDING(out) == UNBOUND);
-    INIT_BINDING(out, binding);
+    assert(VAL_ACTION_BINDING(out) == UNBOUND);
+    VAL_ACTION_BINDING_NODE(out) = NOD(binding);
     return cast(REBVAL*, out);
 }
 

@@ -870,11 +870,11 @@ inline static REBVAL *SPECIFIC(const_if_c RELVAL *v) {
 #define SPECIFIED \
     ((REBSPC*)nullptr)  // cast() doesn't like nullptr, fix
 
-#define UNBOUND \
-   ((REBNOD*)nullptr)  // cast() doesn't like nullptr, fix
+#define UNBOUND nullptr  // not always a REBNOD* (sometimes REBCTX)
 
 inline static REBNOD *VAL_BINDING(unstable REBCEL(const*) v) {
     assert(Is_Bindable(v));
+    assert(CELL_HEART(v) != REB_ACTION);  // use VAL_ACTION_BINDING()
     if (not EXTRA(Binding, v).node)
         return UNBOUND;
     if (EXTRA(Binding, v).node->header.bits & SERIES_FLAG_IS_STRING)

@@ -1177,7 +1177,7 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBACT *a)
 //
 void Get_Maybe_Fake_Action_Body(REBVAL *out, const REBVAL *action)
 {
-    REBSPC *binding = VAL_BINDING(action);
+    REBCTX *binding = VAL_ACTION_BINDING(action);
     REBACT *a = VAL_ACTION(action);
 
     // A Hijacker *might* not need to splice itself in with a dispatcher.

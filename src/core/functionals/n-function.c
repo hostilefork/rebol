@@ -139,7 +139,7 @@ bool Interpreted_Dispatch_Details_1_Throws(
         assert(VAL_PARAM_SYM(ACT_PARAMS_HEAD(phase)) == SYM_RETURN);
         REBVAL *cell = FRM_ARG(f, 1);
         Move_Value(cell, NATIVE_VAL(return));
-        INIT_BINDING(cell, f->varlist);
+        INIT_VAL_ACTION_BINDING(cell, CTX(f->varlist));
         SET_CELL_FLAG(cell, ARG_MARKED_CHECKED);  // necessary?
     }
 
@@ -502,7 +502,7 @@ REB_R Init_Thrown_Unwind_Value(
     Move_Value(out, NATIVE_VAL(unwind));
 
     if (IS_FRAME(level)) {
-        INIT_BINDING(out, VAL_CONTEXT(level));
+        INIT_VAL_CONTEXT_BINDING(out, VAL_CONTEXT(level));
     }
     else if (IS_INTEGER(level)) {
         REBLEN count = VAL_INT32(level);

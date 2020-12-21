@@ -1157,7 +1157,7 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBACT *a)
     );
     INIT_VAL_CONTEXT_VARLIST(rootvar, varlist);
     INIT_VAL_CONTEXT_PHASE(rootvar, a);
-    INIT_BINDING(rootvar, UNBOUND); // !!! is a binding relevant?
+    INIT_VAL_CONTEXT_BINDING(rootvar, UNBOUND); // !!! is a binding relevant?
 
     REBCTX *expired = CTX(varlist);
     INIT_CTX_KEYLIST_SHARED(expired, ACT_PARAMLIST(a));
@@ -1257,7 +1257,7 @@ void Get_Maybe_Fake_Action_Body(REBVAL *out, const REBVAL *action)
             RESET_VAL_HEADER(slot, REB_GROUP, CELL_FLAG_FIRST_IS_NODE);
             INIT_VAL_NODE(slot, VAL_ARRAY(body));
             VAL_INDEX_RAW(slot) = 0;
-            INIT_BINDING(slot, a);  // relative binding
+            INIT_SPECIFIER(slot, a);  // relative binding
 
             maybe_fake_body = fake;
         }
@@ -1268,7 +1268,7 @@ void Get_Maybe_Fake_Action_Body(REBVAL *out, const REBVAL *action)
         RESET_VAL_HEADER(out, REB_BLOCK, CELL_FLAG_FIRST_IS_NODE);
         INIT_VAL_NODE(out, maybe_fake_body);
         VAL_INDEX_RAW(out) = 0;
-        INIT_BINDING(out, Make_Expired_Frame_Ctx_Managed(a));
+        INIT_SPECIFIER(out, Make_Expired_Frame_Ctx_Managed(a));
         return;
     }
 

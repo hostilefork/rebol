@@ -152,7 +152,7 @@ REBCTX *Make_Context_For_Action_Push_Partials(
     );
     INIT_VAL_CONTEXT_VARLIST(rootvar, varlist);
     INIT_VAL_CONTEXT_PHASE(rootvar, VAL_ACTION(action));
-    INIT_BINDING(rootvar, VAL_ACTION_BINDING(action));
+    INIT_VAL_CONTEXT_BINDING(rootvar, VAL_ACTION_BINDING(action));
 
     const REBVAL *param = ACT_PARAMS_HEAD(act);
     REBVAL *arg = rootvar + 1;

@@ -1032,7 +1032,7 @@ REBCTX *Merge_Contexts_Selfish_Managed(REBCTX *parent1, REBCTX *parent2)
     );
     INIT_VAL_CONTEXT_VARLIST(rootvar, varlist);
     INIT_VAL_CONTEXT_PHASE(rootvar, nullptr);
-    INIT_BINDING(rootvar, UNBOUND);
+    INIT_VAL_CONTEXT_BINDING(rootvar, UNBOUND);
 
     // Copy parent1 values.  (Can't use memcpy() because it would copy things
     // like protected bits...)

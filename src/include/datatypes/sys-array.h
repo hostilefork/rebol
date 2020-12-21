@@ -645,7 +645,7 @@ inline static RELVAL *Init_Relative_Block_At(
     RELVAL *block = RESET_CELL(out, REB_BLOCK, CELL_FLAG_FIRST_IS_NODE);
     INIT_VAL_NODE(block, array);
     VAL_INDEX_RAW(block) = index;
-    INIT_BINDING(block, action);
+    INIT_SPECIFIER(block, action);
     return out;
 }
 

@@ -186,7 +186,7 @@ REBNATIVE(bind)
     //
     if (IS_ACTION(v)) {
         Move_Value(D_OUT, v);
-        INIT_BINDING(D_OUT, VAL_CONTEXT(context));
+        INIT_VAL_ACTION_BINDING(D_OUT, VAL_CONTEXT(context));
         return Quotify(D_OUT, num_quotes);
     }
 
@@ -362,11 +362,11 @@ bool Did_Get_Binding_Of(REBVAL *out, const REBVAL *v)
 {
     switch (VAL_TYPE(v)) {
     case REB_ACTION: {
-        REBNOD *n = VAL_BINDING(v); // see METHOD... RETURNs also have binding
-        if (not n)
+        REBCTX *binding = VAL_ACTION_BINDING(v); // e.g. METHOD, RETURNs
+        if (not binding)
             return false;
 
-        Init_Frame(out, CTX(n), ANONYMOUS);  // !!! Review ANONYMOUS
+        Init_Frame(out, binding, ANONYMOUS);  // !!! Review ANONYMOUS
         break; }
 
     case REB_WORD:
@@ -412,12 +412,12 @@ bool Did_Get_Binding_Of(REBVAL *out, const REBVAL *v)
         REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
         if (f) {
             INIT_VAL_CONTEXT_PHASE(out, FRM_PHASE(f));
-            INIT_BINDING(out, FRM_BINDING(f));
+            INIT_VAL_CONTEXT_BINDING(out, FRM_BINDING(f));
         }
         else {
             // !!! Assume the canon FRAME! value in varlist[0] is useful?
             //
-            assert(VAL_BINDING(out) == UNBOUND); // canons have no binding
+            assert(VAL_CONTEXT_BINDING(out) == UNBOUND); // canon, no binding
         }
     }
 

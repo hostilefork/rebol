@@ -389,7 +389,7 @@ REB_R MAKE_Varargs(
         RESET_CELL(out, REB_VARARGS, CELL_MASK_VARARGS);
         VAL_VARARGS_PHASE_NODE(out) = nullptr;
         UNUSED(VAL_VARARGS_SIGNED_PARAM_INDEX(out));  // trashes in C++11
-        INIT_BINDING(out, array1);
+        INIT_VAL_VARARGS_BINDING(out, array1);
 
         return out;
     }
@@ -559,9 +559,9 @@ REBINT CT_Varargs(REBCEL(const*) a, REBCEL(const*) b, bool strict)
     // expired varargs, because the expired stub should be kept alive as
     // long as its identity is needed).
     //
-    if (VAL_BINDING(a) == VAL_BINDING(b))
+    if (VAL_VARARGS_BINDING(a) == VAL_VARARGS_BINDING(b))
         return 0;
-    return VAL_BINDING(a) > VAL_BINDING(b) ? 1 : -1;
+    return VAL_VARARGS_BINDING(a) > VAL_VARARGS_BINDING(b) ? 1 : -1;
 }
 
 

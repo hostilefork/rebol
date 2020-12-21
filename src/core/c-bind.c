@@ -320,7 +320,7 @@ static void Clonify_And_Bind_Relative(
             );
 
             INIT_VAL_NODE(v, series);  // copies args
-            INIT_BINDING(v, UNBOUND);  // copied w/specifier--not relative
+            INIT_SPECIFIER(v, UNBOUND);  // copied w/specifier--not relative
 
             sub_src = VAL_ARRAY_AT(v);  // look for LETs
 
@@ -400,7 +400,7 @@ static void Clonify_And_Bind_Relative(
         // easiest to debug if there is a clear mark on arrays that are
         // part of a deep copy of a function body either way.
         //
-        INIT_BINDING(v, relative);  // "incomplete func" (LETs gathering?)
+        INIT_SPECIFIER(v, relative);  // "incomplete func" (LETs gathering?)
     }
 
     Quotify_Core(v, num_quotes);  // Quotify() won't work on RELVAL*

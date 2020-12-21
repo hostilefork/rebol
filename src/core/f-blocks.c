@@ -204,7 +204,7 @@ void Clonify(
                 Freeze_Array_Shallow(ARR(series));
 
             INIT_VAL_NODE(v, series);
-            INIT_BINDING(v, UNBOUND);  // copying w/specifier makes specific
+            INIT_SPECIFIER(v, UNBOUND);  // copying w/specifier makes specific
             would_need_deep = true;
         }
         else if (ANY_SERIES_KIND(heart)) {

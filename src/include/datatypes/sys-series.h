@@ -756,7 +756,7 @@ inline static REBVAL *Init_Any_Series_At_Core(
     enum Reb_Kind type,
     const REBSER *s,  // ensured managed by calling macro
     REBLEN index,
-    REBNOD *binding
+    REBNOD *specifier
 ){
   #if !defined(NDEBUG)
     assert(ANY_SERIES_KIND(type));
@@ -785,7 +785,7 @@ inline static REBVAL *Init_Any_Series_At_Core(
     RESET_CELL(out, type, CELL_FLAG_FIRST_IS_NODE);
     INIT_VAL_NODE(out, s);
     VAL_INDEX_RAW(out) = index;
-    INIT_BINDING(out, binding);  // asserts if unbindable type tries to bind
+    INIT_SPECIFIER(out, specifier);  // asserts if unbindable type tries to bind
     return cast(REBVAL*, out);
 }
 

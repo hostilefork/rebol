@@ -728,7 +728,7 @@ REBNATIVE(redo)
             fail ("/OTHER function passed to REDO has incompatible FRAME!");
 
         INIT_VAL_CONTEXT_PHASE(restartee, VAL_ACTION(sibling));
-        INIT_BINDING(restartee, VAL_BINDING(sibling));
+        INIT_VAL_CONTEXT_BINDING(restartee, VAL_ACTION_BINDING(sibling));
     }
 
     // We need to cooperatively throw a restart instruction up to the level
@@ -736,7 +736,7 @@ REBNATIVE(redo)
     // identify for that behavior.
     //
     Move_Value(D_OUT, NATIVE_VAL(redo));
-    INIT_BINDING(D_OUT, c);
+    INIT_VAL_ACTION_BINDING(D_OUT, c);
 
     // The FRAME! contains its ->phase and ->binding, which should be enough
     // to restart the phase at the point of parameter checking.  Make that

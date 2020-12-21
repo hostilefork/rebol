@@ -64,9 +64,27 @@
 #define VAL_VARARGS_PHASE(v) \
     ACT(VAL_VARARGS_PHASE_NODE(v))
 
+#define VAL_VARARGS_BINDING_NODE(v) \
+    EXTRA(Binding, (v)).node
+
+inline static REBARR *VAL_VARARGS_BINDING(unstable REBCEL(const*) v) {
+    assert(CELL_HEART(v) == REB_VARARGS);
+    REBNOD *binding = VAL_VARARGS_BINDING_NODE(v);
+    return ARR(binding);  // may be varlist or array
+}
+
+inline static void INIT_VAL_VARARGS_BINDING(
+    unstable RELVAL *v,
+    REBARR *binding  // either an array or a frame varlist
+){
+    assert(IS_VARARGS(v));
+    VAL_VARARGS_BINDING_NODE(v) = NOD(binding);
+}
+
+
 inline static REBVAL *Init_Varargs_Untyped_Normal(RELVAL *out, REBFRM *f) {
     RESET_CELL(out, REB_VARARGS, CELL_MASK_VARARGS);
-    INIT_BINDING(out, f->varlist);  // frame-based VARARGS!
+    VAL_VARARGS_BINDING_NODE(out) = NOD(f->varlist);  // frame-based VARARGS!
     UNUSED(VAL_VARARGS_SIGNED_PARAM_INDEX(out));
     VAL_VARARGS_PHASE_NODE(out) = nullptr;  // set in typecheck
     return cast(REBVAL*, out);
@@ -88,7 +106,7 @@ inline static REBVAL *Init_Varargs_Untyped_Enfix(
     }
 
     RESET_CELL(out, REB_VARARGS, CELL_MASK_VARARGS);
-    INIT_BINDING(out, array1);
+    INIT_VAL_VARARGS_BINDING(out, array1);
     UNUSED(VAL_VARARGS_SIGNED_PARAM_INDEX(out));
     VAL_VARARGS_PHASE_NODE(out) = nullptr;  // set in typecheck
     return cast(REBVAL*, out);

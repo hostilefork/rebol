@@ -97,7 +97,7 @@ REB_R MAKE_Action(
             out,
             Make_Action_From_Exemplar(exemplar),
             VAL_FRAME_LABEL(arg),
-            CTX(VAL_BINDING(arg))  // is this right?
+            VAL_CONTEXT_BINDING(arg)
         );
     }
 

@@ -282,7 +282,10 @@ void Extra_Init_Any_Context_Checks_Debug(enum Reb_Kind kind, REBCTX *c) {
     // Currently only FRAME! uses the ->binding field, in order to capture the
     // ->binding of the function value it links to (which is in ->phase)
     //
-    assert(VAL_BINDING(archetype) == UNBOUND or CTX_TYPE(c) == REB_FRAME);
+    assert(
+        VAL_CONTEXT_BINDING(archetype) == UNBOUND
+        or CTX_TYPE(c) == REB_FRAME
+    );
 
     REBARR *keylist = CTX_KEYLIST(c);
     assert(NOT_ARRAY_FLAG(keylist, HAS_FILE_LINE_UNMASKED));

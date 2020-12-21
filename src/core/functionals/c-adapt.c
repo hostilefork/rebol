@@ -93,7 +93,7 @@ REB_R Adapter_Dispatcher(REBFRM *f)
     REBVAL* adaptee = DETAILS_AT(details, IDX_ADAPTER_ADAPTEE);
 
     INIT_FRM_PHASE(f, VAL_ACTION(adaptee));
-    FRM_BINDING(f) = NOD(VAL_ACTION_BINDING(adaptee));
+    INIT_FRM_BINDING(f, VAL_ACTION_BINDING(adaptee));
 
     return R_REDO_CHECKED;  // the redo will use the updated phase & binding
 }

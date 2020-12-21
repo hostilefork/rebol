@@ -1129,7 +1129,7 @@ bool Process_Action_Maybe_Stale_Throws(REBFRM * const f)
                 }
 
                 INIT_FRM_PHASE(f, redo_phase);
-                FRM_BINDING(f) = VAL_BINDING(f->out);
+                INIT_FRM_BINDING(f, VAL_CONTEXT_BINDING(f->out));
                 CLEAR_EVAL_FLAG(f, UNDO_MARKED_STALE);
                 goto typecheck_then_dispatch;
             }

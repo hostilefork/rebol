@@ -86,6 +86,31 @@
 #define VAL_FRAME_PHASE_OR_LABEL_NODE(v) \
     PAYLOAD(Any, (v)).second.node
 
+#define VAL_CONTEXT_BINDING_NODE(v) \
+    EXTRA(Binding, (v)).node
+
+inline static REBCTX *VAL_CONTEXT_BINDING(unstable REBCEL(const*) v) {
+    assert(ANY_CONTEXT_KIND(CELL_HEART(v)));
+    REBNOD *binding = VAL_CONTEXT_BINDING_NODE(v);
+    assert(
+        binding == nullptr
+        or (
+            CELL_HEART(v) == REB_FRAME
+            and (binding->header.bits & ARRAY_FLAG_IS_VARLIST)
+        )
+    );
+    return CTX(binding);  // !!! should do assert above, review build flags
+}
+
+inline static void INIT_VAL_CONTEXT_BINDING(
+    unstable RELVAL *v,
+    REBCTX *binding
+){
+    assert(ANY_CONTEXT(v));
+    VAL_CONTEXT_BINDING_NODE(v) = NOD(binding);
+}
+
+
 // There may not be any dynamic or stack allocation available for a stack
 // allocated context, and in that case it will have to come out of the
 // REBSER node data itself.
@@ -560,7 +585,7 @@ inline static REBCTX *Steal_Context_Vars(REBCTX *c, REBNOD *keysource) {
             | FLAG_KIND3Q_BYTE(REB_FRAME)
             | FLAG_HEART_BYTE(REB_FRAME)
             | CELL_MASK_CONTEXT;
-    INIT_BINDING(single, VAL_BINDING(rootvar));
+    INIT_VAL_CONTEXT_BINDING(single, VAL_CONTEXT_BINDING(rootvar));
     INIT_VAL_CONTEXT_VARLIST(single, ARR(stub));
     TRASH_POINTER_IF_DEBUG(PAYLOAD(Any, single).second.node);  // phase
 

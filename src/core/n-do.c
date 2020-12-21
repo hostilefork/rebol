@@ -468,8 +468,8 @@ REBNATIVE(do)
         // f->param set above
         f->special = f->arg;
 
-        assert(FRM_PHASE(f) == phase);
-        FRM_BINDING(f) = VAL_BINDING(source); // !!! should archetype match?
+        assert(FRM_PHASE(f) == phase);  // !!! v-- should archetype match?
+        INIT_FRM_BINDING(f, VAL_CONTEXT_BINDING(source));
 
         // Some FRAME! values sneakily hide a label where the VAL_PHASE()
         // would be (if they can get away with it, e.g. the phase can be
@@ -863,7 +863,7 @@ REBNATIVE(applique)
     // f->param assigned above
     f->special = f->arg; // signal only type-check the existing data
     INIT_FRM_PHASE(f, VAL_ACTION(applicand));
-    FRM_BINDING(f) = NOD(VAL_ACTION_BINDING(applicand));
+    INIT_FRM_BINDING(f, VAL_ACTION_BINDING(applicand));
 
     Begin_Prefix_Action(f, VAL_ACTION_LABEL(applicand));
 

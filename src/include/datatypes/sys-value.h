@@ -875,6 +875,7 @@ inline static REBVAL *SPECIFIC(const_if_c RELVAL *v) {
 inline static REBNOD *VAL_BINDING(unstable REBCEL(const*) v) {
     assert(Is_Bindable(v));
     assert(CELL_HEART(v) != REB_ACTION);  // use VAL_ACTION_BINDING()
+    assert(not ANY_CONTEXT_KIND(CELL_HEART(v)));
     if (not EXTRA(Binding, v).node)
         return UNBOUND;
     if (EXTRA(Binding, v).node->header.bits & SERIES_FLAG_IS_STRING)

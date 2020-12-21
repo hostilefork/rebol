@@ -763,7 +763,7 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
         );
         INIT_VAL_CONTEXT_VARLIST(rootvar, types_varlist);  // "canon FRAME!"
         INIT_VAL_CONTEXT_PHASE(rootvar, nullptr);
-        INIT_BINDING(rootvar, UNBOUND);
+        INIT_VAL_CONTEXT_BINDING(rootvar, UNBOUND);
 
         REBVAL *dest = rootvar + 1;
         const RELVAL *param = ARR_AT(paramlist, 1);
@@ -835,7 +835,7 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
         );
         INIT_VAL_CONTEXT_VARLIST(rootvar, notes_varlist); // canon FRAME!
         INIT_VAL_CONTEXT_PHASE(rootvar, nullptr);
-        INIT_BINDING(rootvar, UNBOUND);
+        INIT_VAL_CONTEXT_BINDING(rootvar, UNBOUND);
 
         const RELVAL *param = ARR_AT(paramlist, 1);
         REBVAL *dest = rootvar + 1;

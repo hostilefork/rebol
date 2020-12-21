@@ -102,7 +102,7 @@ REB_R Specializer_Dispatcher(REBFRM *f)
     REBCTX *exemplar = CTX(ACT_SPECIALTY(FRM_PHASE(f)));
 
     INIT_FRM_PHASE(f, CTX_ACTION(exemplar));
-    FRM_BINDING(f) = VAL_BINDING(CTX_ARCHETYPE(exemplar));
+    INIT_FRM_BINDING(f, VAL_CONTEXT_BINDING(CTX_ARCHETYPE(exemplar)));
 
     return R_REDO_UNCHECKED; // redo uses the updated phase and binding
 }
@@ -825,7 +825,7 @@ bool Make_Invocation_Frame_Throws(
     //
     SET_EVAL_FLAG(f, FULFILL_ONLY);
 
-    assert(FRM_BINDING(f) == VAL_BINDING(action));  // no invoke to change it
+    assert(FRM_BINDING(f) == VAL_ACTION_BINDING(action));  // no invocation
 
     bool threw = Process_Action_Throws(f);
 
@@ -835,7 +835,7 @@ bool Make_Invocation_Frame_Throws(
     // !!! Should it check EVAL_FLAG_FULFILL_ONLY?
 
     INIT_FRM_PHASE(f, VAL_ACTION(action));
-    FRM_BINDING(f) = VAL_BINDING(action);
+    INIT_FRM_BINDING(f, VAL_ACTION_BINDING(action));
 
     // The function did not actually execute, so no SPC(f) was never handed
     // out...the varlist should never have gotten managed.  So this context
@@ -958,7 +958,7 @@ bool Make_Frame_From_Varargs_Throws(
     REBACT *act = VAL_ACTION(action);
 
     assert(NOT_SERIES_FLAG(f->varlist, MANAGED)); // not invoked yet
-    assert(FRM_BINDING(f) == VAL_BINDING(action));
+    assert(FRM_BINDING(f) == VAL_ACTION_BINDING(action));
 
     REBCTX *exemplar = Steal_Context_Vars(
         CTX(f->varlist),

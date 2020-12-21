@@ -168,8 +168,11 @@ inline static int FRM_LINE(REBFRM *f) {
 #define INIT_FRM_PHASE(f,phase) \
     INIT_VAL_CONTEXT_PHASE((f)->rootvar, (phase))
 
+#define INIT_FRM_BINDING(f,binding) \
+    INIT_VAL_CONTEXT_BINDING((f)->rootvar, (binding))
+
 #define FRM_BINDING(f) \
-    EXTRA(Binding, (f)->rootvar).node
+    VAL_CONTEXT_BINDING((f)->rootvar)
 
 inline static option(const REBSTR*) FRM_LABEL(REBFRM *f) {
     assert(Is_Action_Frame(f));

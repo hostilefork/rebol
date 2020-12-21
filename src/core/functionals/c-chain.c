@@ -125,7 +125,7 @@ REB_R Chainer_Dispatcher(REBFRM *f)
     REBFRM *sub = Push_Downshifted_Frame(FRM_SPARE(f), f);
 
     INIT_FRM_PHASE(sub, VAL_ACTION(chained));
-    FRM_BINDING(sub) = NOD(VAL_ACTION_BINDING(chained));
+    INIT_FRM_BINDING(sub, VAL_ACTION_BINDING(chained));
 
     sub->original = VAL_ACTION(chained);
     sub->label = VAL_ACTION_LABEL(chained);

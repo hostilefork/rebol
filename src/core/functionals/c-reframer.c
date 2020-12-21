@@ -128,7 +128,7 @@ REB_R Reframer_Dispatcher(REBFRM *f)
     REBACT *act = VAL_ACTION(action);
 
     assert(NOT_SERIES_FLAG(sub->varlist, MANAGED)); // not invoked yet
-    assert(FRM_BINDING(sub) == VAL_BINDING(action));
+    assert(FRM_BINDING(sub) == VAL_ACTION_BINDING(action));
 
     REBCTX *stolen = Steal_Context_Vars(
         CTX(sub->varlist),
@@ -156,7 +156,7 @@ REB_R Reframer_Dispatcher(REBFRM *f)
     Init_Frame(arg, stolen, label);
 
     INIT_FRM_PHASE(f, VAL_ACTION(shim));
-    FRM_BINDING(f) = VAL_BINDING(shim);
+    INIT_FRM_BINDING(f, VAL_ACTION_BINDING(shim));
 
     return R_REDO_CHECKED;  // the redo will use the updated phase & binding
 }

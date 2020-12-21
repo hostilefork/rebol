@@ -603,11 +603,11 @@ REBNATIVE(return)
     // REBFRM*.  This generic RETURN dispatcher interprets that binding as the
     // FRAME! which this instance is specifically intended to return from.
     //
-    REBNOD *f_binding = FRM_BINDING(f);
+    REBCTX *f_binding = FRM_BINDING(f);
     if (not f_binding)
         fail (Error_Return_Archetype_Raw());  // must have binding to jump to
 
-    REBFRM *target_frame = CTX_FRAME_MAY_FAIL(CTX(f_binding));
+    REBFRM *target_frame = CTX_FRAME_MAY_FAIL(f_binding);
 
     // !!! We only have a REBFRM via the binding.  We don't have distinct
     // knowledge about exactly which "phase" the original RETURN was
@@ -675,10 +675,8 @@ REBNATIVE(return)
         fail (Error_Bad_Return_Type(target_frame, VAL_TYPE(v)));
 
   skip_type_check: {
-    assert(f_binding->header.bits & ARRAY_FLAG_IS_VARLIST);
-
     Move_Value(D_OUT, NATIVE_VAL(unwind)); // see also Make_Thrown_Unwind_Value
-    INIT_BINDING_MAY_MANAGE(D_OUT, f_binding);
+    INIT_VAL_ACTION_BINDING(D_OUT, f_binding);
 
     return Init_Thrown_With_Label(D_OUT, v, D_OUT);  // preserves UNEVALUATED
   }

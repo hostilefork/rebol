@@ -263,7 +263,7 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
             assert(CTX_TYPE(context) == REB_FRAME);
             struct Reb_Frame *f = CTX_FRAME_IF_ON_STACK(context);
             if (f)  // comes from execution, not MAKE FRAME!
-                assert(VAL_BINDING(v) == FRM_BINDING(f));
+                assert(VAL_CONTEXT_BINDING(v) == FRM_BINDING(f));
         }
 
         if (PAYLOAD(Any, v).second.node) {

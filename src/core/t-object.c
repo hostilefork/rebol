@@ -488,7 +488,7 @@ REBNATIVE(set_meta)
 
     REBCTX *meta;
     if (ANY_CONTEXT(ARG(meta))) {
-        if (VAL_BINDING(ARG(meta)) != UNBOUND)
+        if (VAL_CONTEXT_BINDING(ARG(meta)) != UNBOUND)  // only frames have
             fail ("SET-META can't store context bindings, must be unbound");
 
         meta = VAL_CONTEXT(ARG(meta));
@@ -807,7 +807,7 @@ REBTYPE(Context)
                 D_OUT,
                 VAL_PHASE_ELSE_ARCHETYPE(context),  // archetypal, no binding
                 VAL_FRAME_LABEL(context),
-                CTX(VAL_BINDING(context))  // e.g. where RETURN returns to
+                VAL_CONTEXT_BINDING(context)  // e.g. where RETURN returns to
             );
         }
 

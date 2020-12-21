@@ -91,7 +91,7 @@ REBCTX *Alloc_Context_Core(enum Reb_Kind kind, REBLEN capacity, REBFLGS flags)
     );
     INIT_VAL_CONTEXT_VARLIST(rootvar, varlist);
     INIT_VAL_CONTEXT_PHASE(rootvar, nullptr);
-    INIT_BINDING(rootvar, UNBOUND);
+    INIT_VAL_CONTEXT_BINDING(rootvar, UNBOUND);
 
     // keylist[0] is the "rootkey" which we currently initialize to an
     // unreadable BLANK!.  It is reserved for future use.
@@ -778,7 +778,7 @@ REBCTX *Make_Selfish_Context_Detect_Managed(
     );
     INIT_VAL_CONTEXT_VARLIST(var, varlist);
     INIT_VAL_CONTEXT_PHASE(var, nullptr);
-    INIT_BINDING(var, UNBOUND);
+    INIT_VAL_CONTEXT_BINDING(var, UNBOUND);
     SET_CELL_FLAG(var, ARG_MARKED_CHECKED);
 
     ++var;

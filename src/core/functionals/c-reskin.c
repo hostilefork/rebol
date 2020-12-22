@@ -127,7 +127,9 @@ REB_R Skinner_Dispatcher(REBFRM *f)
     sub->original = VAL_ACTION(skinned);
     sub->label = VAL_ACTION_LABEL(skinned);
   #if !defined(NDEBUG)
-    sub->label_utf8 = sub->label ? STR_UTF8(sub->label) : "(anonymous)";
+    sub->label_utf8 = sub->label
+        ? STR_UTF8(unwrap(sub->label))
+        : "(anonymous)";
   #endif
 
     if (Process_Action_Throws(sub)) {

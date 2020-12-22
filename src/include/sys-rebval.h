@@ -460,7 +460,7 @@ struct Reb_Comma_Payload {
     // A frame may be sourced from a va_list of pointers, or not.  If this is
     // NULL it is assumed that the values are sourced from a simple array.
     //
-    option(va_list*) vaptr;
+    va_list* vaptr;  // may be nullptr
 
     // The feed could also be coming from a packed array of pointers...this
     // is used by the C++ interface, which creates a `std::array` on the

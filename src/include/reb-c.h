@@ -728,8 +728,7 @@
 // format.  See the `typemacro_parentheses` rule.
 //
 #ifdef DEBUG_CHECK_OPTIONALS
-    #include <optional>
-
+    //
     // Trying to use `std::optional` is more trouble than it's worth; we'd
     // have to deal with the `nullopt` state which overlaps `nullptr`,
     // and there's all kinds of issues the moment you derive from it.

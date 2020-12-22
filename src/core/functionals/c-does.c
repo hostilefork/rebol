@@ -191,7 +191,7 @@ REBNATIVE(does)
     }
 
     REBCTX *exemplar;
-    const REBSTR *label;
+    option(const REBSTR*) label;
     if (
         GET_CELL_FLAG(specializee, UNEVALUATED)
         and (IS_WORD(specializee) or IS_PATH(specializee))

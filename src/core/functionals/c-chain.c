@@ -130,7 +130,9 @@ REB_R Chainer_Dispatcher(REBFRM *f)
     sub->original = VAL_ACTION(chained);
     sub->label = VAL_ACTION_LABEL(chained);
   #if !defined(NDEBUG)
-    sub->label_utf8 = sub->label ? STR_UTF8(sub->label) : "(anonymous)";
+    sub->label_utf8 = sub->label
+        ? STR_UTF8(unwrap(sub->label))
+        : "(anonymous)";
   #endif
 
     // Now apply the functions that follow.  The original code reused the

@@ -785,9 +785,9 @@ REBTYPE(Context)
             // Can be answered for frames that have no execution phase, if
             // they were initialized with a label.
             //
-            const REBSTR *label = VAL_FRAME_LABEL(context);
+            option(const REBSTR*) label = VAL_FRAME_LABEL(context);
             if (label)
-                return Init_Word(D_OUT, label);
+                return Init_Word(D_OUT, unwrap(label));
 
             // If the frame is executing, we can look at the label in the
             // REBFRM*, which will tell us what the overall execution label

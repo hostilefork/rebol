@@ -62,8 +62,13 @@
     cast(const RELVAL*, MISC_PENDING_NODE(&(feed)->singular))
 
 #define FEED_IS_VARIADIC(feed)  IS_COMMA(FEED_SINGLE(feed))
-#define FEED_VAPTR(feed)        PAYLOAD(Comma, FEED_SINGLE(feed)).vaptr
-#define FEED_PACKED(feed)       PAYLOAD(Comma, FEED_SINGLE(feed)).packed
+
+#define FEED_VAPTR_POINTER(feed)    PAYLOAD(Comma, FEED_SINGLE(feed)).vaptr
+#define FEED_PACKED(feed)           PAYLOAD(Comma, FEED_SINGLE(feed)).packed
+
+inline static option(va_list*) FEED_VAPTR(REBFED *feed)
+  { return FEED_VAPTR_POINTER(feed); }
+
 
 
 // For performance, we always get the specifier from the same location, even
@@ -614,12 +619,12 @@ inline static void Prep_Va_Feed(
 
     feed->flags.bits = flags;
     if (not vaptr) {  // `p` should be treated as a packed void* array
-        FEED_VAPTR(feed) = nullptr;
+        FEED_VAPTR_POINTER(feed) = nullptr;
         FEED_PACKED(feed) = cast(const void* const*, p);
         p = *FEED_PACKED(feed)++;
     }
     else {
-        FEED_VAPTR(feed) = vaptr;
+        FEED_VAPTR_POINTER(feed) = unwrap(vaptr);
         FEED_PACKED(feed) = nullptr;
     }
     Detect_Feed_Pointer_Maybe_Fetch(feed, p);

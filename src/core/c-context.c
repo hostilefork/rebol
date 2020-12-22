@@ -7,8 +7,8 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
+// Copyright 2012-2020 Ren-C Open Source Contributors
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2017 Ren-C Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.
@@ -21,41 +21,7 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Contexts are two arrays of equal length, which are linked together to
-// describe "object-like" things (lists of TYPESET! keys and corresponding
-// variable values).  They are used by OBJECT!, PORT!, FRAME!, etc.
-//
-// The REBCTX* is how contexts are passed around as a single pointer.  This
-// pointer is actually just an array REBSER which represents the variable
-// values.  The keylist can be reached through the ->link field of that
-// REBSER, and the [0] value of the variable array is an "archetype instance"
-// of whatever kind of REBVAL the context represents.
-//
-//
-//             VARLIST ARRAY       ---Link-->         KEYLIST ARRAY
-//  +------------------------------+        +-------------------------------+
-//  +            "ROOTVAR"         |        |           "ROOTKEY"           |
-//  | Archetype ANY-CONTEXT! Value |        |  Archetype ACTION!, or blank  |
-//  +------------------------------+        +-------------------------------+
-//  |             Value 1          |        |     Typeset (w/symbol) 1      |
-//  +------------------------------+        +-------------------------------+
-//  |             Value 2          |        |     Typeset (w/symbol) 2      |
-//  +------------------------------+        +-------------------------------+
-//  |             Value ...        |        |     Typeset (w/symbol) ...    |
-//  +------------------------------+        +-------------------------------+
-//
-// While R3-Alpha used a special kind of WORD! known as an "unword" for the
-// keys, Ren-C uses a special kind of TYPESET! which can also hold a symbol.
-// The reason is that keylists are common to function paramlists and objects,
-// and typesets are more complex than words (and destined to become even
-// moreso with user defined types).  So it's better to take the small detail
-// of storing a symbol in a typeset rather than try and enhance words to have
-// typeset features.
-//
-// Keylists can be shared between objects, and if the context represents a
-// call FRAME! then the keylist is actually the paramlist of that function
-// being called.  If the keylist is not for a function, then the [0] cell
-// (a.k.a. "ROOTKEY") is currently not used--and set to a BLANK!.
+// See comments in %sys-context.h for details on how contexts work.
 //
 
 #include "sys-core.h"
@@ -64,53 +30,36 @@
 //
 //  Alloc_Context_Core: C
 //
-// Create context of a given size, allocating space for both words and values.
-//
-// This context will not have its ANY-OBJECT! REBVAL in the [0] position fully
-// configured, hence this is an "Alloc" instead of a "Make" (because there
-// is still work to be done before it will pass ASSERT_CONTEXT).
+// Create context with capacity, allocating space for both words and values.
+// Context will report actual CTX_LEN() of 0 after this call.
 //
 REBCTX *Alloc_Context_Core(enum Reb_Kind kind, REBLEN capacity, REBFLGS flags)
 {
     assert(not (flags & ARRAY_FLAG_HAS_FILE_LINE_UNMASKED));  // LINK is taken
 
+    REBARR *keylist = Make_Array_Core(
+        capacity + 1,  // size + room for rootkey
+        SERIES_MASK_KEYLIST | NODE_FLAG_MANAGED  // always shareable
+    );
+    RELVAL *rootkey = Alloc_Tail_Array(keylist);
+    Init_Unreadable_Void(rootkey);  // reserved for future use
+    LINK_ANCESTOR_NODE(keylist) = NOD(keylist);  // default to keylist itself
+
     REBARR *varlist = Make_Array_Core(
-        capacity + 1, // size + room for ROOTVAR
-        SERIES_MASK_VARLIST // includes assurance of dynamic allocation
-            | flags // e.g. NODE_FLAG_MANAGED
+        capacity + 1,  // size + room for rootvar
+        SERIES_MASK_VARLIST  // includes assurance of dynamic allocation
+            | flags  // e.g. NODE_FLAG_MANAGED
     );
-    MISC_META_NODE(varlist) = nullptr; // GC sees meta object, must init
+    MISC_META_NODE(varlist) = nullptr;  // GC sees meta object, must init
+    INIT_CTX_KEYLIST_UNIQUE(CTX(varlist), keylist);  // starts out unique
 
-    // varlist[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
-    // are building which contains this context.
-
-    REBVAL *rootvar = RESET_CELL(
-        Alloc_Tail_Array(varlist),
-        kind,
-        CELL_MASK_CONTEXT
-    );
+    RELVAL *rootvar = Alloc_Tail_Array(varlist);  // archetypal value
+    RESET_CELL(rootvar, kind, CELL_MASK_CONTEXT);
     INIT_VAL_CONTEXT_VARLIST(rootvar, varlist);
     INIT_VAL_CONTEXT_PHASE(rootvar, nullptr);
-    INIT_VAL_CONTEXT_BINDING(rootvar, UNBOUND);
+    INIT_VAL_CONTEXT_BINDING(rootvar, UNBOUND);  // only FRAME! uses binding
 
-    // keylist[0] is the "rootkey" which we currently initialize to an
-    // unreadable BLANK!.  It is reserved for future use.
-
-    REBARR *keylist = Make_Array_Core(
-        capacity + 1, // size + room for ROOTKEY
-        SERIES_MASK_KEYLIST | NODE_FLAG_MANAGED
-    );
-    Init_Unreadable_Void(Alloc_Tail_Array(keylist));
-
-    // Default the ancestor link to be to this keylist itself.
-    //
-    LINK_ANCESTOR_NODE(keylist) = NOD(keylist);
-
-    // varlists link keylists via LINK().keysource, sharable hence managed
-
-    INIT_CTX_KEYLIST_UNIQUE(CTX(varlist), keylist);
-
-    return CTX(varlist); // varlist pointer is context handle
+    return CTX(varlist);  // varlist pointer is context handle
 }
 
 
@@ -900,7 +849,7 @@ REBARR *Context_To_Array(const RELVAL *context, REBINT mode)
 
     bool always = false;  // default to not always showing hidden things
     if (IS_FRAME(context))
-        always = (VAL_OPT_PHASE(context) != nullptr);
+        always = IS_FRAME_PHASED(context);
 
     REBVAL *key = VAL_CONTEXT_KEYS_HEAD(context);
     REBVAL *var = VAL_CONTEXT_VARS_HEAD(context);
@@ -1252,14 +1201,14 @@ void Resolve_Context(
 // 0 if not found.
 //
 // Note that since contexts like FRAME! can have multiple keys with the same
-// name, the VAL_PHASE() of the context has to be taken into account.
+// name, the VAL_FRAME_PHASE() of the context has to be taken into account.
 //
 REBLEN Find_Canon_In_Context(const RELVAL *context, const REBSTR *canon) {
     assert(GET_SERIES_INFO(canon, STRING_CANON));
 
     bool always = true;
     if (IS_FRAME(context))
-        always = (VAL_OPT_PHASE(context) != nullptr);
+        always = IS_FRAME_PHASED(context);
     else {
         // !!! Defaulting to TRUE means that you can find things like SELF
         // even though they are not displayed.  But you can also find things

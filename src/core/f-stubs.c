@@ -297,9 +297,9 @@ void Extra_Init_Any_Context_Checks_Debug(enum Reb_Kind kind, REBCTX *c) {
     // sure it's null at this point in time.
     //
     if (CTX_TYPE(c) == REB_FRAME)
-        assert(VAL_PHASE_ELSE_ARCHETYPE(archetype) != nullptr);
+        assert(GET_ARRAY_FLAG(VAL_FRAME_PHASE(archetype), IS_DETAILS));
     else
-        assert(PAYLOAD(Any, archetype).second.node == nullptr);
+        assert(VAL_FRAME_PHASE_OR_LABEL_NODE(archetype) == nullptr);
 
   #ifdef DEBUG_UNREADABLE_VOIDS
     assert(IS_UNREADABLE_DEBUG(CTX_ROOTKEY(c)));  // unused at this time

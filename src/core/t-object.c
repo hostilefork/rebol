@@ -629,7 +629,7 @@ void MF_Context(REB_MOLD *mo, REBCEL(const*) v, bool form)
     //
     bool honor_hidden = true;
     if (CELL_KIND(v) == REB_FRAME)
-        honor_hidden = (VAL_OPT_PHASE(v) == nullptr);
+        honor_hidden = not IS_FRAME_PHASED(v);
 
     if (form) {
         //
@@ -805,7 +805,7 @@ REBTYPE(Context)
             //
             return Init_Action(
                 D_OUT,
-                VAL_PHASE_ELSE_ARCHETYPE(context),  // archetypal, no binding
+                VAL_FRAME_PHASE(context),  // just a REBACT*, no binding
                 VAL_FRAME_LABEL(context),
                 VAL_CONTEXT_BINDING(context)  // e.g. where RETURN returns to
             );

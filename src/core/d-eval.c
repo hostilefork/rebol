@@ -229,7 +229,7 @@ void Do_Process_Action_Checks_Debug(REBFRM *f) {
     assert(IS_FRAME(f->rootvar));
     assert(f->arg == f->rootvar + 1);
 
-    REBACT *phase = VAL_PHASE_ELSE_ARCHETYPE(f->rootvar);
+    REBACT *phase = VAL_FRAME_PHASE(f->rootvar);
 
     //=//// v-- BELOW CHECKS ONLY APPLY WHEN FRM_PHASE() is VALID ////////=//
 

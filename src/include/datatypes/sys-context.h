@@ -1,13 +1,13 @@
 //
 //  File: %sys-context.h
-//  Summary: {context! defs AFTER %tmp-internals.h (see: %sys-context.h)}
+//  Summary: {Context definitions AFTER including %tmp-internals.h}
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
+// Copyright 2012-2020 Ren-C Open Source Contributors
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2018 Ren-C Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
@@ -20,53 +20,69 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// In Rebol terminology, a "context" is an abstraction which gives two
-// parallel arrays, whose indices line up in a correspondence:
+// A "context" is the abstraction behind OBJECT!, PORT!, FRAME!, ERROR!, etc.
+// It maps keys to values using two parallel arrays of equal length, whose
+// indices line up in correspondence:
 //
-// * "keylist" - an array that contains IS_PARAM() cells, but which have a
+//   "KEYLIST" - an array that contains IS_PARAM() cells, but which have a
 //   symbol ID encoded as an extra piece of information for that key.
 //
-// * "varlist" - an array of equal length to the keylist, which holds an
+//   "VARLIST" - an array of equal length to the keylist, which holds an
 //   arbitrary REBVAL in each position that corresponds to its key.
 //
-// Frame key/var indices start at one, and they leave two REBVAL slots open
-// in the 0 spot for other uses.  With an ANY-CONTEXT!, the use for the
-// "ROOTVAR" is to store a canon value image of the ANY-CONTEXT!'s REBVAL
-// itself.  This trick allows a single REBCTX* to be passed around rather
-// than the REBVAL struct which is 4x larger, yet still reconstitute the
-// entire REBVAL if it is needed.
+// A `REBCTX*` is an alias of the varlist's `REBARR*`, and keylists are
+// reached through the `->link` of the varlist.  The reason varlists
+// are used as the identity of the context is that keylists can be shared
+// between contexts.  (If the context is for a FRAME! then the keylist is
+// actually the "paramlist" of the ACTION! it represents.)
 //
-// (The "ROOTKEY" of the keylist is currently only used a context is a FRAME!.
-// It is using a paramlist as the keylist, so the [0] is the archetype action
-// value of that paramlist).
+// Indices into the arrays are 1-based for keys and values, with the [0]
+// elements of the keylist and varlist used for other purposes:
 //
-// The `keylist` is held in the varlist's LINK().keysource field, and it may
-// be shared with an arbitrary number of other contexts.  Changing the keylist
-// involves making a copy if it is shared.
+//    VARLIST ARRAY (aka REBCTX*)  ---Link-->         KEYLIST ARRAY
+//  +------------------------------+        +-------------------------------+
+//  +          "ROOTVAR"           |        |           "ROOTKEY"           |
+//  | Archetype ANY-CONTEXT! Value |        |    Reserved for Future Use    |
+//  +------------------------------+        +-------------------------------+
+//  |      <opt> ANY-VALUE! 1      |        |     TYPESET! (w/symbol) 1     |
+//  +------------------------------+        +-------------------------------+
+//  |      <opt> ANY-VALUE! 2      |        |     TYPESET! (w/symbol) 2     |
+//  +------------------------------+        +-------------------------------+
+//  |      <opt> ANY-VALUE! ...    |        |     TYPESET! (w/symbol) ...   |
+//  +------------------------------+        +-------------------------------+
+//
+// (For executing frames, the ---Link--> is actually to the REBFRM* structure
+// so the paramlist of the CTX_ACTION() must be consulted.  When the frame
+// stops running, the paramlist is written back to the link again.)
+//
+// The "ROOTVAR" is a canon value image of an ANY-CONTEXT!'s `REBVAL`.  This
+// trick allows a single REBCTX* pointer to be passed around rather than the
+// REBVAL struct which is 4x larger, yet use existing memory to make a REBVAL*
+// when needed (using CTX_ARCHETYPE()).  ACTION!s have a similar trick.
 //
 // Contexts coordinate with words, which can have their VAL_WORD_CONTEXT()
 // set to a context's series pointer.  Then they cache the index of that
 // word's symbol in the context's keylist, for a fast lookup to get to the
-// corresponding var.  The key is a typeset which has several flags
-// controlling behaviors like whether the var is protected or hidden.
+// corresponding var.
 //
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// NOTES:
+//=//// NOTES /////////////////////////////////////////////////////////////=//
 //
 // * Once a word is bound to a context the index is treated as permanent.
 //   This is why objects are "append only"...because disruption of the index
 //   numbers would break the extant words with index numbers to that position.
+//   (Appending to keylists involves making a copy if it is shared.)
 //
-// * !!! Ren-C might wind up undoing this by paying for the check of the
-//   symbol number at the time of lookup, and if it does not match consider it
-//   a cache miss and re-lookup...adjusting the index inside of the word.
-//   For efficiency, some objects could be marked as not having this property,
-//   but it may be just as efficient to check the symbol match as that bit.
+// * R3-Alpha used a special kind of WORD! known as an "unword" for the
+//   keylist keys.  Ren-C uses values whose "heart byte" are TYPESET!, but use
+//   a kind byte that makes them a "Param".  They can also hold a symbol, as
+//   this made certain kinds of corruption less likely.  The design is likely
+//   to change as TYPESET! is slated to be replaced with "type predicates".
 //
-// * REB_MODULE depends on a property stored in the "meta" Reb_Series.link
-//   field of the keylist, which is another object's-worth of data *about*
-//   the module's contents (e.g. the processed header)
+// * Since varlists and keylists always have more than one element, they are
+//   allocated with SERIES_FLAG_ALWAYS_DYNAMIC and do not need to check for
+//   the singular optimization when being used.  This does not apply when a
+//   varlist becomes invalid (e.g. via FREE), when its data allocation is
+//   released and it is decayed to a singular.
 //
 
 
@@ -77,85 +93,79 @@
 #endif
 
 
-#define CTX_VARLIST(c) \
-    (&(c)->varlist)
-
-#define CTX_META(c) \
-    CTX(MISC_META_NODE(CTX_VARLIST(c)))
-
-#define VAL_FRAME_PHASE_OR_LABEL_NODE(v) \
-    PAYLOAD(Any, (v)).second.node
-
-#define VAL_CONTEXT_BINDING_NODE(v) \
-    EXTRA(Binding, (v)).node
-
-inline static REBCTX *VAL_CONTEXT_BINDING(unstable REBCEL(const*) v) {
-    assert(ANY_CONTEXT_KIND(CELL_HEART(v)));
-    REBNOD *binding = VAL_CONTEXT_BINDING_NODE(v);
-    assert(
-        binding == nullptr
-        or (
-            CELL_HEART(v) == REB_FRAME
-            and (binding->header.bits & ARRAY_FLAG_IS_VARLIST)
-        )
-    );
-    return CTX(binding);  // !!! should do assert above, review build flags
-}
-
-inline static void INIT_VAL_CONTEXT_BINDING(
-    unstable RELVAL *v,
-    REBCTX *binding
-){
-    assert(ANY_CONTEXT(v));
-    VAL_CONTEXT_BINDING_NODE(v) = NOD(binding);
-}
-
-
-// There may not be any dynamic or stack allocation available for a stack
-// allocated context, and in that case it will have to come out of the
-// REBSER node data itself.
+// REBCTX* properties (note: shares LINK_KEYSOURCE() with REBACT*)
 //
-inline static const REBVAL *CTX_ARCHETYPE(const REBCTX *c) {
-    const REBSER *varlist = SER(CTX_VARLIST(c));
-    if (not IS_SER_DYNAMIC(varlist))
-        return cast(const REBVAL*, &varlist->content.fixed);
+// Note: MODULE! contexts depend on a property stored in the META field, which
+// is another object's-worth of data *about* the module's contents (e.g. the
+// processed header)
+//
+#define CTX_VARLIST(c)  (&(c)->varlist)
+#define CTX_META(c)     CTX(MISC_META_NODE(CTX_VARLIST(c)))
 
-    // If a context has its data freed, it must be converted into non-dynamic
-    // form if it wasn't already (e.g. if it wasn't a FRAME!)
-    //
+
+// ANY-CONTEXT! value cell schematic
+//
+#define VAL_CONTEXT_VARLIST_NODE(v)         PAYLOAD(Any, (v)).first.node
+#define VAL_FRAME_PHASE_OR_LABEL_NODE(v)    PAYLOAD(Any, (v)).second.node
+#define VAL_CONTEXT_BINDING_NODE(v)         EXTRA(Binding, (v)).node
+
+
+//=//// CONTEXT ARCHETYPE VALUE CELL (ROOTVAR)  ///////////////////////////=//
+//
+// A REBVAL* must contain enough information to find what is needed to define
+// a context.  That fact is leveraged by the notion of keeping the information
+// in the context itself as the [0] element of the varlist.  This means it is
+// always on hand when a REBVAL* is needed, so you can do things like:
+//
+//     REBCTX *c = ...;
+//     rebElide("print [pick", CTX_ARCHETYPE(c), "'field]");
+//
+// The archetype stores the varlist, and since it has a value header it also
+// encodes which specific type of context (OBJECT!, FRAME!, MODULE!...) the
+// context represents.
+//
+// In the case of a FRAME!, the archetype also stores an ACTION! pointer that
+// represents the action the frame is for.  Since this information can be
+// found in the archetype, non-archetype cells can use the cell slot for
+// purposes other than storing the archetypal action (see PHASE/LABEL section)
+//
+
+inline static const REBVAL *CTX_ARCHETYPE(const REBCTX *c) {  // read-only
+    const REBSER *varlist = SER(CTX_VARLIST(c));
+    if (not IS_SER_DYNAMIC(varlist)) {  // a freed stub, variables are gone
+        assert(GET_SERIES_INFO(varlist, INACCESSIBLE));
+        return cast(const REBVAL*, &varlist->content.fixed);
+    }
     assert(NOT_SERIES_INFO(varlist, INACCESSIBLE));
     return cast(const REBVAL*, varlist->content.dynamic.data);
 }
 
 inline static REBVAL *CTX_ROOTVAR(REBCTX *c)  // mutable archetype access
-  { return m_cast(REBVAL*, CTX_ARCHETYPE(c)); }
+  { return m_cast(REBVAL*, CTX_ARCHETYPE(c)); }  // inline checks mutability
 
 #define CTX_ACTION(c) \
     ACT(VAL_FRAME_PHASE_OR_LABEL_NODE(CTX_ARCHETYPE(c)))
 
 
-// CTX_KEYLIST is called often, and it's worth it to make it as fast as
-// possible--even in an unoptimized build.
+//=//// CONTEXT KEYLISTS //////////////////////////////////////////////////=//
 //
-inline static REBARR *CTX_KEYLIST(REBCTX *c) {
-    if (not Is_Node_Cell(LINK_KEYSOURCE(c)))
-        return ARR(LINK_KEYSOURCE(c)); // not a REBFRM, so use keylist
+// If a context represents a FRAME! that is currently executing, one often
+// needs to quickly navigate to the REBFRM* structure for the corresponding
+// stack level.  This is sped up by swapping the REBFRM* into the LINK() of
+// the varlist until the frame is finished.  In this state, the paramlist of
+// the FRAME! action is consulted. When the action is finished, this is put
+// back in LINK_KEYSOURCE().
+//
+// Note: Due to the sharing of keylists, features like whether a value in a
+// context is hidden or protected are accomplished using special bits on the
+// var cells, and *not the keys*.  These bits are not copied when the value
+// is moved (see CELL_MASK_COPIED regarding this mechanic)
+//
 
-    // If the context in question is a FRAME! value, then the ->phase
-    // of the frame presents the "view" of which keys should be visible at
-    // this phase.  So if the phase is a specialization, then it should
-    // not show all the underlying function's keys...just the ones that
-    // are not hidden in the facade that specialization uses.  Since the
-    // phase changes, a fixed value can't be put into the keylist...that is
-    // just the keylist of the underlying function.
-    //
-    // Although the phase node can be used in non-archetypal FRAME! values to
-    // store a symbol of the starting phase of the function uses, that is
-    // not true of archetypal frames...which store the phase for efficiency.
-    // Again, due to the frequent calls of this routine it is assumed even
-    // in the debug build w/o an assert.
-    //
-    return ACT_PARAMLIST(CTX_ACTION(c));
+inline static REBARR *CTX_KEYLIST(REBCTX *c) {
+    if (Is_Node_Cell(LINK_KEYSOURCE(c)))  // running frame, source is REBFRM*
+        return ACT_PARAMLIST(CTX_ACTION(c));  // so use action's paramlist
+    return ARR(LINK_KEYSOURCE(c)); // not a REBFRM, so use keylist
 }
 
 static inline void INIT_CTX_KEYLIST_SHARED(REBCTX *c, REBARR *keylist) {
@@ -168,27 +178,68 @@ static inline void INIT_CTX_KEYLIST_UNIQUE(REBCTX *c, REBARR *keylist) {
     INIT_LINK_KEYSOURCE(CTX_VARLIST(c), NOD(keylist));
 }
 
-// Navigate from context to context components.  Note that the context's
-// "length" does not count the [0] cell of either the varlist or the keylist.
-// Hence it must subtract 1.  Internally to the context building code, the
-// real length of the two series must be accounted for...so the 1 gets put
-// back in, but most clients are only interested in the number of keys/values
-// (and getting an answer for the length back that was the same as the length
-// requested in context creation).
+
+//=//// REBCTX* ACCESSORS /////////////////////////////////////////////////=//
 //
+// These are access functions that should be used when what you have in your
+// hand is just a REBCTX*.  THIS DOES NOT ACCOUNT FOR PHASE...so there can
+// actually be a difference between these two expressions for FRAME!s:
+//
+//     REBVAL *key_x = VAL_CONTEXT_KEY(context, n);  // accounts for phase
+//     REBVAL *key_y = CTX_KEY(VAL_CONTEXT(context), n);  // no phase
+//
+// Context's "length" does not count the [0] cell of either the varlist or
+// the keylist arrays.  Hence it must subtract 1.  SERIES_MASK_VARLIST
+// includes SERIES_FLAG_ALWAYS_DYNAMIC, so a dyamic series can be assumed
+// so long as it is valid.
+//
+
 #define CTX_LEN(c) \
-    (cast(REBSER*, (c))->content.dynamic.used - 1) // used > 1, so dynamic
+    (cast(REBSER*, (c))->content.dynamic.used - 1)
 
 #define CTX_ROOTKEY(c) \
-    cast(REBVAL*, SER(CTX_KEYLIST(c))->content.dynamic.data) // used > 1
+    cast(REBVAL*, SER(CTX_KEYLIST(c))->content.dynamic.data)
 
 #define CTX_TYPE(c) \
     VAL_TYPE(CTX_ARCHETYPE(c))
 
-// The keys and vars are accessed by positive integers starting at 1
-//
 #define CTX_KEYS_HEAD(c) \
-    SER_AT(REBVAL, SER(CTX_KEYLIST(c)), 1) // a CTX_KEY can't hold a RELVAL
+    SER_AT(REBVAL, SER(CTX_KEYLIST(c)), 1)  // 1-based, no RELVAL*
+
+#define CTX_VARS_HEAD(c) \
+    SER_AT(REBVAL, SER(CTX_VARLIST(c)), 1)
+
+inline static REBVAL *CTX_KEY(REBCTX *c, REBLEN n) {
+    //
+    // !!! Inaccessible contexts have to retain their keylists, at least
+    // until all words bound to them have been adjusted somehow, because the
+    // words depend on those keys for their spellings (once bound)
+    //
+    /* assert(NOT_SERIES_INFO(c, INACCESSIBLE)); */
+
+    assert(n != 0 and n <= CTX_LEN(c));
+    return cast(REBVAL*, SER(CTX_KEYLIST(c))->content.dynamic.data) + n;
+}
+
+inline static REBVAL *CTX_VAR(REBCTX *c, REBLEN n) {  // 1-based, no RELVAL*
+    assert(NOT_SERIES_INFO(c, INACCESSIBLE));
+    assert(n != 0 and n <= CTX_LEN(c));
+    return cast(REBVAL*, cast(REBSER*, c)->content.dynamic.data) + n;
+}
+
+#define CTX_KEY_SPELLING(c,n)       VAL_TYPESET_STRING(CTX_KEY((c), (n)))
+#define CTX_KEY_CANON(c,n)          STR_CANON(CTX_KEY_SPELLING((c), (n)))
+#define CTX_KEY_SYM(c,n)            STR_SYMBOL(CTX_KEY_SPELLING((c), (n)))
+
+
+//=//// FRAME! REBCTX* <-> REBFRM* STRUCTURE //////////////////////////////=//
+//
+// For a FRAME! context, the keylist is redundant with the paramlist of the
+// CTX_ACTION() that the frame is for.  That is taken advantage of when a
+// frame is executing in order to use the LINK() keysource to point at the
+// running REBFRM* structure for that stack level.  This provides a cheap
+// way to navigate from a REBCTX* to the REBFRM* that's running it.
+//
 
 inline static bool Is_Frame_On_Stack(REBCTX *c) {
     assert(IS_FRAME(CTX_ARCHETYPE(c)));
@@ -215,54 +266,6 @@ inline static REBFRM *CTX_FRAME_MAY_FAIL(REBCTX *c) {
     return f;
 }
 
-#define CTX_VARS_HEAD(c) \
-    SER_AT(REBVAL, SER(CTX_VARLIST(c)), 1) // may fail() if inaccessible
-
-inline static REBVAL *CTX_KEY(REBCTX *c, REBLEN n) {
-    //
-    // !!! Inaccessible contexts have to retain their keylists, at least
-    // until all words bound to them have been adjusted somehow, because the
-    // words depend on those keys for their spellings (once bound)
-    //
-    /* assert(NOT_SERIES_INFO(c, INACCESSIBLE)); */
-
-    assert(GET_ARRAY_FLAG(CTX_VARLIST(c), IS_VARLIST));
-    assert(n != 0 and n <= CTX_LEN(c));
-    return cast(REBVAL*, cast(REBSER*, CTX_KEYLIST(c))->content.dynamic.data)
-        + n;
-}
-
-inline static REBVAL *CTX_VAR(REBCTX *c, REBLEN n) {
-    assert(NOT_SERIES_INFO(c, INACCESSIBLE));
-    assert(GET_ARRAY_FLAG(CTX_VARLIST(c), IS_VARLIST));
-    assert(n != 0 and n <= CTX_LEN(c));
-    return cast(REBVAL*, cast(REBSER*, c)->content.dynamic.data) + n;
-}
-
-inline static const REBSTR *CTX_KEY_SPELLING(REBCTX *c, REBLEN n) {
-    return VAL_TYPESET_STRING(CTX_KEY(c, n));
-}
-
-inline static const REBSTR *CTX_KEY_CANON(REBCTX *c, REBLEN n) {
-    return STR_CANON(CTX_KEY_SPELLING(c, n));
-}
-
-inline static REBSYM CTX_KEY_SYM(REBCTX *c, REBLEN n) {
-    return STR_SYMBOL(CTX_KEY_SPELLING(c, n)); // should be same as canon
-}
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// ANY-CONTEXT! (`struct Reb_Any_Context`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// The Reb_Any_Context is the basic struct used currently for OBJECT!,
-// MODULE!, ERROR!, and PORT!.  It builds upon the context datatype REBCTX,
-// which permits the storage of associated KEYS and VARS.
-//
-
 inline static void FAIL_IF_INACCESSIBLE_CTX(REBCTX *c) {
     if (GET_SERIES_INFO(c, INACCESSIBLE)) {
         if (CTX_TYPE(c) == REB_FRAME)
@@ -271,58 +274,95 @@ inline static void FAIL_IF_INACCESSIBLE_CTX(REBCTX *c) {
     }
 }
 
+
+//=//// CONTEXT EXTRACTION ////////////////////////////////////////////////=//
+//
+// Extraction of a context from a value is a place where it is checked for if
+// it is valid or has been "decayed" into a stub.  Thus any extraction of
+// stored contexts from other locations (e.g. a META field) must either put
+// the pointer directly into a value without dereferencing it and trust it to
+// be checked elsewhere...or also check it before use.
+//
+
 inline static REBCTX *VAL_CONTEXT(unstable REBCEL(const*) v) {
     assert(ANY_CONTEXT_KIND(CELL_HEART(v)));
-    if (CELL_KIND(v) != REB_FRAME)
-        assert(VAL_FRAME_PHASE_OR_LABEL_NODE(v) == nullptr);
-
     REBCTX *c = CTX(PAYLOAD(Any, v).first.node);
     FAIL_IF_INACCESSIBLE_CTX(c);
     return c;
 }
 
-#define INIT_VAL_CONTEXT_VARLIST(v,varlist) \
-    (PAYLOAD(Any, (v)).first.node = NOD(varlist))
 
-inline static void INIT_VAL_CONTEXT_PHASE(RELVAL *v, REBACT *phase) {
-    assert(phase == nullptr or GET_ARRAY_FLAG(phase, IS_DETAILS));
-    VAL_FRAME_PHASE_OR_LABEL_NODE(v) = NOD(phase);
+//=//// CONTEXT BINDING ///////////////////////////////////////////////////=//
+//
+// Only FRAME! contexts store bindings at this time.  The reason is that a
+// unique binding can be stored by individual ACTION! values, so when you make
+// a frame out of an action it has to preserve that binding.
+//
+// !!! So this means only the archetype needs to store the binding, and only
+// for frames...correct?  Why put it in the value cells?  This could mean
+// that frame values have a whole 'nother field free.
+//
+
+#define INIT_VAL_CONTEXT_BINDING(v,binding) \
+    (VAL_CONTEXT_BINDING_NODE(v) = NOD(binding))
+
+inline static REBCTX *VAL_CONTEXT_BINDING(unstable REBCEL(const*) v) {
+    assert(ANY_CONTEXT_KIND(CELL_HEART(v)));
+    REBNOD *binding = VAL_CONTEXT_BINDING_NODE(v);
+    assert(
+        binding == nullptr
+        or (
+            CELL_HEART(v) == REB_FRAME
+            and (binding->header.bits & ARRAY_FLAG_IS_VARLIST)
+        )
+    );
+    return CTX(binding);  // !!! should do assert above, review build flags
 }
 
-// A frame's phase is usually a pointer to which component action is in
-// effect.  But if the node where a phase would usually be found is a REBSTR*
-// then that implies the actual phase is the archetypal one for the frame...
-// and the string is the WORD! label cache to use as a name when an action
-// is extracted from the frame.
+inline static void INIT_VAL_CONTEXT_VARLIST(RELVAL *v, REBARR *varlist)
+  { VAL_CONTEXT_VARLIST_NODE(v) = NOD(varlist); }
+
+
+//=//// FRAME PHASE AND LABELING //////////////////////////////////////////=//
 //
-inline static REBACT *VAL_OPT_PHASE(unstable REBCEL(const*) v) {
+// A frame's phase is usually a pointer to the component action in effect for
+// a composite function (e.g. an ADAPT).
+//
+// But if the node where a phase would usually be found is a REBSTR* then that
+// implies there isn't any special phase besides the action stored by the
+// archetype.  Hence the value cell is storing a name to be used with the
+// action when it is extracted from the frame.  That's why this works:
+//
+//     >> f: make frame! :append
+//     >> label of f
+//     == append  ; useful in debug stack traces if you `do f`
+//
+// So extraction of the phase has to be sensitive to this.
+//
+
+inline static void INIT_VAL_CONTEXT_PHASE(RELVAL *v, REBACT *phase)
+  { VAL_FRAME_PHASE_OR_LABEL_NODE(v) = NOD(phase); }
+
+inline static REBACT *VAL_FRAME_PHASE(unstable REBCEL(const*) v) {
+    REBSER *s = SER(VAL_FRAME_PHASE_OR_LABEL_NODE(v));
+    if (s == nullptr or IS_SER_STRING(s))  // label or anonymous
+        return CTX_ACTION(VAL_CONTEXT(v));  // use archetype
+    return ACT(s);  // cell has its own phase, return it
+}
+
+inline static bool IS_FRAME_PHASED(unstable REBCEL(const*) v) {
     assert(CELL_KIND(v) == REB_FRAME);
     REBSER *s = SER(VAL_FRAME_PHASE_OR_LABEL_NODE(v));
-
-    if (s == nullptr or IS_SER_STRING(s))  // label or ANONYMOUS, no phase
-        return nullptr;
-
-    return ACT(s);  // an actual phase
+    return s != nullptr and not IS_SER_STRING(s);
 }
 
-inline static REBACT *VAL_PHASE_ELSE_ARCHETYPE(unstable REBCEL(const*) v) {
-    REBSER *s = SER(VAL_FRAME_PHASE_OR_LABEL_NODE(v));
-
-    if (s == nullptr or IS_SER_STRING(s)) {  // label or ANONYMOUS, no phase
-        REBVAL *rootvar = CTX_ROOTVAR(VAL_CONTEXT(v));
-        return ACT(VAL_FRAME_PHASE_OR_LABEL_NODE(rootvar));  // archetype
-    }
-
-    return ACT(s);  // an actual phase
-}
-
-inline static const REBSTR *VAL_FRAME_LABEL(unstable const RELVAL *v) {
+inline static option(const REBSTR*) VAL_FRAME_LABEL(unstable const RELVAL *v) {
     REBSER *s = SER(VAL_FRAME_PHASE_OR_LABEL_NODE(v));
     if (s == nullptr)  // phaseless, but no label
         return ANONYMOUS;
-    if (IS_SER_ARRAY(s))  // phase, so nowhere to put label in value
-        return ANONYMOUS;
-    return STR(s);  // no phase and label
+    if (IS_SER_STRING(s))  // label in value
+        return STR(s);
+    return ANONYMOUS;  // has a phase, so no label (maybe findable if running)
 }
 
 inline static void INIT_VAL_FRAME_LABEL(
@@ -333,18 +373,8 @@ inline static void INIT_VAL_FRAME_LABEL(
 }
 
 
-// Convenience macros to speak in terms of object values instead of the context
+//=//// ANY-CONTEXT! VALUE EXTRACTORS /////////////////////////////////////=//
 //
-#define VAL_CONTEXT_VAR(v,n) \
-    CTX_VAR(VAL_CONTEXT(v), (n))
-
-#define VAL_CONTEXT_KEY(v,n) \
-    CTX_KEY(VAL_CONTEXT(v), (n))
-
-#define VAL_CONTEXT_LEN(v) \
-    CTX_LEN(VAL_CONTEXT(v))
-
-
 // If a context is a frame, which keylist you see for it depends on what
 // phase that frame is for.  This means you need a full RELVAL* and not just
 // a REBCTX* to know all the information.
@@ -353,17 +383,22 @@ inline static void INIT_VAL_FRAME_LABEL(
 // can use CTX_ARCHETYPE().  If it's a frame and you know it should have
 // a phase, then the phase is the keylist.
 //
+
 inline static REBVAL *VAL_CONTEXT_KEYS_HEAD(unstable REBCEL(*) context)
 {
     if (CELL_KIND(context) != REB_FRAME)
         return CTX_KEYS_HEAD(VAL_CONTEXT(context));
 
-    REBACT *phase = VAL_PHASE_ELSE_ARCHETYPE(context);
+    REBACT *phase = VAL_FRAME_PHASE(context);
     return ACT_PARAMS_HEAD(phase);
 }
 
 #define VAL_CONTEXT_VARS_HEAD(context) \
     CTX_VARS_HEAD(VAL_CONTEXT(context))  // all views have same varlist
+
+#define VAL_CONTEXT_KEY(v,n)        CTX_KEY(VAL_CONTEXT(v), (n))  // !!! wrong
+#define VAL_CONTEXT_VAR(v,n)        CTX_VAR(VAL_CONTEXT(v), (n))
+#define VAL_CONTEXT_LEN(v)          CTX_LEN(VAL_CONTEXT(v))
 
 
 // The movement of the SELF word into the domain of the object generators

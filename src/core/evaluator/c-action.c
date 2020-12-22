@@ -1111,7 +1111,7 @@ bool Process_Action_Maybe_Stale_Throws(REBFRM * const f)
                 // !!! Consider folding this pass into an option for the
                 // typechecking loop itself.
                 //
-                REBACT *redo_phase = VAL_PHASE_ELSE_ARCHETYPE(f->out);
+                REBACT *redo_phase = VAL_FRAME_PHASE(f->out);
                 f->param = ACT_PARAMS_HEAD(redo_phase);
                 f->special = ACT_SPECIALTY_HEAD(redo_phase);
                 f->arg = FRM_ARGS_HEAD(f);

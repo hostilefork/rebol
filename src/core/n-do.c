@@ -433,7 +433,7 @@ REBNATIVE(do)
 
       case REB_FRAME: {
         REBCTX *c = VAL_CONTEXT(source); // checks for INACCESSIBLE
-        REBACT *phase = VAL_PHASE_ELSE_ARCHETYPE(source);
+        REBACT *phase = VAL_FRAME_PHASE(source);
 
         if (CTX_FRAME_IF_ON_STACK(c)) // see REDO for tail-call recursion
             fail ("Use REDO to restart a running FRAME! (not DO)");
@@ -471,10 +471,6 @@ REBNATIVE(do)
         assert(FRM_PHASE(f) == phase);  // !!! v-- should archetype match?
         INIT_FRM_BINDING(f, VAL_CONTEXT_BINDING(source));
 
-        // Some FRAME! values sneakily hide a label where the VAL_PHASE()
-        // would be (if they can get away with it, e.g. the phase can be
-        // assumed to be the main phase from the keylist).
-        //
         Begin_Prefix_Action(f, VAL_FRAME_LABEL(source));
 
         bool threw = Process_Action_Throws(f);

@@ -287,14 +287,17 @@ inline static const REBSTR *VAL_ACTION_LABEL(unstable const RELVAL *v) {
     return STR(s);
 }
 
-inline static void INIT_ACTION_LABEL(unstable RELVAL *v, const REBSTR *label)
-{
-    // !!! How to be certain this isn't an archetype node?  The GC should
-    // catch any violations when a paramlist[0] isn't an array...
-    //
-    ASSERT_CELL_WRITABLE_EVIL_MACRO(v, __FILE__, __LINE__);
-    assert(label != nullptr);  // avoid needing to worry about null case
-    VAL_ACTION_SPECIALTY_OR_LABEL_NODE(v) = NOD(m_cast(REBSTR*, label));
+inline static void INIT_VAL_ACTION_LABEL(
+    unstable RELVAL *v,
+    option(const REBSTR*) label
+){
+    ASSERT_CELL_WRITABLE_EVIL_MACRO(v, __FILE__, __LINE__);  // archetype R/O
+    if (label)
+        VAL_ACTION_SPECIALTY_OR_LABEL_NODE(v)
+            = NOD(m_cast(REBSTR*, unwrap(label)));
+    else
+        VAL_ACTION_SPECIALTY_OR_LABEL_NODE(v)
+            = NOD(ACT_SPECIALTY(VAL_ACTION(v)));
 }
 
 
@@ -419,14 +422,12 @@ static inline REBVAL *Init_Action(
     Extra_Init_Action_Checks_Debug(a);
   #endif
     Force_Array_Managed(ACT_DETAILS(a));
-    Move_Value(out, ACT_ARCHETYPE(a));
-    if (label)
-        INIT_ACTION_LABEL(out, unwrap(label));
-    else {
-        // leave as the array from the archetype (array means not a label)
-    }
-    assert(VAL_ACTION_BINDING(out) == UNBOUND);
-    VAL_ACTION_BINDING_NODE(out) = NOD(binding);
+
+    RESET_CELL(out, REB_ACTION, CELL_MASK_ACTION);
+    VAL_ACTION_DETAILS_NODE(out) = NOD(ACT_DETAILS(a));
+    INIT_VAL_ACTION_LABEL(out, label);
+    INIT_VAL_ACTION_BINDING(out, binding);
+
     return cast(REBVAL*, out);
 }
 

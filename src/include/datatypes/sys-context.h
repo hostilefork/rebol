@@ -347,21 +347,19 @@ inline static void INIT_VAL_CONTEXT_PHASE(RELVAL *v, REBACT *phase)
 
 inline static REBACT *VAL_FRAME_PHASE(unstable REBCEL(const*) v) {
     REBSER *s = SER(VAL_FRAME_PHASE_OR_LABEL_NODE(v));
-    if (s == nullptr or IS_SER_STRING(s))  // label or anonymous
-        return CTX_FRAME_ACTION(VAL_CONTEXT(v));  // use archetype
+    if (IS_SER_STRING(s))  // holds label, not a phase
+        return CTX_FRAME_ACTION(VAL_CONTEXT(v));  // so use archetype
     return ACT(s);  // cell has its own phase, return it
 }
 
 inline static bool IS_FRAME_PHASED(unstable REBCEL(const*) v) {
     assert(CELL_KIND(v) == REB_FRAME);
     REBSER *s = SER(VAL_FRAME_PHASE_OR_LABEL_NODE(v));
-    return s != nullptr and not IS_SER_STRING(s);
+    return not IS_SER_STRING(s);
 }
 
 inline static option(const REBSTR*) VAL_FRAME_LABEL(unstable const RELVAL *v) {
     REBSER *s = SER(VAL_FRAME_PHASE_OR_LABEL_NODE(v));
-    if (s == nullptr)  // phaseless, but no label
-        return ANONYMOUS;
     if (IS_SER_STRING(s))  // label in value
         return STR(s);
     return ANONYMOUS;  // has a phase, so no label (maybe findable if running)
@@ -371,7 +369,12 @@ inline static void INIT_VAL_FRAME_LABEL(
     unstable RELVAL *v,
     option(const REBSTR*) label
 ){
-    VAL_FRAME_PHASE_OR_LABEL_NODE(v) = NOD(m_cast(REBSTR*, try_unwrap(label)));
+    if (label)
+        VAL_FRAME_PHASE_OR_LABEL_NODE(v)
+            = NOD(m_cast(REBSTR*, unwrap(label)));
+    else
+        VAL_FRAME_PHASE_OR_LABEL_NODE(v)  // for no label, match the archetype
+            = NOD(CTX_FRAME_ACTION(VAL_CONTEXT(v)));
 }
 
 

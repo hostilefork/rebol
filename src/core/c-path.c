@@ -379,7 +379,7 @@ bool Next_Path_Throws(REBPVS *pvs)
         if (IS_WORD(PVS_PICKER(pvs))) {
             if (not pvs->label) {  // !!! only used for this "bit" signal
                 pvs->label = VAL_WORD_SPELLING(PVS_PICKER(pvs));
-                INIT_ACTION_LABEL(pvs->out, unwrap(pvs->label));
+                INIT_VAL_ACTION_LABEL(pvs->out, unwrap(pvs->label));
             }
         }
     }
@@ -573,7 +573,7 @@ bool Eval_Path_Throws_Core(
 
         if (IS_ACTION(pvs->out)) {
             pvs->label = VAL_WORD_SPELLING(f_value);
-            INIT_ACTION_LABEL(pvs->out, unwrap(pvs->label));
+            INIT_VAL_ACTION_LABEL(pvs->out, unwrap(pvs->label));
         }
     }
     else if (

@@ -1057,9 +1057,12 @@ REBACT *Make_Action(
     RELVAL *archetype = STABLE(ARR_HEAD(details));
     RESET_CELL(archetype, REB_ACTION, CELL_MASK_ACTION);
     VAL_ACTION_DETAILS_NODE(archetype) = NOD(details);
-
     VAL_ACTION_BINDING_NODE(archetype) = UNBOUND;
-    //
+
+  #if !defined(NDEBUG)  // notice attempted mutation of the archetype cell
+    SET_CELL_FLAG(archetype, PROTECTED);
+  #endif
+
     // Leave rest of the cells in the capacity uninitialized (caller fills in)
     //
     TERM_ARRAY_LEN(details, details_capacity);
@@ -1343,7 +1346,7 @@ bool Get_If_Word_Or_Path_Throws(
       get_as_word:
         Get_Word_May_Fail(out, v, specifier);
         if (IS_ACTION(out))
-            INIT_ACTION_LABEL(out, VAL_WORD_SPELLING(v));
+            INIT_VAL_ACTION_LABEL(out, VAL_WORD_SPELLING(v));
     }
     else if (
         IS_PATH(v) or IS_GET_PATH(v) or IS_SYM_PATH(v)

@@ -682,7 +682,7 @@ bool Eval_Maybe_Stale_Throws(REBFRM * const f)
         Decay_If_Nulled(f->out);
 
         if (IS_ACTION(unwrap(gotten)))  // cache the word's label in the cell
-            INIT_ACTION_LABEL(f->out, VAL_WORD_SPELLING(v));
+            INIT_VAL_ACTION_LABEL(f->out, VAL_WORD_SPELLING(v));
         break;
 
 

@@ -114,8 +114,8 @@ REB_R Encloser_Dispatcher(REBFRM *f)
     // encloser again (infinite loop).
     //
     REBVAL *rootvar = CTX_ROOTVAR(c);
-    INIT_VAL_CONTEXT_PHASE(rootvar, VAL_ACTION(inner));
-    INIT_BINDING_MAY_MANAGE(rootvar, NOD(VAL_ACTION_BINDING(inner)));
+    INIT_VAL_FRAME_PHASE(rootvar, VAL_ACTION(inner));
+    INIT_VAL_FRAME_BINDING(rootvar, VAL_ACTION_BINDING(inner));
 
     // We don't actually know how long the frame we give back is going to
     // live, or who it might be given to.  And it may contain things like

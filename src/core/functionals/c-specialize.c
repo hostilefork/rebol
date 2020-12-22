@@ -145,17 +145,16 @@ REBCTX *Make_Context_For_Action_Push_Partials(
     REBARR *varlist = Make_Array_Core(num_slots, SERIES_MASK_VARLIST);
     INIT_CTX_KEYLIST_SHARED(CTX(varlist), ACT_PARAMLIST(act));
 
-    REBVAL *rootvar = RESET_CELL(
-        ARR_HEAD(varlist),
-        REB_FRAME,
-        CELL_MASK_CONTEXT
+    RELVAL *rootvar = STABLE(ARR_HEAD(varlist));
+    INIT_VAL_FRAME_ROOTVAR(
+        rootvar,
+        varlist,
+        VAL_ACTION(action),
+        VAL_ACTION_BINDING(action)
     );
-    INIT_VAL_CONTEXT_VARLIST(rootvar, varlist);
-    INIT_VAL_CONTEXT_PHASE(rootvar, VAL_ACTION(action));
-    INIT_VAL_CONTEXT_BINDING(rootvar, VAL_ACTION_BINDING(action));
 
     const REBVAL *param = ACT_PARAMS_HEAD(act);
-    REBVAL *arg = rootvar + 1;
+    REBVAL *arg = SPECIFIC(rootvar) + 1;
     const REBVAL *special = ACT_SPECIALTY_HEAD(act);  // of exemplar/paramlist
 
     REBLEN index = 1; // used to bind REFINEMENT! values to parameter slots

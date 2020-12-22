@@ -629,8 +629,18 @@ static void Init_System_Object(
     REBCTX *c = VAL_CONTEXT(std_error);
     mutable_KIND3Q_BYTE(std_error) = REB_ERROR;
     mutable_HEART_BYTE(std_error) = REB_ERROR;
-    mutable_KIND3Q_BYTE(CTX_ROOTVAR(c)) = REB_ERROR;
-    mutable_HEART_BYTE(CTX_ROOTVAR(c)) = REB_ERROR;
+
+    REBVAL *rootvar = CTX_ROOTVAR(c);
+  #if !defined(NDEBUG)
+    assert(rootvar->header.bits & CELL_FLAG_PROTECTED);
+    rootvar->header.bits &= ~CELL_FLAG_PROTECTED;
+  #endif
+    mutable_KIND3Q_BYTE(rootvar) = REB_ERROR;
+    mutable_HEART_BYTE(rootvar) = REB_ERROR;
+  #if !defined(NDEBUG)
+    rootvar->header.bits |= CELL_FLAG_PROTECTED;
+  #endif
+
     assert(CTX_KEY_SYM(c, 1) == SYM_SELF);
     mutable_KIND3Q_BYTE(CTX_VAR(c, 1)) = REB_ERROR;
     mutable_HEART_BYTE(CTX_VAR(c, 1)) = REB_ERROR;

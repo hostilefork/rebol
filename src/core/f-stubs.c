@@ -283,7 +283,7 @@ void Extra_Init_Any_Context_Checks_Debug(enum Reb_Kind kind, REBCTX *c) {
     // ->binding of the function value it links to (which is in ->phase)
     //
     assert(
-        VAL_CONTEXT_BINDING_NODE(archetype) == UNBOUND
+        VAL_FRAME_BINDING_NODE(archetype) == UNBOUND
         or CTX_TYPE(c) == REB_FRAME
     );
 

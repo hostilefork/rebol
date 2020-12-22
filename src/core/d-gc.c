@@ -257,7 +257,7 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
         // could apply to any OBJECT!, but the binding cheaply makes it
         // a method for that object.)
         //
-        if (VAL_CONTEXT_BINDING_NODE(v) != UNBOUND) {
+        if (VAL_FRAME_BINDING_NODE(v) != UNBOUND) {
             assert(CTX_TYPE(context) == REB_FRAME);
             struct Reb_Frame *f = CTX_FRAME_IF_ON_STACK(context);
             if (f)  // comes from execution, not MAKE FRAME!
@@ -537,7 +537,7 @@ void Assert_Array_Marked_Correctly(const REBARR *a) {
         //
         assert(ANY_CONTEXT(archetype));
         assert(
-            VAL_CONTEXT_BINDING_NODE(archetype) == UNBOUND
+            VAL_FRAME_BINDING_NODE(archetype) == UNBOUND
             or VAL_TYPE(archetype) == REB_FRAME
         );
 

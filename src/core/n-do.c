@@ -723,8 +723,8 @@ REBNATIVE(redo)
         if (ACT_PARAMLIST(f->original) != ACT_PARAMLIST(VAL_ACTION(sibling)))
             fail ("/OTHER function passed to REDO has incompatible FRAME!");
 
-        INIT_VAL_CONTEXT_PHASE(restartee, VAL_ACTION(sibling));
-        INIT_VAL_CONTEXT_BINDING(restartee, VAL_ACTION_BINDING(sibling));
+        INIT_VAL_FRAME_PHASE(restartee, VAL_ACTION(sibling));
+        INIT_VAL_FRAME_BINDING(restartee, VAL_ACTION_BINDING(sibling));
     }
 
     // We need to cooperatively throw a restart instruction up to the level

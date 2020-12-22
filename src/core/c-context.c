@@ -53,11 +53,8 @@ REBCTX *Alloc_Context_Core(enum Reb_Kind kind, REBLEN capacity, REBFLGS flags)
     MISC_META_NODE(varlist) = nullptr;  // GC sees meta object, must init
     INIT_CTX_KEYLIST_UNIQUE(CTX(varlist), keylist);  // starts out unique
 
-    RELVAL *rootvar = Alloc_Tail_Array(varlist);  // archetypal value
-    RESET_CELL(rootvar, kind, CELL_MASK_CONTEXT);
-    INIT_VAL_CONTEXT_VARLIST(rootvar, varlist);
-    INIT_VAL_CONTEXT_PHASE(rootvar, nullptr);
-    INIT_VAL_CONTEXT_BINDING(rootvar, UNBOUND);  // only FRAME! uses binding
+    RELVAL *rootvar = STABLE(Alloc_Tail_Array(varlist));
+    INIT_VAL_CONTEXT_ROOTVAR(rootvar, kind, varlist);
 
     return CTX(varlist);  // varlist pointer is context handle
 }
@@ -718,17 +715,8 @@ REBCTX *Make_Selfish_Context_Detect_Managed(
         }
     }
 
-    // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
-    //
-    REBVAL *var = RESET_CELL(
-        ARR_HEAD(varlist),
-        kind,
-        CELL_MASK_CONTEXT
-    );
-    INIT_VAL_CONTEXT_VARLIST(var, varlist);
-    INIT_VAL_CONTEXT_PHASE(var, nullptr);
-    INIT_VAL_CONTEXT_BINDING(var, UNBOUND);
-    SET_CELL_FLAG(var, ARG_MARKED_CHECKED);
+    RELVAL *var = STABLE(ARR_HEAD(varlist));
+    INIT_VAL_CONTEXT_ROOTVAR(var, kind, varlist);
 
     ++var;
 
@@ -974,14 +962,8 @@ REBCTX *Merge_Contexts_Selfish_Managed(REBCTX *parent1, REBCTX *parent2)
     // the parent was an ERROR! so will the child be.  This is a new idea,
     // so review consequences.
     //
-    REBVAL *rootvar = RESET_CELL(
-        ARR_HEAD(varlist),
-        CTX_TYPE(parent1),
-        CELL_MASK_CONTEXT
-    );
-    INIT_VAL_CONTEXT_VARLIST(rootvar, varlist);
-    INIT_VAL_CONTEXT_PHASE(rootvar, nullptr);
-    INIT_VAL_CONTEXT_BINDING(rootvar, UNBOUND);
+    RELVAL *rootvar = STABLE(ARR_HEAD(varlist));
+    INIT_VAL_CONTEXT_ROOTVAR(rootvar, CTX_TYPE(parent1), varlist);
 
     // Copy parent1 values.  (Can't use memcpy() because it would copy things
     // like protected bits...)

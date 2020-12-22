@@ -502,7 +502,7 @@ REB_R Init_Thrown_Unwind_Value(
     Move_Value(out, NATIVE_VAL(unwind));
 
     if (IS_FRAME(level)) {
-        INIT_VAL_CONTEXT_BINDING(out, VAL_CONTEXT(level));
+        INIT_VAL_FRAME_BINDING(out, VAL_CONTEXT(level));
     }
     else if (IS_INTEGER(level)) {
         REBLEN count = VAL_INT32(level);

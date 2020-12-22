@@ -756,16 +756,10 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
         MISC_META_NODE(types_varlist) = nullptr;  // GC sees, must initialize
         INIT_CTX_KEYLIST_SHARED(CTX(types_varlist), paramlist);
 
-        REBVAL *rootvar = RESET_CELL(
-            STABLE(ARR_HEAD(types_varlist)),
-            REB_OBJECT,
-            CELL_MASK_CONTEXT
-        );
-        INIT_VAL_CONTEXT_VARLIST(rootvar, types_varlist);  // "canon FRAME!"
-        INIT_VAL_CONTEXT_PHASE(rootvar, nullptr);
-        INIT_VAL_CONTEXT_BINDING(rootvar, UNBOUND);
+        RELVAL *rootvar = STABLE(ARR_HEAD(types_varlist));
+        INIT_VAL_CONTEXT_ROOTVAR(rootvar, REB_OBJECT, types_varlist);
 
-        REBVAL *dest = rootvar + 1;
+        REBVAL *dest = SPECIFIC(rootvar) + 1;
         const RELVAL *param = ARR_AT(paramlist, 1);
 
         unstable REBVAL *src = DS_AT(dsp_orig + 2);
@@ -828,17 +822,11 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
         MISC_META_NODE(notes_varlist) = nullptr;  // GC sees, must initialize
         INIT_CTX_KEYLIST_SHARED(CTX(notes_varlist), paramlist);
 
-        REBVAL *rootvar = RESET_CELL(
-            ARR_HEAD(notes_varlist),
-            REB_OBJECT,
-            CELL_MASK_CONTEXT
-        );
-        INIT_VAL_CONTEXT_VARLIST(rootvar, notes_varlist); // canon FRAME!
-        INIT_VAL_CONTEXT_PHASE(rootvar, nullptr);
-        INIT_VAL_CONTEXT_BINDING(rootvar, UNBOUND);
+        RELVAL *rootvar = STABLE(ARR_HEAD(notes_varlist));
+        INIT_VAL_CONTEXT_ROOTVAR(rootvar, REB_OBJECT, notes_varlist); 
 
         const RELVAL *param = ARR_AT(paramlist, 1);
-        REBVAL *dest = rootvar + 1;
+        REBVAL *dest = SPECIFIC(rootvar) + 1;
 
         unstable REBVAL *src = DS_AT(dsp_orig + 3);
         src += 3;
@@ -1153,14 +1141,8 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBACT *a)
     SET_SERIES_INFO(varlist, INACCESSIBLE);
     MISC_META_NODE(varlist) = nullptr;
 
-    RELVAL *rootvar = RESET_CELL(
-        ARR_SINGLE(varlist),
-        REB_FRAME,
-        CELL_MASK_CONTEXT
-    );
-    INIT_VAL_CONTEXT_VARLIST(rootvar, varlist);
-    INIT_VAL_CONTEXT_PHASE(rootvar, a);
-    INIT_VAL_CONTEXT_BINDING(rootvar, UNBOUND); // !!! is a binding relevant?
+    RELVAL *rootvar = ARR_SINGLE(varlist);
+    INIT_VAL_FRAME_ROOTVAR(rootvar, varlist, a, UNBOUND);  // !!! binding?
 
     REBCTX *expired = CTX(varlist);
     INIT_CTX_KEYLIST_SHARED(expired, ACT_PARAMLIST(a));

@@ -1056,7 +1056,7 @@ REBACT *Make_Action(
     );
     RELVAL *archetype = STABLE(ARR_HEAD(details));
     RESET_CELL(archetype, REB_ACTION, CELL_MASK_ACTION);
-    VAL_ACT_DETAILS_NODE(archetype) = NOD(details);
+    VAL_ACTION_DETAILS_NODE(archetype) = NOD(details);
 
     VAL_ACTION_BINDING_NODE(archetype) = UNBOUND;
     //

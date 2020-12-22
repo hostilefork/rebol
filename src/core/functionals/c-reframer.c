@@ -184,7 +184,7 @@ REBNATIVE(reframer_p)
     // store the implementation phase and which parameter to fill with the
     // frame.
     //
-    REBARR *paramlist = VAL_ACT_PARAMLIST(shim);
+    REBARR *paramlist = VAL_ACTION_PARAMLIST(shim);
 
     REBACT *reframer = Make_Action(
         paramlist,

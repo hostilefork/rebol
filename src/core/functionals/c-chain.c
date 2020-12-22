@@ -216,7 +216,7 @@ REBNATIVE(chain_p)  // see extended definition CHAIN in %base-defs.r
     // !!! Output (RETURN) should match the *tail* of the chain.  Is this
     // worth a new paramlist?  Should this be reviewed?
     //
-    REBARR *paramlist = VAL_ACT_PARAMLIST(first);
+    REBARR *paramlist = VAL_ACTION_PARAMLIST(first);
 
     REBACT *chain = Make_Action(
         paramlist,

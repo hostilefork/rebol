@@ -144,7 +144,7 @@
 #define CELL_MASK_ACTION \
     (CELL_FLAG_FIRST_IS_NODE | CELL_FLAG_SECOND_IS_NODE)
 
-#define VAL_ACT_DETAILS_NODE(v) \
+#define VAL_ACTION_DETAILS_NODE(v) \
     PAYLOAD(Any, (v)).first.node  // lvalue, but a node
 
 #define VAL_ACTION_SPECIALTY_OR_LABEL_NODE(v) \
@@ -258,13 +258,13 @@ inline static REBVAL *ACT_SPECIALTY_HEAD(REBACT *a) {
 
 inline static REBACT *VAL_ACTION(unstable REBCEL(const*) v) {
     assert(CELL_KIND(v) == REB_ACTION); // so it works on literals
-    REBSER *s = SER(VAL_ACT_DETAILS_NODE(v));
+    REBSER *s = SER(VAL_ACTION_DETAILS_NODE(v));
     if (GET_SERIES_INFO(s, INACCESSIBLE))
         fail (Error_Series_Data_Freed_Raw());
     return ACT(s);
 }
 
-#define VAL_ACT_PARAMLIST(v) \
+#define VAL_ACTION_PARAMLIST(v) \
     ACT_PARAMLIST(VAL_ACTION(v))
 
 

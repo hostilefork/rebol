@@ -117,7 +117,7 @@ REBNATIVE(adapt_p)  // see extended definition ADAPT in %base-defs.r
 
     REBVAL *adaptee = ARG(adaptee);
 
-    REBARR *paramlist = VAL_ACT_PARAMLIST(adaptee);
+    REBARR *paramlist = VAL_ACTION_PARAMLIST(adaptee);
 
     // !!! There was code here which would hide it so adapted code had no
     // access to the locals.  That requires creating a new paramlist.  Is

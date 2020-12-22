@@ -28,7 +28,7 @@ static bool Same_Action(REBCEL(const*) a, REBCEL(const*) b)
 {
     assert(CELL_KIND(a) == REB_ACTION and CELL_KIND(b) == REB_ACTION);
 
-    if (VAL_ACT_PARAMLIST(a) == VAL_ACT_PARAMLIST(b)) {
+    if (VAL_ACTION_PARAMLIST(a) == VAL_ACTION_PARAMLIST(b)) {
         //
         // All actions that have the same paramlist are not necessarily the
         // "same action".  For instance, every RETURN shares a common

@@ -166,7 +166,7 @@ REBNATIVE(enclose_p)  // see extended definition ENCLOSE in %base-defs.r
     //
     // !!! Return result may differ; similar issue comes up with CHAIN
     //
-    REBARR *paramlist = VAL_ACT_PARAMLIST(inner);
+    REBARR *paramlist = VAL_ACTION_PARAMLIST(inner);
 
     REBACT *enclosure = Make_Action(
         paramlist,

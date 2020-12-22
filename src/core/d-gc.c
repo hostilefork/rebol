@@ -388,7 +388,7 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
         // consistent with the paramlist itself.
         //
         REBVAL *archetype = ACT_ARCHETYPE(a);
-        assert(ACT_PARAMLIST(a) == VAL_ACT_PARAMLIST(archetype));
+        assert(ACT_PARAMLIST(a) == VAL_ACTION_PARAMLIST(archetype));
         break; }
 
       case REB_QUOTED:

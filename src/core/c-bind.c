@@ -173,7 +173,7 @@ void Unbind_Values_Core(RELVAL *head, option(REBCTX*) context, bool deep)
 
         if (
             ANY_WORD_KIND(heart)
-            and (not context or VAL_BINDING(v) == NOD(unwrap(context)))
+            and (not context or VAL_WORD_BINDING(v) == NOD(unwrap(context)))
         ){
             Unbind_Any_Word(v);
         }
@@ -195,7 +195,7 @@ REBLEN Try_Bind_Word(const RELVAL *context, REBVAL *word)
 {
     REBLEN n = Find_Canon_In_Context(context, VAL_WORD_CANON(word));
     if (n != 0) {
-        INIT_BINDING(word, VAL_CONTEXT(context));
+        INIT_VAL_WORD_BINDING(word, VAL_CONTEXT(context));
         INIT_WORD_INDEX(word, n);  // ^-- may have been relative bind before
     }
     return n;
@@ -384,7 +384,7 @@ static void Clonify_And_Bind_Relative(
             // (clear out existing binding flags first).
             //
             Unbind_Any_Word(v);
-            INIT_BINDING(v, relative);  // "incomplete func" (LETs gathering?)
+            INIT_VAL_WORD_BINDING(v, relative);  // "incomplete func" (LETs gathering?)
 
             // !!! Right now we don't actually add the parameters as we go.
             // This means INIT_WORD_INDEX()
@@ -556,8 +556,8 @@ void Rebind_Values_Deep(
                 binder
             );
         }
-        else if (ANY_WORD(v) and VAL_BINDING(v) == NOD(src)) {
-            INIT_BINDING(v, dst);
+        else if (ANY_WORD(v) and VAL_WORD_BINDING(v) == NOD(src)) {
+            INIT_VAL_WORD_BINDING(v, dst);
 
             if (binder) {
                 INIT_WORD_INDEX(

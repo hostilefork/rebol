@@ -1058,7 +1058,7 @@ REBACT *Make_Action(
     RESET_CELL(archetype, REB_ACTION, CELL_MASK_ACTION);
     VAL_ACT_DETAILS_NODE(archetype) = NOD(details);
 
-    EXTRA(Binding, archetype).node = UNBOUND;
+    VAL_ACTION_BINDING_NODE(archetype) = UNBOUND;
     //
     // Leave rest of the cells in the capacity uninitialized (caller fills in)
     //

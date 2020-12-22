@@ -408,7 +408,7 @@ REB_R PD_Context(
     // no need to go hunting).  'x
     //
     REBLEN n;
-    if (VAL_BINDING(picker) == NOD(c))
+    if (VAL_WORD_BINDING(picker) == NOD(c))
         n = VAL_WORD_INDEX(picker);
     else {
         n = Find_Canon_In_Context(pvs->out, VAL_WORD_CANON(picker));
@@ -422,7 +422,7 @@ REB_R PD_Context(
         // the word is an evaluative product, as the bits live in the cell
         // and it will be discarded.
         //
-        INIT_BINDING(m_cast(RELVAL*, picker), NOD(c));
+        INIT_VAL_WORD_BINDING(m_cast(RELVAL*, picker), NOD(c));
         INIT_WORD_INDEX(m_cast(RELVAL*, picker), n);
     }
 

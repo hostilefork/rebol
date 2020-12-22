@@ -61,32 +61,30 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
         and not (binding->header.bits & SERIES_FLAG_IS_STRING)
         and NOT_SERIES_INFO(binding, INACCESSIBLE)
     ){
-        if (not Is_Node_Cell(binding)) {
-            assert(IS_SER_ARRAY(binding));
+        assert(IS_SER_ARRAY(binding));
+        if (
+            GET_ARRAY_FLAG(binding, IS_VARLIST)
+            and (CTX_TYPE(CTX(binding)) == REB_FRAME)
+        ){
             if (
-                GET_ARRAY_FLAG(binding, IS_VARLIST)
-                and (CTX_TYPE(CTX(binding)) == REB_FRAME)
+                (binding->header.bits & SERIES_MASK_VARLIST)
+                != SERIES_MASK_VARLIST
+            ){
+                panic (binding);
+            }
+            REBNOD *keysource = LINK_KEYSOURCE(binding);
+            if (
+                not Is_Node_Cell(keysource)
+                and GET_ARRAY_FLAG(keysource, IS_DETAILS)
             ){
                 if (
-                    (binding->header.bits & SERIES_MASK_VARLIST)
-                    != SERIES_MASK_VARLIST
+                    (keysource->header.bits & SERIES_MASK_PARAMLIST)
+                    != SERIES_MASK_PARAMLIST
                 ){
                     panic (binding);
                 }
-                REBNOD *keysource = LINK_KEYSOURCE(binding);
-                if (
-                    not Is_Node_Cell(keysource)
-                    and GET_ARRAY_FLAG(keysource, IS_DETAILS)
-                ){
-                    if (
-                        (keysource->header.bits & SERIES_MASK_PARAMLIST)
-                        != SERIES_MASK_PARAMLIST
-                    ){
-                        panic (binding);
-                    }
-                    if (NOT_SERIES_FLAG(keysource, MANAGED))
-                        panic (keysource);
-                }
+                if (NOT_SERIES_FLAG(keysource, MANAGED))
+                    panic (keysource);
             }
         }
     }
@@ -259,7 +257,7 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
         // could apply to any OBJECT!, but the binding cheaply makes it
         // a method for that object.)
         //
-        if (EXTRA(Binding, v).node != UNBOUND) {
+        if (VAL_CONTEXT_BINDING_NODE(v) != UNBOUND) {
             assert(CTX_TYPE(context) == REB_FRAME);
             struct Reb_Frame *f = CTX_FRAME_IF_ON_STACK(context);
             if (f)  // comes from execution, not MAKE FRAME!
@@ -515,7 +513,7 @@ void Assert_Array_Marked_Correctly(const REBARR *a) {
     if (GET_ARRAY_FLAG(a, IS_DETAILS)) {
         const RELVAL *archetype = STABLE(ARR_HEAD(a));
         assert(IS_ACTION(archetype));
-        assert(not EXTRA(Binding, archetype).node);
+        assert(VAL_ACTION_BINDING_NODE(archetype) == UNBOUND);
 
         // These queueings cannot be done in Queue_Mark_Function_Deep
         // because of the potential for overflowing the C stack with calls
@@ -539,7 +537,7 @@ void Assert_Array_Marked_Correctly(const REBARR *a) {
         //
         assert(ANY_CONTEXT(archetype));
         assert(
-            not EXTRA(Binding, archetype).node
+            VAL_CONTEXT_BINDING_NODE(archetype) == UNBOUND
             or VAL_TYPE(archetype) == REB_FRAME
         );
 

@@ -408,7 +408,7 @@ inline static void INIT_BINDING_MAY_MANAGE(
 //
 inline static bool IS_WORD_UNBOUND(unstable REBCEL(const*) v) {
     assert(ANY_WORD_KIND(CELL_HEART(v)));
-    return GET_SERIES_FLAG(SER(EXTRA(Binding, v).node), IS_STRING);
+    return VAL_WORD_BINDING_NODE(v)->header.bits & SERIES_FLAG_IS_STRING;
 }
 
 #define IS_WORD_BOUND(v) \
@@ -423,7 +423,7 @@ inline static REBLEN VAL_WORD_INDEX(unstable REBCEL(const*) v) {
 
 inline static void Unbind_Any_Word(unstable RELVAL *v) {
     const REBSTR *spelling = VAL_WORD_SPELLING(v);
-    INIT_BINDING(v, NOD(spelling));
+    INIT_VAL_WORD_BINDING(v, NOD(spelling));
   #if !defined(NDEBUG)
     INIT_WORD_INDEX(v, -1);
   #endif
@@ -431,7 +431,7 @@ inline static void Unbind_Any_Word(unstable RELVAL *v) {
 
 inline static REBCTX *VAL_WORD_CONTEXT(unstable const REBVAL *v) {
     assert(IS_WORD_BOUND(v));
-    REBNOD *binding = VAL_BINDING(v);
+    REBNOD *binding = VAL_WORD_BINDING(v);
     assert(
         GET_SERIES_FLAG(binding, MANAGED)
         or IS_END(FRM(LINK_KEYSOURCE(binding))->param)  // not "fulfilling"
@@ -450,9 +450,9 @@ inline static REBCTX *VAL_WORD_CONTEXT(unstable const REBVAL *v) {
 inline static const REBSTR *VAL_WORD_SPELLING(unstable REBCEL(const*) v) {
     assert(ANY_WORD_KIND(CELL_HEART(v)));
     if (IS_WORD_UNBOUND(v))
-        return STR(EXTRA(Any, v).node);
+        return STR(VAL_WORD_BINDING_NODE(v));
 
-    const REBARR *binding = ARR(VAL_BINDING(v));
+    const REBARR *binding = ARR(VAL_WORD_BINDING(v));
     if (GET_ARRAY_FLAG(binding, IS_DETAILS))  // relative
         return VAL_PARAM_SPELLING(ACT_PARAM(ACT(binding), VAL_WORD_INDEX(v)));
 
@@ -506,7 +506,7 @@ inline static REBCTX *Get_Word_Context(
 ){
     assert(ANY_WORD_KIND(CELL_HEART(any_word)));
 
-    REBNOD *binding = VAL_BINDING(any_word);
+    REBNOD *binding = VAL_WORD_BINDING(any_word);
     assert(binding); // caller should check so context won't be null
 
     REBCTX *c;
@@ -588,7 +588,7 @@ static inline const REBVAL *Lookup_Word_May_Fail(
     unstable REBCEL(const*) any_word,
     REBSPC *specifier
 ){
-    if (not VAL_BINDING(any_word))
+    if (not VAL_WORD_BINDING(any_word))
         fail (Error_Not_Bound_Raw(SPECIFIC(CELL_TO_VAL(any_word))));
 
     REBCTX *c = Get_Word_Context(any_word, specifier);
@@ -602,7 +602,7 @@ static inline option(const REBVAL*) Lookup_Word(
     REBCEL(const*) any_word,
     REBSPC *specifier
 ){
-    if (not VAL_BINDING(any_word))
+    if (not VAL_WORD_BINDING(any_word))
         return nullptr;
 
     REBCTX *c = Get_Word_Context(any_word, specifier);
@@ -631,7 +631,7 @@ static inline REBVAL *Lookup_Mutable_Word_May_Fail(
     unstable REBCEL(const*) any_word,
     REBSPC *specifier
 ){
-    if (not VAL_BINDING(any_word))
+    if (not VAL_WORD_BINDING(any_word))
         fail (Error_Not_Bound_Raw(SPECIFIC(CELL_TO_VAL(any_word))));
 
     REBCTX *ctx = Get_Word_Context(any_word, specifier);

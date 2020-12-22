@@ -872,23 +872,25 @@ inline static REBVAL *SPECIFIC(const_if_c RELVAL *v) {
 
 #define UNBOUND nullptr  // not always a REBNOD* (sometimes REBCTX)
 
-inline static REBNOD *VAL_BINDING(unstable REBCEL(const*) v) {
+#define VAL_WORD_BINDING_NODE(v) \
+    EXTRA(Binding, (v)).node
+
+inline static REBNOD *VAL_WORD_BINDING(unstable REBCEL(const*) v) {
     assert(ANY_WORD_KIND(CELL_HEART(v)));
-    if (EXTRA(Binding, v).node->header.bits & SERIES_FLAG_IS_STRING)
+    REBNOD *binding = VAL_WORD_BINDING_NODE(v);
+    if (binding->header.bits & SERIES_FLAG_IS_STRING)
         return UNBOUND;
-    return EXTRA(Binding, v).node;
+    return VAL_WORD_BINDING_NODE(v);
 }
 
-inline static void INIT_BINDING(unstable RELVAL *v, const void *p) {
+inline static void INIT_VAL_WORD_BINDING(unstable RELVAL *v, const void *p) {
     assert(ANY_WORD_KIND(CELL_HEART_UNCHECKED(v)));
     const REBNOD *binding = cast(const REBNOD*, p);
-    EXTRA(Binding, v).node = m_cast(REBNOD*, binding);
+    VAL_WORD_BINDING_NODE(v) = m_cast(REBNOD*, binding);
 
   #if !defined(NDEBUG)
     if (not binding or (binding->header.bits & SERIES_FLAG_IS_STRING))
         return;  // e.g. UNBOUND (words use strings to indicate unbounds)
-
-    assert(Is_Bindable(v));  // works on partially formed values
 
     assert(not (binding->header.bits & NODE_FLAG_CELL));  // not currently used
 
@@ -896,9 +898,6 @@ inline static void INIT_BINDING(unstable RELVAL *v, const void *p) {
         assert(
             binding->header.bits & ARRAY_FLAG_IS_DETAILS  // relative
             or binding->header.bits & ARRAY_FLAG_IS_VARLIST  // specific
-            or (
-                IS_VARARGS(v) and not IS_SER_DYNAMIC(binding)
-            )  // varargs from MAKE VARARGS! [...], else is a varlist
         );
     }
     else

@@ -234,11 +234,14 @@ inline static REBVAL *Init_Any_Word(
     const REBSTR *spelling
 ){
     RESET_CELL(out, kind, CELL_FLAG_FIRST_IS_NODE);
-    INIT_VAL_NODE(out, nullptr);  // !!! TBD: specifier cache
-    INIT_BINDING(out, NOD(spelling));
+    INIT_VAL_WORD_BINDING(out, NOD(spelling));
   #if !defined(NDEBUG)
     INIT_WORD_INDEX(out, -1);  // index not heeded if no binding
   #endif
+
+    PAYLOAD(Any, out).first.node = nullptr;
+    /*INIT_SPECIFIER(out, UNBOUND);*/
+
     return cast(REBVAL*, out);
 }
 
@@ -254,9 +257,12 @@ inline static REBVAL *Init_Any_Word_Bound(
     REBLEN index
 ){
     RESET_CELL(out, type, CELL_FLAG_FIRST_IS_NODE);
-    INIT_VAL_NODE(out, nullptr);  // TBD: specifier cache
-    INIT_BINDING(out, context);
+    INIT_VAL_WORD_BINDING(out, context);
     INIT_WORD_INDEX(out, index);
+
+    PAYLOAD(Any, out).first.node = nullptr;
+    /*INIT_SPECIFIER(out, UNBOUND);*/
+
     return cast(REBVAL*, out);
 }
 

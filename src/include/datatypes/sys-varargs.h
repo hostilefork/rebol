@@ -119,7 +119,8 @@ inline static bool Is_Block_Style_Varargs(
 ){
     assert(CELL_KIND(vararg) == REB_VARARGS);
 
-    if (EXTRA(Binding, vararg).node->header.bits & ARRAY_FLAG_IS_VARLIST) {
+    REBNOD *binding = VAL_VARARGS_BINDING_NODE(vararg);
+    if (binding->header.bits & ARRAY_FLAG_IS_VARLIST) {
         *shared_out = nullptr; // avoid compiler warning in -Og build
         return false; // it's an ordinary vararg, representing a FRAME!
     }
@@ -128,7 +129,7 @@ inline static bool Is_Block_Style_Varargs(
     // filled by the evaluator on a <variadic> parameter.  Should be a singular
     // array with one BLOCK!, that is the actual array and index to advance.
     //
-    REBARR *array1 = ARR(EXTRA(Binding, vararg).node);
+    REBARR *array1 = ARR(binding);
     *shared_out = SPECIFIC(STABLE(ARR_HEAD(array1)));
     assert(
         IS_END(*shared_out)
@@ -145,11 +146,12 @@ inline static bool Is_Frame_Style_Varargs_Maybe_Null(
 ){
     assert(CELL_KIND(vararg) == REB_VARARGS);
 
-    if (EXTRA(Binding, vararg).node->header.bits & ARRAY_FLAG_IS_VARLIST) {
+    REBNOD *binding = VAL_VARARGS_BINDING_NODE(vararg);
+    if (binding->header.bits & ARRAY_FLAG_IS_VARLIST) {
         // "Ordinary" case... use the original frame implied by the VARARGS!
         // (so long as it is still live on the stack)
 
-        *f_out = CTX_FRAME_IF_ON_STACK(CTX(EXTRA(Binding, vararg).node));
+        *f_out = CTX_FRAME_IF_ON_STACK(CTX(binding));
         return true;
     }
 
@@ -210,7 +212,9 @@ inline static const REBVAL *Param_For_Varargs_Maybe_Null(REBCEL(const*) v) {
     // A vararg created from a block AND never passed as an argument so no
     // typeset or quoting settings available.  Treat as "normal" parameter.
     //
-    assert(not (EXTRA(Binding, v).node->header.bits & ARRAY_FLAG_IS_VARLIST));
+    assert(
+        not (VAL_VARARGS_BINDING_NODE(v)->header.bits & ARRAY_FLAG_IS_VARLIST)
+    );
     return nullptr;
 }
 

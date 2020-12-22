@@ -313,7 +313,7 @@ bool Process_Action_Maybe_Stale_Throws(REBFRM * const f)
                 const REBSTR *partial_canon = VAL_STORED_CANON(f->special);
 
                 Init_Sym_Word(DS_PUSH(), partial_canon);
-                INIT_BINDING(DS_TOP, f->varlist);
+                INIT_VAL_WORD_BINDING(DS_TOP, f->varlist);
                 INIT_WORD_INDEX(DS_TOP, partial_index);
             }
             else
@@ -336,7 +336,7 @@ bool Process_Action_Maybe_Stale_Throws(REBFRM * const f)
                     continue;
 
                 REBLEN offset = f->arg - FRM_ARGS_HEAD(f);
-                INIT_BINDING(ordered, f->varlist);
+                INIT_VAL_WORD_BINDING(ordered, f->varlist);
                 INIT_WORD_INDEX(ordered, offset + 1);
 
                 if (Is_Typeset_Empty(f->param)) {

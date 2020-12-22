@@ -243,7 +243,7 @@ REBVAL *Append_Context(
         assert(not spelling);
 
         REBLEN len = CTX_LEN(context); // length we just bumped
-        INIT_BINDING(unwrap(any_word), context);
+        INIT_VAL_WORD_BINDING(unwrap(any_word), context);
         INIT_WORD_INDEX(unwrap(any_word), len);
     }
 

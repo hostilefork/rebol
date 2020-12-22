@@ -295,8 +295,8 @@ inline static void Conserve_Varlist(REBARR *varlist)
 
     RELVAL *rootvar = STABLE(ARR_HEAD(varlist));
     assert(CTX_VARLIST(VAL_CONTEXT(rootvar)) == varlist);
-    TRASH_POINTER_IF_DEBUG(PAYLOAD(Any, rootvar).second.node);  // phase
-    TRASH_POINTER_IF_DEBUG(EXTRA(Binding, rootvar).node);
+    TRASH_POINTER_IF_DEBUG(VAL_FRAME_PHASE_OR_LABEL_NODE(rootvar));
+    TRASH_POINTER_IF_DEBUG(VAL_CONTEXT_BINDING_NODE(rootvar));
   #endif
 
     LINK(varlist).reuse = TG_Reuse;
@@ -692,7 +692,7 @@ inline static void Push_Action(
   sufficient_allocation:
 
     INIT_VAL_CONTEXT_PHASE(f->rootvar, act);  // FRM_PHASE() (can be dummy)
-    EXTRA(Binding, f->rootvar).node = NOD(binding);  // FRM_BINDING()
+    INIT_VAL_CONTEXT_BINDING(f->rootvar, binding);  // FRM_BINDING()
 
     s->content.dynamic.used = num_args + 1;
     unstable RELVAL *tail = ARR_TAIL(f->varlist);
@@ -843,8 +843,8 @@ inline static void Drop_Action(REBFRM *f) {
 
         RELVAL *rootvar = STABLE(ARR_HEAD(f->varlist));
         assert(CTX_VARLIST(VAL_CONTEXT(rootvar)) == f->varlist);
-        TRASH_POINTER_IF_DEBUG(PAYLOAD(Any, rootvar).second.node);  // phase
-        TRASH_POINTER_IF_DEBUG(EXTRA(Binding, rootvar).node);
+        TRASH_POINTER_IF_DEBUG(VAL_FRAME_PHASE_OR_LABEL_NODE(rootvar));
+        TRASH_POINTER_IF_DEBUG(VAL_CONTEXT_BINDING_NODE(rootvar));
     }
   #endif
 

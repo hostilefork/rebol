@@ -269,10 +269,10 @@ REB_R MAKE_Array(
             // so no typeset or quoting settings available.  Can't produce
             // any voids, because the data source is a block.
             //
-            assert(NOT_ARRAY_FLAG(EXTRA(Binding, arg).node, IS_VARLIST));
+            assert(NOT_ARRAY_FLAG(VAL_VARARGS_BINDING_NODE(arg), IS_VARLIST));
         }
         else {
-            REBCTX *context = CTX(EXTRA(Binding, arg).node);
+            REBCTX *context = CTX(VAL_VARARGS_BINDING(arg));
             REBFRM *param_frame = CTX_FRAME_MAY_FAIL(context);
 
             REBVAL *param = SPECIFIC(STABLE(ARR_HEAD(

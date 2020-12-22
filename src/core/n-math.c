@@ -702,7 +702,7 @@ REBNATIVE(same_q)
         return Init_Logic(
             D_OUT,
             VAL_WORD_SPELLING(v1) == VAL_WORD_SPELLING(v2)
-                and VAL_BINDING(v1) == VAL_BINDING(v2)
+                and VAL_WORD_BINDING(v1) == VAL_WORD_BINDING(v2)
         );
 
     if (IS_DECIMAL(v1) or IS_PERCENT(v1)) {

@@ -568,7 +568,7 @@ inline static REBVAL* Unrelativize(RELVAL* out, const RELVAL* v) {
     if (not Is_Bindable(v) or IS_SPECIFIC(v))
         Move_Value(out, SPECIFIC(v));
     else {  // must be bound to a function
-        REBACT *binding = ACT(VAL_BINDING(v));
+        REBACT *binding = ACT(VAL_WORD_BINDING(v));
         REBCTX *expired = Make_Expired_Frame_Ctx_Managed(binding);
 
         Move_Value_Header(out, v);

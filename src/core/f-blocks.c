@@ -343,12 +343,12 @@ REBARR *Copy_Rerelativized_Array_Deep_Managed(
                 )
             );
             PAYLOAD(Any, dest).second = PAYLOAD(Any, STABLE(src)).second;
-            INIT_BINDING(dest, after); // relative binding
+            INIT_SPECIFIER(dest, after); // relative binding
         }
         else {
             assert(ANY_WORD(src));
             PAYLOAD(Any, dest) = PAYLOAD(Any, STABLE(src));
-            INIT_BINDING(dest, after);
+            INIT_SPECIFIER(dest, after);
         }
 
     }

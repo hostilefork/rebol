@@ -92,17 +92,20 @@
     inline static REBSPC *VAL_SPECIFIER(unstable REBCEL(const*) v) {
         assert(ANY_ARRAY_KIND(CELL_HEART(v)));
 
-        if (not EXTRA(Binding, v).node)
+        REBNOD *n = EXTRA(Binding, v).node;
+        if (not n)
             return SPECIFIED;
+
+        if (n->header.bits & ARRAY_FLAG_IS_PATCH)
+            return cast(REBSPC*, n);  // virtual bind
 
         // While an ANY-WORD! can be bound specifically to an arbitrary
         // object, an ANY-ARRAY! only becomes bound specifically to frames.
         // The keylist for a frame's context should come from a function's
         // paramlist, which should have an ACTION! value in keylist[0]
         //
-        REBCTX *c = CTX(EXTRA(Binding, v).node);
-        assert(CTX_TYPE(c) == REB_FRAME); // may be inaccessible
-        return cast(REBSPC*, c);
+        assert(CTX_TYPE(CTX(n)) == REB_FRAME);  // may be inaccessible
+        return cast(REBSPC*, n);
     }
 #endif
 
@@ -726,6 +729,9 @@ inline static REBVAL *Derelativize(
             panic (v);
         }
 
+        if (specifier->header.bits & ARRAY_FLAG_IS_PATCH)
+            assert(!"Got to write this part...");
+
         // We have to be content with checking for a match in underlying
         // functions, vs. checking for an exact match.  Otherwise, then
         // hijackings or COPY'd actions, or adapted preludes, could not match
@@ -749,6 +755,9 @@ inline static REBVAL *Derelativize(
     else if (
         specifier and (binding->header.bits & ARRAY_FLAG_IS_VARLIST)
     ){
+        if (specifier->header.bits & ARRAY_FLAG_IS_PATCH)
+            assert(!"Got to write this part...");
+
         REBNOD *f_binding = SPC_BINDING(specifier); // can't fail(), see notes
 
         if (
@@ -765,6 +774,7 @@ inline static REBVAL *Derelativize(
     else { // no potential override
         assert(
             (binding->header.bits & ARRAY_FLAG_IS_VARLIST)
+            or (binding->header.bits & ARRAY_FLAG_IS_PATCH)  // just passthru
             or REB_VARARGS == CELL_KIND(VAL_UNESCAPED(v))
             // ^-- BLOCK! style varargs use binding to hold array
         );

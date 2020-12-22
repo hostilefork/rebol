@@ -62,9 +62,14 @@ struct Reb_Array {
     (ARRAY_FLAG_HAS_FILE_LINE_UNMASKED | SERIES_FLAG_LINK_NODE_NEEDS_MARK)
 
 
-//=//// ARRAY_FLAG_17 /////////////////////////////////////////////////////=//
+//=//// ARRAY_FLAG_IS_PATCH ///////////////////////////////////////////////=//
 //
-#define ARRAY_FLAG_17 \
+// The concept of "Virtual Binding" is that instances of ANY-ARRAY! values can
+// carry along a collection of contexts that override the bindings of words
+// that are encountered.  This collection is done by means of "patches" that
+// make a linked list of overrides.
+//
+#define ARRAY_FLAG_IS_PATCH \
     FLAG_LEFT_BIT(17)
 
 

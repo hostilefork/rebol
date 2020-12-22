@@ -226,6 +226,50 @@ REBNATIVE(bind)
 }
 
 
+
+//
+//  vbind: native [
+//
+//  {Virtual binding test, augmented specifiers}
+//
+//      return: [block!]
+//      block [block!]
+//      context [object!]
+//  ]
+//
+REBNATIVE(vbind)
+{
+    INCLUDE_PARAMS_OF_VBIND;
+
+    REBVAL *block = ARG(block);
+    REBVAL *context = ARG(context);
+
+    // Should we walk the block to say "hey, you've been virtualized" on the
+    // words?  The pre-walk could set a bit corresponding to what virtual
+    // steps apply.
+
+    REBARR *patch = Alloc_Singular(
+        NODE_FLAG_MANAGED
+        | SERIES_FLAG_LINK_NODE_NEEDS_MARK
+        | ARRAY_FLAG_IS_PATCH
+    );
+    REBSPC *prior = VAL_SPECIFIER(block);
+
+    // We are sort of wasting the header (we know it's a context), but we
+    // need the context pointer and the binding.  And the phase.  Maybe we
+    // could contract it for a single bind (as in for each) to being a WORD!
+    // and thus shortcut?
+    //
+    Move_Value(ARR_SINGLE(patch), context);
+    LINK(patch).custom.node = NOD(prior);  // make accessible
+
+    // What would misc be used for?  Some kind of backpointer?
+
+    INIT_VAL_WORD_BINDING(block, patch);  // bound to the patch
+    RETURN (block);
+}
+
+
 //
 //  in: native [
 //

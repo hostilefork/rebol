@@ -486,29 +486,28 @@ REBNATIVE(set_meta)
 {
     INCLUDE_PARAMS_OF_SET_META;
 
-    REBCTX *meta;
-    if (ANY_CONTEXT(ARG(meta))) {
-        if (VAL_CONTEXT_BINDING(ARG(meta)) != UNBOUND)  // only frames have
+    REBVAL *meta = ARG(meta);
+
+    REBCTX *meta_ctx;
+    if (ANY_CONTEXT(meta)) {
+        if (IS_FRAME(meta) and VAL_FRAME_BINDING(meta) != UNBOUND)
             fail ("SET-META can't store context bindings, must be unbound");
 
-        meta = VAL_CONTEXT(ARG(meta));
+        meta_ctx = VAL_CONTEXT(meta);
     }
     else {
-        assert(IS_NULLED(ARG(meta)));
-        meta = nullptr;
+        assert(IS_NULLED(meta));
+        meta_ctx = nullptr;
     }
 
     REBVAL *v = ARG(value);
 
     if (IS_ACTION(v))
-        MISC_META_NODE(ACT_DETAILS(VAL_ACTION(v))) = NOD(meta);
+        MISC_META_NODE(ACT_DETAILS(VAL_ACTION(v))) = NOD(meta_ctx);
     else
-        MISC_META_NODE(CTX_VARLIST(VAL_CONTEXT(v))) = NOD(meta);
+        MISC_META_NODE(CTX_VARLIST(VAL_CONTEXT(v))) = NOD(meta_ctx);
 
-    if (not meta)
-        return nullptr;
-
-    RETURN (CTX_ARCHETYPE(meta));
+    RETURN (meta);
 }
 
 
@@ -807,7 +806,7 @@ REBTYPE(Context)
                 D_OUT,
                 VAL_FRAME_PHASE(context),  // just a REBACT*, no binding
                 VAL_FRAME_LABEL(context),
-                VAL_CONTEXT_BINDING(context)  // e.g. where RETURN returns to
+                VAL_FRAME_BINDING(context)  // e.g. where RETURN returns to
             );
         }
 

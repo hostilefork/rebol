@@ -469,7 +469,7 @@ REBNATIVE(do)
         f->special = f->arg;
 
         assert(FRM_PHASE(f) == phase);  // !!! v-- should archetype match?
-        INIT_FRM_BINDING(f, VAL_CONTEXT_BINDING(source));
+        INIT_FRM_BINDING(f, VAL_FRAME_BINDING(source));
 
         Begin_Prefix_Action(f, VAL_FRAME_LABEL(source));
 

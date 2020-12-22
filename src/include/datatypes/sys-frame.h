@@ -172,7 +172,7 @@ inline static int FRM_LINE(REBFRM *f) {
     INIT_VAL_CONTEXT_BINDING((f)->rootvar, (binding))
 
 #define FRM_BINDING(f) \
-    VAL_CONTEXT_BINDING((f)->rootvar)
+    CTX(VAL_CONTEXT_BINDING_NODE((f)->rootvar))
 
 inline static option(const REBSTR*) FRM_LABEL(REBFRM *f) {
     assert(Is_Action_Frame(f));

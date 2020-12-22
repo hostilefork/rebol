@@ -461,7 +461,7 @@ bool Did_Get_Binding_Of(REBVAL *out, const REBVAL *v)
         else {
             // !!! Assume the canon FRAME! value in varlist[0] is useful?
             //
-            assert(VAL_CONTEXT_BINDING(out) == UNBOUND); // canon, no binding
+            assert(VAL_FRAME_BINDING(out) == UNBOUND); // canon, no binding
         }
     }
 

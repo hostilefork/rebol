@@ -571,7 +571,7 @@ inline static REBCTX *Get_Word_Context(
         // code, because the identity of the derived function would not match
         // up with the body it intended to reuse.
         //
-        assert(Action_Is_Base_Of(ACT(binding), CTX_ACTION(c)));
+        assert(Action_Is_Base_Of(ACT(binding), CTX_FRAME_ACTION(c)));
     }
 
   #ifdef DEBUG_BINDING_NAME_MATCH // this is expensive, and hasn't happened
@@ -741,7 +741,10 @@ inline static REBVAL *Derelativize(
         //
         if (
             NOT_SERIES_INFO(specifier, INACCESSIBLE) and
-            not Action_Is_Base_Of(ACT(binding), CTX_ACTION(CTX(specifier)))
+            not Action_Is_Base_Of(
+                ACT(binding),
+                CTX_FRAME_ACTION(CTX(specifier))
+            )
         ){
             printf("Function mismatch in specific binding, expected:\n");
             PROBE(ACT_ARCHETYPE(ACT(binding)));

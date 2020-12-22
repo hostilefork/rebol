@@ -52,8 +52,8 @@
 //  +------------------------------+        +-------------------------------+
 //
 // (For executing frames, the ---Link--> is actually to the REBFRM* structure
-// so the paramlist of the CTX_ACTION() must be consulted.  When the frame
-// stops running, the paramlist is written back to the link again.)
+// so the paramlist of the CTX_FRAME_ACTION() must be consulted.  When the
+// frame stops running, the paramlist is written back to the link again.)
 //
 // The "ROOTVAR" is a canon value image of an ANY-CONTEXT!'s `REBVAL`.  This
 // trick allows a single REBCTX* pointer to be passed around rather than the
@@ -143,8 +143,17 @@ inline static const REBVAL *CTX_ARCHETYPE(const REBCTX *c) {  // read-only
 inline static REBVAL *CTX_ROOTVAR(REBCTX *c)  // mutable archetype access
   { return m_cast(REBVAL*, CTX_ARCHETYPE(c)); }  // inline checks mutability
 
-#define CTX_ACTION(c) \
-    ACT(VAL_FRAME_PHASE_OR_LABEL_NODE(CTX_ARCHETYPE(c)))
+inline static REBACT *CTX_FRAME_ACTION(REBCTX *c) {
+    const REBVAL *archetype = CTX_ARCHETYPE(c);
+    assert(VAL_TYPE(archetype) == REB_FRAME);
+    return ACT(VAL_FRAME_PHASE_OR_LABEL_NODE(archetype));
+}
+
+inline static REBCTX *CTX_FRAME_BINDING(REBCTX *c) {
+    const REBVAL *archetype = CTX_ARCHETYPE(c);
+    assert(VAL_TYPE(archetype) == REB_FRAME);
+    return CTX(VAL_CONTEXT_BINDING_NODE(archetype));
+}
 
 
 //=//// CONTEXT KEYLISTS //////////////////////////////////////////////////=//
@@ -164,7 +173,7 @@ inline static REBVAL *CTX_ROOTVAR(REBCTX *c)  // mutable archetype access
 
 inline static REBARR *CTX_KEYLIST(REBCTX *c) {
     if (Is_Node_Cell(LINK_KEYSOURCE(c)))  // running frame, source is REBFRM*
-        return ACT_PARAMLIST(CTX_ACTION(c));  // so use action's paramlist
+        return ACT_PARAMLIST(CTX_FRAME_ACTION(c));  // use action's paramlist
     return ARR(LINK_KEYSOURCE(c)); // not a REBFRM, so use keylist
 }
 
@@ -235,8 +244,8 @@ inline static REBVAL *CTX_VAR(REBCTX *c, REBLEN n) {  // 1-based, no RELVAL*
 //=//// FRAME! REBCTX* <-> REBFRM* STRUCTURE //////////////////////////////=//
 //
 // For a FRAME! context, the keylist is redundant with the paramlist of the
-// CTX_ACTION() that the frame is for.  That is taken advantage of when a
-// frame is executing in order to use the LINK() keysource to point at the
+// CTX_FRAME_ACTION() that the frame is for.  That is taken advantage of when
+// a frame is executing in order to use the LINK() keysource to point at the
 // running REBFRM* structure for that stack level.  This provides a cheap
 // way to navigate from a REBCTX* to the REBFRM* that's running it.
 //
@@ -306,17 +315,9 @@ inline static REBCTX *VAL_CONTEXT(unstable REBCEL(const*) v) {
 #define INIT_VAL_CONTEXT_BINDING(v,binding) \
     (VAL_CONTEXT_BINDING_NODE(v) = NOD(binding))
 
-inline static REBCTX *VAL_CONTEXT_BINDING(unstable REBCEL(const*) v) {
-    assert(ANY_CONTEXT_KIND(CELL_HEART(v)));
-    REBNOD *binding = VAL_CONTEXT_BINDING_NODE(v);
-    assert(
-        binding == nullptr
-        or (
-            CELL_HEART(v) == REB_FRAME
-            and (binding->header.bits & ARRAY_FLAG_IS_VARLIST)
-        )
-    );
-    return CTX(binding);  // !!! should do assert above, review build flags
+inline static REBCTX *VAL_FRAME_BINDING(unstable REBCEL(const*) v) {
+    assert(REB_FRAME == CELL_HEART(v));
+    return CTX(VAL_CONTEXT_BINDING_NODE(v));
 }
 
 inline static void INIT_VAL_CONTEXT_VARLIST(RELVAL *v, REBARR *varlist)
@@ -346,7 +347,7 @@ inline static void INIT_VAL_CONTEXT_PHASE(RELVAL *v, REBACT *phase)
 inline static REBACT *VAL_FRAME_PHASE(unstable REBCEL(const*) v) {
     REBSER *s = SER(VAL_FRAME_PHASE_OR_LABEL_NODE(v));
     if (s == nullptr or IS_SER_STRING(s))  // label or anonymous
-        return CTX_ACTION(VAL_CONTEXT(v));  // use archetype
+        return CTX_FRAME_ACTION(VAL_CONTEXT(v));  // use archetype
     return ACT(s);  // cell has its own phase, return it
 }
 
@@ -620,7 +621,7 @@ inline static REBCTX *Steal_Context_Vars(REBCTX *c, REBNOD *keysource) {
             | FLAG_KIND3Q_BYTE(REB_FRAME)
             | FLAG_HEART_BYTE(REB_FRAME)
             | CELL_MASK_CONTEXT;
-    INIT_VAL_CONTEXT_BINDING(single, VAL_CONTEXT_BINDING(rootvar));
+    INIT_VAL_CONTEXT_BINDING(single, VAL_CONTEXT_BINDING_NODE(rootvar));
     INIT_VAL_CONTEXT_VARLIST(single, ARR(stub));
     TRASH_POINTER_IF_DEBUG(PAYLOAD(Any, single).second.node);  // phase
 

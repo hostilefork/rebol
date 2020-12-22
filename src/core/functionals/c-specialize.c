@@ -101,8 +101,8 @@ REB_R Specializer_Dispatcher(REBFRM *f)
 
     REBCTX *exemplar = CTX(ACT_SPECIALTY(FRM_PHASE(f)));
 
-    INIT_FRM_PHASE(f, CTX_ACTION(exemplar));
-    INIT_FRM_BINDING(f, VAL_CONTEXT_BINDING(CTX_ARCHETYPE(exemplar)));
+    INIT_FRM_PHASE(f, CTX_FRAME_ACTION(exemplar));
+    INIT_FRM_BINDING(f, CTX_FRAME_BINDING(exemplar));
 
     return R_REDO_UNCHECKED; // redo uses the updated phase and binding
 }
@@ -997,7 +997,7 @@ REBACT *Alloc_Action_From_Exemplar(
     REBNAT dispatcher,
     REBLEN details_capacity
 ){
-    REBACT *unspecialized = CTX_ACTION(exemplar);
+    REBACT *unspecialized = CTX_FRAME_ACTION(exemplar);
 
     REBARR *paramlist = ACT_PARAMLIST(unspecialized);
 

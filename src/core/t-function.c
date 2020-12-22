@@ -97,7 +97,7 @@ REB_R MAKE_Action(
             out,
             Make_Action_From_Exemplar(exemplar),
             VAL_FRAME_LABEL(arg),
-            VAL_CONTEXT_BINDING(arg)
+            VAL_FRAME_BINDING(arg)
         );
     }
 

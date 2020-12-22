@@ -252,7 +252,7 @@ STATIC_ASSERT(DETAILS_FLAG_IS_NATIVE == SERIES_INFO_HOLD);
 //
 #if defined(NDEBUG)
     #define Get_Sys_Function(id) \
-        VAL_CONTEXT_VAR(Sys_Context, SYS_CTX_##id)
+        CTX_VAR(VAL_CONTEXT(Sys_Context), SYS_CTX_##id)
 #else
     #define Get_Sys_Function(id) \
         Get_Sys_Function_Debug(SYS_CTX_##id, SYS_CTXKEY_##id)

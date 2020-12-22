@@ -443,12 +443,14 @@ static REB_R Loop_Each_Core(struct Loop_Each_State *les) {
               case REB_PORT:
               case REB_MODULE:
               case REB_FRAME: {
+                REBCTX *c = VAL_CONTEXT(les->data);
+
                 REBVAL *key;
                 REBVAL *val;
                 REBLEN bind_index;
                 while (true) {  // find next non-hidden key (if any)
-                    key = VAL_CONTEXT_KEY(les->data, les->data_idx);
-                    val = VAL_CONTEXT_VAR(les->data, les->data_idx);
+                    key = CTX_KEY(c, les->data_idx);
+                    val = CTX_VAR(c, les->data_idx);
                     bind_index = les->data_idx;
                     if (++les->data_idx == les->data_len)
                         more_data = false;

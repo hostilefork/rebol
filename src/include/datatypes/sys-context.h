@@ -194,8 +194,8 @@ static inline void INIT_CTX_KEYLIST_UNIQUE(REBCTX *c, REBARR *keylist) {
 // hand is just a REBCTX*.  THIS DOES NOT ACCOUNT FOR PHASE...so there can
 // actually be a difference between these two expressions for FRAME!s:
 //
-//     REBVAL *key_x = VAL_CONTEXT_KEY(context, n);  // accounts for phase
-//     REBVAL *key_y = CTX_KEY(VAL_CONTEXT(context), n);  // no phase
+//     REBVAL *x = VAL_CONTEXT_KEYS_HEAD(context);  // accounts for phase
+//     REBVAL *y = CTX_KEYS_HEAD(VAL_CONTEXT(context), n);  // no phase
 //
 // Context's "length" does not count the [0] cell of either the varlist or
 // the keylist arrays.  Hence it must subtract 1.  SERIES_MASK_VARLIST
@@ -204,10 +204,10 @@ static inline void INIT_CTX_KEYLIST_UNIQUE(REBCTX *c, REBARR *keylist) {
 //
 
 #define CTX_LEN(c) \
-    (cast(REBSER*, (c))->content.dynamic.used - 1)
+    (cast(REBSER*, (c))->content.dynamic.used - 1)  // -1 for archetype in [0]
 
 #define CTX_ROOTKEY(c) \
-    cast(REBVAL*, SER(CTX_KEYLIST(c))->content.dynamic.data)
+    cast(REBVAL*, SER(CTX_KEYLIST(c))->content.dynamic.data)  // never fixed
 
 #define CTX_TYPE(c) \
     VAL_TYPE(CTX_ARCHETYPE(c))
@@ -307,9 +307,10 @@ inline static REBCTX *VAL_CONTEXT(unstable REBCEL(const*) v) {
 // unique binding can be stored by individual ACTION! values, so when you make
 // a frame out of an action it has to preserve that binding.
 //
-// !!! So this means only the archetype needs to store the binding, and only
-// for frames...correct?  Why put it in the value cells?  This could mean
-// that frame values have a whole 'nother field free.
+// Note: The presence of bindings in non-archetype values makes it possible
+// for FRAME! values that have phases to carry the binding of that phase.
+// This is a largely unexplored feature, but is used in REDO scenarios where
+// a running frame gets re-executed.  More study is needed.
 //
 
 #define INIT_VAL_CONTEXT_BINDING(v,binding) \
@@ -376,13 +377,16 @@ inline static void INIT_VAL_FRAME_LABEL(
 
 //=//// ANY-CONTEXT! VALUE EXTRACTORS /////////////////////////////////////=//
 //
-// If a context is a frame, which keylist you see for it depends on what
-// phase that frame is for.  This means you need a full RELVAL* and not just
-// a REBCTX* to know all the information.
+// There once were more helpers like `VAL_CONTEXT_VAR(v,n)` which were macros
+// for things like `CTX_VAR(VAL_CONTEXT(v), n)`.  However, once VAL_CONTEXT()
+// became a test point for failure on inaccessibility, it's not desirable to
+// encourage calling with repeated extractions that pay that cost each time.
 //
-// If all you have is a REBCTX*, then if it's not a FRAME! that means you
-// can use CTX_ARCHETYPE().  If it's a frame and you know it should have
-// a phase, then the phase is the keylist.
+// However, this does not mean that all functions should early extract a
+// VAL_CONTEXT() and then do all operations in terms of that...because this
+// potentially loses information present in the RELVAL* cell.  If the value
+// is a frame, then the phase information conveys which fields should be
+// visible for that phase of execution and which aren't.
 //
 
 inline static REBVAL *VAL_CONTEXT_KEYS_HEAD(unstable REBCEL(*) context)
@@ -396,10 +400,6 @@ inline static REBVAL *VAL_CONTEXT_KEYS_HEAD(unstable REBCEL(*) context)
 
 #define VAL_CONTEXT_VARS_HEAD(context) \
     CTX_VARS_HEAD(VAL_CONTEXT(context))  // all views have same varlist
-
-#define VAL_CONTEXT_KEY(v,n)        CTX_KEY(VAL_CONTEXT(v), (n))  // !!! wrong
-#define VAL_CONTEXT_VAR(v,n)        CTX_VAR(VAL_CONTEXT(v), (n))
-#define VAL_CONTEXT_LEN(v)          CTX_LEN(VAL_CONTEXT(v))
 
 
 // The movement of the SELF word into the domain of the object generators

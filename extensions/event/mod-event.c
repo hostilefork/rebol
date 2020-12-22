@@ -319,15 +319,17 @@ REBNATIVE(wait_p)  // See wrapping function WAIT in usermode code
     if (not IS_PORT(system_port))
         fail ("System Port is not a PORT! object");
 
-    REBVAL *waiters = VAL_CONTEXT_VAR(system_port, STD_PORT_STATE);
+    REBCTX *sys = VAL_CONTEXT(system_port);
+
+    REBVAL *waiters = CTX_VAR(sys, STD_PORT_STATE);
     if (not IS_BLOCK(waiters))
         fail ("Wait queue block in System Port is not a BLOCK!");
 
-    REBVAL *waked = VAL_CONTEXT_VAR(system_port, STD_PORT_DATA);
+    REBVAL *waked = CTX_VAR(sys, STD_PORT_DATA);
     if (not IS_BLOCK(waked))
         fail ("Waked queue block in System Port is not a BLOCK!");
 
-    REBVAL *awake = VAL_CONTEXT_VAR(system_port, STD_PORT_AWAKE);
+    REBVAL *awake = CTX_VAR(sys, STD_PORT_AWAKE);
     if (not IS_ACTION(awake))
         fail ("System Port AWAKE field is not an ACTION!");
 

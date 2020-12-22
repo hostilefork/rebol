@@ -1247,7 +1247,7 @@ REBVAL *Select_Canon_In_Context(const RELVAL *context, const REBSTR *canon)
     if (n == 0)
         return nullptr;
 
-    return VAL_CONTEXT_VAR(context, n);
+    return CTX_VAR(VAL_CONTEXT(context), n);
 }
 
 

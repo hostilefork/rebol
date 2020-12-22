@@ -624,15 +624,17 @@ static void Init_System_Object(
     // `make error!` functionality is not ready when %sysobj.r runs.  Fix
     // up its archetype so that it is an actual ERROR!.
     //
+  blockscope {
     REBVAL *std_error = Get_System(SYS_STANDARD, STD_ERROR);
-    assert(IS_OBJECT(std_error));
+    REBCTX *c = VAL_CONTEXT(std_error);
     mutable_KIND3Q_BYTE(std_error) = REB_ERROR;
     mutable_HEART_BYTE(std_error) = REB_ERROR;
-    mutable_KIND3Q_BYTE(CTX_ROOTVAR(VAL_CONTEXT(std_error))) = REB_ERROR;
-    mutable_HEART_BYTE(CTX_ROOTVAR(VAL_CONTEXT(std_error))) = REB_ERROR;
-    assert(CTX_KEY_SYM(VAL_CONTEXT(std_error), 1) == SYM_SELF);
-    mutable_KIND3Q_BYTE(VAL_CONTEXT_VAR(std_error, 1)) = REB_ERROR;
-    mutable_HEART_BYTE(VAL_CONTEXT_VAR(std_error, 1)) = REB_ERROR;
+    mutable_KIND3Q_BYTE(CTX_ROOTVAR(c)) = REB_ERROR;
+    mutable_HEART_BYTE(CTX_ROOTVAR(c)) = REB_ERROR;
+    assert(CTX_KEY_SYM(c, 1) == SYM_SELF);
+    mutable_KIND3Q_BYTE(CTX_VAR(c, 1)) = REB_ERROR;
+    mutable_HEART_BYTE(CTX_VAR(c, 1)) = REB_ERROR;
+  }
 }
 
 void Shutdown_System_Object(void)
@@ -836,10 +838,11 @@ static void Startup_Sys(REBARR *boot_sys) {
 //
 REBVAL *Get_Sys_Function_Debug(REBLEN index, const char *name)
 {
-    const REBVAL *key = VAL_CONTEXT_KEY(Sys_Context, index);
+    REBCTX *sys = VAL_CONTEXT(Sys_Context);
+    const REBVAL *key = CTX_KEY(sys, index);
     const char *key_utf8 = STR_UTF8(VAL_KEY_SPELLING(key));
     assert(strcmp(key_utf8, name) == 0);
-    return VAL_CONTEXT_VAR(Sys_Context, index);
+    return CTX_VAR(sys, index);
 }
 #endif
 

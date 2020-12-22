@@ -77,7 +77,7 @@ REBNATIVE(stats)
         rebRelease(obj);
 
         if (IS_OBJECT(D_OUT)) {
-            REBVAL *stats = VAL_CONTEXT_VAR(D_OUT, 1);
+            REBVAL *stats = CTX_VAR(VAL_CONTEXT(D_OUT), 1);
 
             Init_Integer(stats, Eval_Cycles + Eval_Dose - Eval_Count);
             stats++;

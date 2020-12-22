@@ -117,7 +117,7 @@ REB_R Do_Port_Action(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
   blockscope {
     REBLEN n = Find_Canon_In_Context(actor, VAL_WORD_CANON(verb));
 
-    REBVAL *action = (n == 0) ? nullptr : VAL_CONTEXT_VAR(actor, n);
+    REBVAL *action = (n == 0) ? nullptr : CTX_VAR(VAL_CONTEXT(actor), n);
     if (not action or not IS_ACTION(action))
         fail (Error_No_Port_Action_Raw(verb));
 

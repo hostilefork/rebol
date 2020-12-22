@@ -72,7 +72,7 @@ REBVAL *Append_Event(void)
     if (!IS_PORT(port)) return 0; // verify it is a port object
 
     // Get queue block:
-    REBVAL *state = VAL_CONTEXT_VAR(port, STD_PORT_STATE);
+    REBVAL *state = CTX_VAR(VAL_CONTEXT(port), STD_PORT_STATE);
     if (!IS_BLOCK(state)) return 0;
 
     // Append to tail if room:
@@ -103,7 +103,7 @@ const REBVAL *Find_Last_Event(REBINT model, uint32_t type)
     if (!IS_PORT(port)) return NULL; // verify it is a port object
 
     // Get queue block:
-    REBVAL *state = VAL_CONTEXT_VAR(port, STD_PORT_STATE);
+    REBVAL *state = CTX_VAR(VAL_CONTEXT(port), STD_PORT_STATE);
     if (!IS_BLOCK(state)) return NULL;
 
     unstable const RELVAL *value = VAL_ARRAY_TAIL(state) - 1;

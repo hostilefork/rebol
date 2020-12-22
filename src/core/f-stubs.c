@@ -213,7 +213,7 @@ REBI64 Int64s(unstable const REBVAL *val, REBINT sign)
 const REBVAL *Datatype_From_Kind(enum Reb_Kind kind)
 {
     assert(kind > REB_0 and kind < REB_MAX);
-    REBVAL *type = VAL_CONTEXT_VAR(Lib_Context, SYM_FROM_KIND(kind));
+    REBVAL *type = CTX_VAR(VAL_CONTEXT(Lib_Context), SYM_FROM_KIND(kind));
     assert(IS_DATATYPE(type));
     return type;
 }
@@ -227,7 +227,7 @@ const REBVAL *Datatype_From_Kind(enum Reb_Kind kind)
 //
 REBVAL *Type_Of(unstable const RELVAL *value)
 {
-    return VAL_CONTEXT_VAR(Lib_Context, SYM_FROM_KIND(VAL_TYPE(value)));
+    return CTX_VAR(VAL_CONTEXT(Lib_Context), SYM_FROM_KIND(VAL_TYPE(value)));
 }
 
 

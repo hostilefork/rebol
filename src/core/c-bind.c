@@ -57,8 +57,8 @@ void Bind_Values_Inner_Loop(
         REBU64 type_bit = FLAGIT_KIND(heart);
 
         if (type_bit & bind_types) {
-            const REBSTR *canon = VAL_WORD_CANON(cell);
-            REBINT n = Get_Binder_Index_Else_0(binder, canon);
+            const REBSTR *symbol = VAL_WORD_SPELLING(cell);
+            REBINT n = Get_Binder_Index_Else_0(binder, symbol);
             if (n > 0) {
                 //
                 // A binder index of 0 should clearly not be bound.  But
@@ -82,7 +82,7 @@ void Bind_Values_Inner_Loop(
                 //
                 REBLEN depth = Dequotify(head); // must ensure new cell
                 Append_Context(context, head, 0);
-                Add_Binder_Index(binder, canon, VAL_WORD_INDEX(head));
+                Add_Binder_Index(binder, symbol, VAL_WORD_INDEX(head));
                 Quotify(head, depth); // new cell made for higher escapes
             }
         }
@@ -130,7 +130,7 @@ void Bind_Values_Core(
     REBVAL *key = VAL_CONTEXT_KEYS_HEAD(context);
     for (; NOT_END(key); key++, index++)
         if (not Is_Param_Sealed(key))
-            Add_Binder_Index(&binder, VAL_KEY_CANON(key), index);
+            Add_Binder_Index(&binder, VAL_KEY_SPELLING(key), index);
   }
 
     Bind_Values_Inner_Loop(
@@ -146,7 +146,7 @@ void Bind_Values_Core(
     RELVAL *key = VAL_CONTEXT_KEYS_HEAD(context);
     for (; NOT_END(key); key++)
         if (not Is_Param_Sealed(key))
-            Remove_Binder_Index(&binder, VAL_KEY_CANON(key));
+            Remove_Binder_Index(&binder, VAL_KEY_SPELLING(key));
   }
 
     SHUTDOWN_BINDER(&binder);
@@ -193,7 +193,12 @@ void Unbind_Values_Core(RELVAL *head, option(REBCTX*) context, bool deep)
 //
 REBLEN Try_Bind_Word(const RELVAL *context, REBVAL *word)
 {
-    REBLEN n = Find_Canon_In_Context(context, VAL_WORD_CANON(word));
+    const bool strict = true;
+    REBLEN n = Find_Symbol_In_Context(
+        context,
+        VAL_WORD_SPELLING(word),
+        strict
+    );
     if (n != 0) {
         INIT_VAL_WORD_BINDING(word, VAL_CONTEXT(context));
         INIT_WORD_INDEX(word, n);  // ^-- may have been relative bind before
@@ -252,9 +257,9 @@ static void Clonify_And_Bind_Relative(
 
     if (param_num and IS_WORD(src) and VAL_WORD_SYM(src) == SYM_LET) {
         if (IS_WORD(src + 1) or IS_SET_WORD(src + 1)) {
-            const REBSTR *canon = VAL_WORD_CANON(src + 1);
-            if (Try_Add_Binder_Index(binder, canon, *param_num)) {
-                Init_Word(DS_PUSH(), canon);
+            const REBSTR *symbol = VAL_WORD_SPELLING(src + 1);
+            if (Try_Add_Binder_Index(binder, symbol, *param_num)) {
+                Init_Word(DS_PUSH(), symbol);
                 ++(*param_num);
             }
             else {
@@ -377,7 +382,7 @@ static void Clonify_And_Bind_Relative(
     // !!! Review use of `heart` here, in terms of meaning
     //
     if (FLAGIT_KIND(heart) & bind_types) {
-        REBINT n = Get_Binder_Index_Else_0(binder, VAL_WORD_CANON(v));
+        REBINT n = Get_Binder_Index_Else_0(binder, VAL_WORD_SPELLING(v));
         if (n != 0) {
             //
             // Word's canon symbol is in frame.  Relatively bind it.
@@ -434,7 +439,7 @@ REBARR *Copy_And_Bind_Relative_Deep_Managed(
     for (; NOT_END(param); ++param, ++param_num) {
         if (Is_Param_Sealed(param))
             continue;
-        Add_Binder_Index(&binder, VAL_KEY_CANON(param), param_num);
+        Add_Binder_Index(&binder, VAL_KEY_SPELLING(param), param_num);
     }
   }
 
@@ -525,7 +530,7 @@ REBARR *Copy_And_Bind_Relative_Deep_Managed(
     for (; NOT_END(param); param++) {
         if (Is_Param_Sealed(param))
             continue;
-        Remove_Binder_Index(&binder, VAL_KEY_CANON(param));
+        Remove_Binder_Index(&binder, VAL_KEY_SPELLING(param));
     }
   }
 
@@ -562,7 +567,10 @@ void Rebind_Values_Deep(
             if (binder) {
                 INIT_WORD_INDEX(
                     v,
-                    Get_Binder_Index_Else_0(unwrap(binder), VAL_WORD_CANON(v))
+                    Get_Binder_Index_Else_0(
+                        unwrap(binder),
+                        VAL_WORD_SPELLING(v)
+                    )
                 );
             }
         }
@@ -776,7 +784,7 @@ void Virtual_Bind_Deep_To_New_Context(
             assert(rebinding); // shouldn't get here unless we're rebinding
 
             if (not Try_Add_Binder_Index(
-                &binder, VAL_PARAM_CANON(key), index
+                &binder, VAL_PARAM_SPELLING(key), index
             )){
                 // We just remember the first duplicate, but we go ahead
                 // and fill in all the keylist slots to make a valid array
@@ -825,14 +833,14 @@ void Virtual_Bind_Deep_To_New_Context(
             //
             if (rebinding) {
                 REBINT stored = Get_Binder_Index_Else_0(
-                    &binder, VAL_PARAM_CANON(key)
+                    &binder, VAL_PARAM_SPELLING(key)
                 );
                 if (stored > 0) {
                     if (duplicate == NULL)
                         duplicate = VAL_PARAM_SPELLING(key);
                 }
                 else if (stored == 0) {
-                    Add_Binder_Index(&binder, VAL_PARAM_CANON(key), -1);
+                    Add_Binder_Index(&binder, VAL_PARAM_SPELLING(key), -1);
                 }
                 else {
                     assert(stored == -1);
@@ -893,7 +901,7 @@ void Virtual_Bind_Deep_To_New_Context(
     var = CTX_VARS_HEAD(c); // only needed for debug, optimized out
     for (; NOT_END(key); ++key, ++var) {
         REBINT stored = Remove_Binder_Index_Else_0(
-            &binder, VAL_PARAM_CANON(key)
+            &binder, VAL_PARAM_SPELLING(key)
         );
         if (stored == 0)
             assert(duplicate);
@@ -936,7 +944,7 @@ void Init_Interning_Binder(
     REBVAL *key = CTX_KEYS_HEAD(ctx);
     REBINT index = 1;
     for (; NOT_END(key); ++key, ++index)
-        Add_Binder_Index(binder, VAL_KEY_CANON(key), index);  // positives
+        Add_Binder_Index(binder, VAL_KEY_SPELLING(key), index);  // positives
   }
 
     // For all the keys that aren't in the supplied context but *are* in lib,
@@ -948,7 +956,7 @@ void Init_Interning_Binder(
         REBVAL *key = VAL_CONTEXT_KEYS_HEAD(Lib_Context);
         REBINT index = 1;
         for (; NOT_END(key); ++key, ++index) {
-            const REBSTR *canon = VAL_KEY_CANON(key);
+            const REBSTR *canon = VAL_KEY_SPELLING(key);
             REBINT n = Get_Binder_Index_Else_0(binder, canon);
             if (n == 0)
                 Add_Binder_Index(binder, canon, - index);
@@ -971,7 +979,7 @@ void Shutdown_Interning_Binder(struct Reb_Binder *binder, REBCTX *ctx)
     REBVAL *key = CTX_KEYS_HEAD(ctx);
     REBINT index = 1;
     for (; NOT_END(key); ++key, ++index) {
-        REBINT n = Remove_Binder_Index_Else_0(binder, VAL_KEY_CANON(key));
+        REBINT n = Remove_Binder_Index_Else_0(binder, VAL_KEY_SPELLING(key));
         assert(n == index);
         UNUSED(n);
     }
@@ -984,7 +992,7 @@ void Shutdown_Interning_Binder(struct Reb_Binder *binder, REBCTX *ctx)
         REBVAL *key = VAL_CONTEXT_KEYS_HEAD(Lib_Context);
         REBINT index = 1;
         for (; NOT_END(key); ++key, ++index) {
-            REBINT n = Remove_Binder_Index_Else_0(binder, VAL_KEY_CANON(key));
+            REBINT n = Remove_Binder_Index_Else_0(binder, VAL_KEY_SPELLING(key));
             assert(n == 0 or n == -index);
             UNUSED(n);
         }

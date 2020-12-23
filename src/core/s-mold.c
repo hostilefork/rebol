@@ -326,9 +326,9 @@ void Form_Array_At(
         unstable const RELVAL *item = ARR_AT(array, index + n);
         REBVAL *wval = nullptr;
         if (context and (IS_WORD(item) or IS_GET_WORD(item))) {
-            wval = Select_Canon_In_Context(
+            wval = Select_Symbol_In_Context(
                 CTX_ARCHETYPE(unwrap(context)),
-                VAL_WORD_CANON(item)
+                VAL_WORD_SPELLING(item)
             );
             if (wval)
                 item = wval;

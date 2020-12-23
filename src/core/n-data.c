@@ -311,9 +311,11 @@ REBNATIVE(in)
 
                 v = safe;
                 if (IS_OBJECT(v)) {
-                    REBLEN index = Find_Canon_In_Context(
+                    const bool strict = true;
+                    REBLEN index = Find_Symbol_In_Context(
                         v,
-                        VAL_WORD_CANON(word)
+                        VAL_WORD_SPELLING(word),
+                        strict
                     );
                     if (index != 0)
                         return Init_Any_Word_Bound(
@@ -339,7 +341,12 @@ REBNATIVE(in)
         RETURN (word);
     }
 
-    REBLEN index = Find_Canon_In_Context(context, VAL_WORD_CANON(word));
+    const bool strict = true;
+    REBLEN index = Find_Symbol_In_Context(
+        context,
+        VAL_WORD_SPELLING(word),
+        strict
+    );
     if (index == 0)
         return nullptr;
 

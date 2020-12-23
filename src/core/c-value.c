@@ -237,13 +237,11 @@ void* Probe_Core_Debug(
                 Mold_Array_At(mo, ARR(s), 0, "[]"); // not necessarily BLOCK!
             }
         }
-        else if (s == PG_Canons_By_Hash) {
-            printf("can't probe PG_Canons_By_Hash (TBD: add probing)\n");
-            panic (s);
+        else if (s == PG_Symbols_By_Hash) {
+            printf("can't probe PG_Symbols_By_Hash (TBD: add probing)\n");
         }
         else if (s == GC_Guarded) {
             printf("can't probe GC_Guarded (TBD: add probing)\n");
-            panic (s);
         }
         else
             panic (s);

@@ -467,8 +467,7 @@ void Push_Paramlist_Triads_May_Fail(
                 pclass = REB_P_LOCAL;
         }
 
-        const REBSTR* canon = STR_CANON(spelling);
-        if (STR_SYMBOL(canon) == SYM_RETURN and pclass != REB_P_LOCAL) {
+        if (STR_SYMBOL(spelling) == SYM_RETURN and pclass != REB_P_LOCAL) {
             //
             // Cancel definitional return if any non-SET-WORD! uses the name
             // RETURN when defining a FUNC.
@@ -541,10 +540,10 @@ void Push_Paramlist_Triads_May_Fail(
         // ...although `return:` is explicitly tolerated ATM for compatibility
         // (despite violating the "pure locals are NULL" premise)
         //
-        if (STR_SYMBOL(canon) == SYM_RETURN) {
+        if (spelling == Canon(SYM_RETURN)) {
             if (*definitional_return_dsp != 0) {
                 DECLARE_LOCAL(word);
-                Init_Word(word, canon);
+                Init_Word(word, spelling);
                 fail (Error_Dup_Vars_Raw(word));  // most dup checks are later
             }
             if (pclass == REB_P_LOCAL)
@@ -682,7 +681,7 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
     //
     for (; src != DS_TOP + 1; src += 3) {
         if (not Is_Param_Sealed(src)) {  // allow reuse of sealed names
-            if (not Try_Add_Binder_Index(&binder, VAL_PARAM_CANON(src), 1020))
+            if (not Try_Add_Binder_Index(&binder, VAL_PARAM_SPELLING(src), 1020))
                 duplicate = VAL_PARAM_SPELLING(src);
         }
 
@@ -703,7 +702,7 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
         if (Is_Param_Sealed(src))
             continue;
         if (
-            Remove_Binder_Index_Else_0(&binder, VAL_PARAM_CANON(src))
+            Remove_Binder_Index_Else_0(&binder, VAL_PARAM_SPELLING(src))
             == 0
         ){
             assert(duplicate);
@@ -980,19 +979,13 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 //
 REBLEN Find_Param_Index(REBARR *paramlist, REBSTR *spelling)
 {
-    const REBSTR *canon = STR_CANON(spelling); // don't recalculate each time
-
     RELVAL *param = STABLE(ARR_AT(paramlist, 1));
     REBLEN len = ARR_LEN(paramlist);
 
     REBLEN n;
     for (n = 1; n < len; ++n, ++param) {
-        if (
-            spelling == VAL_PARAM_SPELLING(param)
-            or canon == VAL_PARAM_CANON(param)
-        ){
+        if (spelling == VAL_PARAM_SPELLING(param))
             return n;
-        }
     }
 
     return 0;

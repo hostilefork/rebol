@@ -277,7 +277,6 @@ inline static REBVAL *CTX_VAR(REBCTX *c, REBLEN n) {  // 1-based, no RELVAL*
 }
 
 #define CTX_KEY_SPELLING(c,n)       VAL_TYPESET_STRING(CTX_KEY((c), (n)))
-#define CTX_KEY_CANON(c,n)          STR_CANON(CTX_KEY_SPELLING((c), (n)))
 #define CTX_KEY_SYM(c,n)            STR_SYMBOL(CTX_KEY_SPELLING((c), (n)))
 
 

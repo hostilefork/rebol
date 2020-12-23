@@ -358,11 +358,8 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
             assert(Is_Marked(spelling));
 
         assert(  // GC can't run during binding, only time bind indices != 0
-            NOT_SERIES_INFO(spelling, STRING_CANON)
-            or (
-                MISC(spelling).bind_index.high == 0
-                and MISC(spelling).bind_index.low == 0
-            )
+            MISC(spelling).bind_index.high == 0
+            and MISC(spelling).bind_index.low == 0
         );
 
         if (IS_WORD_BOUND(v)) {

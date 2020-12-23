@@ -394,18 +394,18 @@ REBLEN Find_In_Array(
     if (ANY_WORD(target)) {
         for (; index >= start and index < end; index += skip) {
             unstable const RELVAL *item = ARR_AT(array, index);
-            const REBSTR *target_canon = VAL_WORD_CANON(target);
+            const REBSTR *target_symbol = VAL_WORD_SPELLING(target);
             if (ANY_WORD(item)) {
                 if (flags & AM_FIND_CASE) { // Must be same type and spelling
                     if (
-                        VAL_WORD_SPELLING(item) == VAL_WORD_SPELLING(target)
+                        VAL_WORD_SPELLING(item) == target_symbol
                         and VAL_TYPE(item) == VAL_TYPE(target)
                     ){
                         return index;
                     }
                 }
                 else { // Can be different type or differently cased spelling
-                    if (VAL_WORD_CANON(item) == target_canon)
+                    if (SAME_STR(VAL_WORD_SPELLING(item), target_symbol))
                         return index;
                 }
             }
@@ -638,11 +638,11 @@ REB_R PD_Array(
         //
         n = -1;
 
-        const REBSTR *canon = VAL_WORD_CANON(picker);
+        const REBSTR *symbol = VAL_WORD_SPELLING(picker);
         unstable const RELVAL *item = VAL_ARRAY_AT(pvs->out);
         REBLEN index = VAL_INDEX(pvs->out);
         for (; NOT_END(item); ++item, ++index) {
-            if (ANY_WORD(item) and canon == VAL_WORD_CANON(item)) {
+            if (ANY_WORD(item) and symbol == VAL_WORD_SPELLING(item)) {
                 n = index + 1;
                 break;
             }

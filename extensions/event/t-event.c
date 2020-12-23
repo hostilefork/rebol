@@ -408,7 +408,7 @@ REB_R PD_Event(
     if (IS_WORD(picker)) {
         if (not setval) {
             return Get_Event_Var(
-                pvs->out, pvs->out, VAL_WORD_CANON(picker)
+                pvs->out, pvs->out, VAL_WORD_SPELLING(picker)
             );
         }
         else {

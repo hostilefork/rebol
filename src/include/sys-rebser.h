@@ -409,18 +409,9 @@ STATIC_ASSERT(SERIES_INFO_7_IS_FALSE == NODE_FLAG_CELL);
     FLAG_LEFT_BIT(26)
 
 
-//=//// SERIES_INFO_STRING_CANON //////////////////////////////////////////=//
+//=//// SERIES_INFO_27 ////////////////////////////////////////////////////=//
 //
-// This is used to indicate when a SERIES_FLAG_UTF8_STRING series represents
-// the canon form of a word.  This doesn't mean anything special about the
-// case of its letters--just that it was loaded first.  Canon forms can be
-// GC'd and then delegate the job of being canon to another spelling.
-//
-// A canon string is unique because it does not need to store a pointer to
-// its canon form.  So it can use the REBSER.misc field for the purpose of
-// holding an index during binding.
-//
-#define SERIES_INFO_STRING_CANON \
+#define SERIES_INFO_27 \
     FLAG_LEFT_BIT(27)
 
 

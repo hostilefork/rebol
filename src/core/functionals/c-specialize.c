@@ -183,14 +183,14 @@ REBCTX *Make_Context_For_Action_Push_Partials(
 
         assert(NOT_CELL_FLAG(special, ARG_MARKED_CHECKED));
 
-        const REBSTR *canon = VAL_PARAM_CANON(param);  // to add to binding
+        const REBSTR *symbol = VAL_PARAM_SPELLING(param);  // added to binding
         if (not TYPE_CHECK(param, REB_TS_REFINEMENT)) {  // nothing to push
 
           continue_unspecialized:
 
             Init_Void(arg, SYM_UNSET);  // *not* ARG_MARKED_CHECKED
             if (binder)
-                Add_Binder_Index(unwrap(binder), canon, index);
+                Add_Binder_Index(unwrap(binder), symbol, index);
 
             continue;
         }
@@ -223,7 +223,7 @@ REBCTX *Make_Context_For_Action_Push_Partials(
         REBDSP dsp = highest_ordered_dsp;
         for (; dsp != lowest_ordered_dsp; --dsp) {
             unstable REBVAL *ordered = DS_AT(dsp);
-            if (VAL_STORED_CANON(ordered) != canon)
+            if (VAL_WORD_SPELLING(ordered) != symbol)
                 continue;  // just continuing this loop
 
             assert(not IS_WORD_BOUND(ordered));  // we bind only one
@@ -351,7 +351,7 @@ bool Specialize_Action_Throws(
             if (Is_Param_Hidden(key, var))
                 continue;  // maybe refinement from stack, now specialized out
 
-            Remove_Binder_Index(&binder, VAL_KEY_CANON(key));
+            Remove_Binder_Index(&binder, VAL_KEY_SPELLING(key));
         }
         SHUTDOWN_BINDER(&binder);
 

@@ -816,7 +816,7 @@ REBNATIVE(applique)
         if (Is_Void_With_Sym(var, SYM_UNSET))
             Init_Nulled(var);
 
-        Remove_Binder_Index(&binder, VAL_KEY_CANON(key));
+        Remove_Binder_Index(&binder, VAL_KEY_SPELLING(key));
     }
     SHUTDOWN_BINDER(&binder); // must do before running code that might BIND
 

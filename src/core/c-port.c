@@ -115,7 +115,8 @@ REB_R Do_Port_Action(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
     // Dispatch object function:
 
   blockscope {
-    REBLEN n = Find_Canon_In_Context(actor, VAL_WORD_CANON(verb));
+    const bool strict = false;
+    REBLEN n = Find_Symbol_In_Context(actor, VAL_WORD_SPELLING(verb), strict);
 
     REBVAL *action = (n == 0) ? nullptr : CTX_VAR(VAL_CONTEXT(actor), n);
     if (not action or not IS_ACTION(action))
@@ -207,10 +208,10 @@ void Secure_Port(
     UNUSED(path);
 
     if (Req(req)->modes & RFM_READ)
-        Check_Security_Placeholder(STR_CANON(kind), SYM_READ, name);
+        Check_Security_Placeholder(kind, SYM_READ, name);
 
     if (Req(req)->modes & RFM_WRITE)
-        Check_Security_Placeholder(STR_CANON(kind), SYM_WRITE, name);
+        Check_Security_Placeholder(kind, SYM_WRITE, name);
 }
 
 

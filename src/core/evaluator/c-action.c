@@ -173,7 +173,7 @@ static bool Handle_Modal_In_Out_Throws(REBFRM *f) {
 
     // Signal refinement as being in use.
     //
-    Init_Sym_Word(DS_PUSH(), VAL_PARAM_CANON(enable));
+    Init_Sym_Word(DS_PUSH(), VAL_PARAM_SPELLING(enable));
   }
 
   skip_enable_modal:
@@ -310,9 +310,9 @@ bool Process_Action_Maybe_Stale_Throws(REBFRM * const f)
             //
             if (IS_SYM_WORD(f->special)) {
                 REBLEN partial_index = VAL_WORD_INDEX(f->special);
-                const REBSTR *partial_canon = VAL_STORED_CANON(f->special);
+                const REBSTR *partial_symbol = VAL_WORD_SPELLING(f->special);
 
-                Init_Sym_Word(DS_PUSH(), partial_canon);
+                Init_Sym_Word(DS_PUSH(), partial_symbol);
                 INIT_VAL_WORD_BINDING(DS_TOP, f->varlist);
                 INIT_WORD_INDEX(DS_TOP, partial_index);
             }
@@ -329,10 +329,10 @@ bool Process_Action_Maybe_Stale_Throws(REBFRM * const f)
           unspecialized_refinement: {
 
             unstable REBVAL *ordered = DS_TOP;  // v-- #2258
-            const REBSTR *param_canon = VAL_PARAM_CANON(f->param);
+            const REBSTR *param_symbol = VAL_PARAM_SPELLING(f->param);
 
             for (; ordered != DS_AT(f->dsp_orig); --ordered) {
-                if (VAL_STORED_CANON(ordered) != param_canon)
+                if (VAL_WORD_SPELLING(ordered) != param_symbol)
                     continue;
 
                 REBLEN offset = f->arg - FRM_ARGS_HEAD(f);
@@ -805,7 +805,7 @@ bool Process_Action_Maybe_Stale_Throws(REBFRM * const f)
         f->arg += offset;
         f->special += offset;
 
-        assert(VAL_STORED_CANON(DS_TOP) == VAL_PARAM_CANON(f->param));
+        assert(VAL_WORD_SPELLING(DS_TOP) == VAL_PARAM_SPELLING(f->param));
         assert(TYPE_CHECK(f->param, REB_TS_REFINEMENT));
         DS_DROP();
 

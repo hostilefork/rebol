@@ -391,7 +391,7 @@ REB_R PD_Action(
     else
         fail (Error_Bad_Refine_Raw(rebUnrelativize(picker)));
 
-    Init_Sym_Word(DS_PUSH(), STR_CANON(spelling)); // canonize just once
+    Init_Sym_Word(DS_PUSH(), spelling);
 
     return pvs->out; // leave ACTION! value in pvs->out, as-is
 }

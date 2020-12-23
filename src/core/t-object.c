@@ -31,7 +31,12 @@ static void Append_To_Context(REBVAL *context, REBVAL *arg)
 
     // Can be a word:
     if (ANY_WORD(arg)) {
-        if (0 == Find_Canon_In_Context(context, VAL_WORD_CANON(arg))) {
+        const bool strict = true;
+        if (0 == Find_Symbol_In_Context(
+            context,
+            VAL_WORD_SPELLING(arg),
+            strict
+        )){
             Expand_Context(c, 1); // copy word table also
             Append_Context(c, 0, VAL_WORD_SPELLING(arg));
             // default of Append_Context is that arg's value is void
@@ -74,10 +79,10 @@ static void Append_To_Context(REBVAL *context, REBVAL *arg)
             goto collect_end;
         }
 
-        const REBSTR *canon = VAL_WORD_CANON(word);
+        const REBSTR *symbol = VAL_WORD_SPELLING(word);
 
         if (Try_Add_Binder_Index(
-            &collector.binder, canon, ARR_LEN(BUF_COLLECT))
+            &collector.binder, symbol, ARR_LEN(BUF_COLLECT))
         ){
             //
             // Wasn't already collected...so we added it...
@@ -103,7 +108,7 @@ static void Append_To_Context(REBVAL *context, REBVAL *arg)
     // Set new values to obj words
     for (word = item; NOT_END(word); word += 2) {
         REBLEN i = Get_Binder_Index_Else_0(
-            &collector.binder, VAL_WORD_CANON(word)
+            &collector.binder, VAL_WORD_SPELLING(word)
         );
         assert(i != 0);
 
@@ -184,10 +189,11 @@ REBINT CT_Context(REBCEL(const*) a, REBCEL(const*) b, bool strict)
             goto no_advance;
         }
 
-        const REBSTR *canon1 = VAL_KEY_CANON(key1);
-        const REBSTR *canon2 = VAL_KEY_CANON(key2);
-        if (canon1 != canon2)  // case-insensitive, even in `strict` compare
-            return canon1 > canon2 ? 1 : -1;
+        const REBSTR *symbol1 = VAL_KEY_SPELLING(key1);
+        const REBSTR *symbol2 = VAL_KEY_SPELLING(key2);
+        REBINT spell_diff = Compare_Spellings(symbol1, symbol2, strict);
+        if (spell_diff != 0)
+            return spell_diff;
 
         REBINT diff = Cmp_Value(var1, var2, strict);
         if (diff != 0)
@@ -411,7 +417,8 @@ REB_R PD_Context(
     if (VAL_WORD_BINDING(picker) == NOD(c))
         n = VAL_WORD_INDEX(picker);
     else {
-        n = Find_Canon_In_Context(pvs->out, VAL_WORD_CANON(picker));
+        const bool strict = false;
+        n = Find_Symbol_In_Context(pvs->out, VAL_WORD_SPELLING(picker), strict);
 
         if (n == 0)
             return R_UNHANDLED;
@@ -891,11 +898,24 @@ REBTYPE(Context)
 
       case SYM_SELECT:
       case SYM_FIND: {
-        REBVAL *arg = D_ARG(2);
-        if (not IS_WORD(arg))
+        INCLUDE_PARAMS_OF_FIND;
+        UNUSED(ARG(part));
+        UNUSED(ARG(only));
+        UNUSED(ARG(skip));
+        UNUSED(ARG(tail));
+        UNUSED(ARG(match));
+        UNUSED(ARG(reverse));
+        UNUSED(ARG(last));
+
+        REBVAL *pattern = ARG(pattern);
+        if (not IS_WORD(pattern))
             return nullptr;
 
-        REBLEN n = Find_Canon_In_Context(context, VAL_WORD_CANON(arg));
+        REBLEN n = Find_Symbol_In_Context(
+            context,
+            VAL_WORD_SPELLING(pattern),
+            did REF(case)
+        );
         if (n == 0)
             return nullptr;
 

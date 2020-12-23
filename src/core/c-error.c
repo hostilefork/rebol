@@ -636,9 +636,9 @@ REB_R MAKE_Error(
         REBCTX *categories = VAL_CONTEXT(Get_System(SYS_CATALOG, CAT_ERRORS));
 
         // Find correct category for TYPE: (if any)
-        REBVAL *category = Select_Canon_In_Context(
+        REBVAL *category = Select_Symbol_In_Context(
             CTX_ARCHETYPE(categories),
-            VAL_WORD_CANON(&vars->type)
+            VAL_WORD_SPELLING(&vars->type)
         );
 
         if (category) {
@@ -647,9 +647,9 @@ REB_R MAKE_Error(
 
             // Find correct message for ID: (if any)
 
-            REBVAL *message = Select_Canon_In_Context(
+            REBVAL *message = Select_Symbol_In_Context(
                 category,
-                VAL_WORD_CANON(&vars->id)
+                VAL_WORD_SPELLING(&vars->id)
             );
 
             if (message) {

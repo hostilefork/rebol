@@ -417,18 +417,12 @@ inline static const REBSTR *VAL_KEY_SPELLING(unstable const RELVAL *v) {
     return VAL_TYPESET_STRING(v);
 }
 
-inline static const REBSTR *VAL_KEY_CANON(unstable const RELVAL *v) {
-    assert(IS_PARAM_KIND(KIND3Q_BYTE_UNCHECKED(v)));
-    return STR_CANON(VAL_KEY_SPELLING(v));
-}
-
 inline static OPT_REBSYM VAL_KEY_SYM(unstable const RELVAL *v) {
     assert(IS_PARAM_KIND(KIND3Q_BYTE_UNCHECKED(v)));
     return STR_SYMBOL(VAL_KEY_SPELLING(v)); // mirrors canon's symbol
 }
 
 #define VAL_PARAM_SPELLING(p) VAL_KEY_SPELLING(p)
-#define VAL_PARAM_CANON(p) VAL_KEY_CANON(p)
 #define VAL_PARAM_SYM(p) VAL_KEY_SYM(p)
 
 inline static REBVAL *Init_Typeset(unstable_ok RELVAL *out, REBU64 bits)

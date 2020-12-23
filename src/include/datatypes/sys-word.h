@@ -173,20 +173,9 @@ inline static bool SAME_SYM_NONZERO(REBSYM a, REBSYM b) {
     return cast(REBLEN, a) == cast(REBLEN, b);
 }
 
-inline static const REBSTR *STR_CANON(const REBSTR *s) {
-    assert(IS_STR_SYMBOL(STR(s)));
-
-    while (NOT_SERIES_INFO(s, STRING_CANON))
-        s = LINK_SYNONYM(s);  // circularly linked list
-    return s;
-}
-
 inline static OPT_REBSYM STR_SYMBOL(const REBSTR *s) {
-    assert(IS_STR_SYMBOL(STR(s)));
-
-    uint16_t sym = SECOND_UINT16(SER(s)->header);
-    assert(sym == SECOND_UINT16(SER(STR_CANON(s))->header));
-    return cast(REBSYM, sym);
+    assert(IS_STR_SYMBOL(s));
+    return cast(REBSYM, SECOND_UINT16(SER(s)->header));
 }
 
 inline static const REBSTR *Canon(REBSYM sym) {
@@ -196,27 +185,16 @@ inline static const REBSTR *Canon(REBSYM sym) {
 }
 
 inline static bool SAME_STR(const REBSTR *s1, const REBSTR *s2) {
-    assert(IS_STR_SYMBOL(STR(s1)));
-    assert(IS_STR_SYMBOL(STR(s2)));
+    assert(IS_STR_SYMBOL(s1));
+    assert(IS_STR_SYMBOL(s2));
 
-    if (s1 == s2)
-        return true; // !!! does this check speed things up or not?
-    return STR_CANON(s1) == STR_CANON(s2); // canon check, quite fast
-}
+    const REBSTR *temp = s1;
+    do {
+        if (temp == s2)
+            return true;
+    } while ((temp = LINK_SYNONYM(temp)) != s1);
 
-
-// Some scenarios deliberately store canon spellings in words, to avoid
-// needing to re-canonize them.  If you have one of those words, use this to
-// add a check that your assumption about them is correct.
-//
-// Note that canon spellings can get GC'd, effectively changing the canon.
-// But they won't if there are any words outstanding that hold that spelling,
-// so this is a safe technique as long as these words are GC-mark-visible.
-//
-inline static const REBSTR *VAL_STORED_CANON(unstable REBCEL(const*) v) {
-    const REBSTR *str = VAL_WORD_SPELLING(v);
-    assert(GET_SERIES_INFO(str, STRING_CANON));
-    return str;
+    return false;  // stopped when circularly linked list loops back to self
 }
 
 inline static OPT_REBSYM VAL_WORD_SYM(unstable REBCEL(const*) v) {

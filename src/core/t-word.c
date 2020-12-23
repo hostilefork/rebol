@@ -51,7 +51,7 @@ REBINT Compare_Spellings(const REBSTR *a, const REBSTR *b, bool strict)
     else {
         // Different cases acceptable, only check for a canon match
         //
-        if (STR_CANON(a) == STR_CANON(b))
+        if (SAME_STR(a, b))
             return 0;
 
         // !!! "They must differ by case...."  This needs to account for

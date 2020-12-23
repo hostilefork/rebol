@@ -219,20 +219,19 @@ inline static void SHUTDOWN_BINDER(struct Reb_Binder *binder) {
 //
 inline static bool Try_Add_Binder_Index(
     struct Reb_Binder *binder,
-    const REBSTR *canon,
+    const REBSTR *s,
     REBINT index
 ){
     assert(index != 0);
-    assert(GET_SERIES_INFO(canon, STRING_CANON));
     if (binder->high) {
-        if (MISC(canon).bind_index.high != 0)
+        if (MISC(s).bind_index.high != 0)
             return false;
-        MISC(canon).bind_index.high = index;
+        MISC(s).bind_index.high = index;
     }
     else {
-        if (MISC(canon).bind_index.low != 0)
+        if (MISC(s).bind_index.low != 0)
             return false;
-        MISC(canon).bind_index.low = index;
+        MISC(s).bind_index.low = index;
     }
 
   #if !defined(NDEBUG)
@@ -244,10 +243,10 @@ inline static bool Try_Add_Binder_Index(
 
 inline static void Add_Binder_Index(
     struct Reb_Binder *binder,
-    const REBSTR *canon,
+    const REBSTR *s,
     REBINT index
 ){
-    bool success = Try_Add_Binder_Index(binder, canon, index);
+    bool success = Try_Add_Binder_Index(binder, s, index);
     assert(success);
     UNUSED(success);
 }
@@ -255,35 +254,31 @@ inline static void Add_Binder_Index(
 
 inline static REBINT Get_Binder_Index_Else_0( // 0 if not present
     struct Reb_Binder *binder,
-    const REBSTR *canon
+    const REBSTR *s
 ){
-    assert(GET_SERIES_INFO(canon, STRING_CANON));
-
     if (binder->high)
-        return MISC(canon).bind_index.high;
+        return MISC(s).bind_index.high;
     else
-        return MISC(canon).bind_index.low;
+        return MISC(s).bind_index.low;
 }
 
 
 inline static REBINT Remove_Binder_Index_Else_0( // return old value if there
     struct Reb_Binder *binder,
-    const REBSTR *canon
+    const REBSTR *s
 ){
-    assert(GET_SERIES_INFO(canon, STRING_CANON));
-
     REBINT old_index;
     if (binder->high) {
-        old_index = MISC(canon).bind_index.high;
+        old_index = MISC(s).bind_index.high;
         if (old_index == 0)
             return 0;
-        MISC(canon).bind_index.high = 0;
+        MISC(s).bind_index.high = 0;
     }
     else {
-        old_index = MISC(canon).bind_index.low;
+        old_index = MISC(s).bind_index.low;
         if (old_index == 0)
             return 0;
-        MISC(canon).bind_index.low = 0;
+        MISC(s).bind_index.low = 0;
     }
 
   #if !defined(NDEBUG)
@@ -460,9 +455,6 @@ inline static const REBSTR *VAL_WORD_SPELLING(unstable REBCEL(const*) v) {
     return CTX_KEY_SPELLING(CTX(binding), VAL_WORD_INDEX(v));
 }
 
-#define VAL_WORD_CANON(v) \
-    STR_CANON(VAL_WORD_SPELLING(v))
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -576,8 +568,8 @@ inline static REBCTX *Get_Word_Context(
 
   #ifdef DEBUG_BINDING_NAME_MATCH // this is expensive, and hasn't happened
     assert(
-        VAL_WORD_CANON(any_word)
-        == VAL_KEY_CANON(CTX_KEY(c, VAL_WORD_INDEX(any_word))));
+        VAL_WORD_SPELLING(any_word)
+        == VAL_KEY_SPELLING(CTX_KEY(c, VAL_WORD_INDEX(any_word))));
   #endif
 
     FAIL_IF_INACCESSIBLE_CTX(c); // usually VAL_CONTEXT() checks, need to here

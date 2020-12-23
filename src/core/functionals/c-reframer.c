@@ -199,10 +199,10 @@ REBNATIVE(reframer_p)
     //
     REBVAL *param = nullptr;
     if (REF(parameter)) {
-        const REBSTR *canon = VAL_WORD_CANON(REF(parameter));
+        const REBSTR *canon = VAL_WORD_SPELLING(REF(parameter));
         REBVAL *temp = ACT_PARAMS_HEAD(reframer);
         for (; NOT_END(temp); ++temp) {
-            if (VAL_PARAM_CANON(temp) == canon) {
+            if (VAL_PARAM_SPELLING(temp) == canon) {
                 param = temp;
                 break;
             }

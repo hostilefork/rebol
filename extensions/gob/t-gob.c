@@ -495,7 +495,7 @@ static bool Did_Set_GOB_Var(REBGOB *gob, const RELVAL *word, const REBVAL *val)
 
             unstable const RELVAL* item;
             for (item = ARR_HEAD(VAL_ARRAY(val)); NOT_END(item); item++)
-                if (IS_WORD(item)) Set_Gob_Flag(gob, VAL_WORD_CANON(item));
+                if (IS_WORD(item)) Set_Gob_Flag(gob, VAL_WORD_SPELLING(item));
         }
         break;
 

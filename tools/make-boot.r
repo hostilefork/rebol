@@ -450,6 +450,10 @@ hookname: enfixed func [
 ][
     if t/(column) = 0 [return "nullptr"]
 
+    ; The CSCAPE mechanics lowercase all strings.  Uppercase it back.
+    ;
+    prefix: uppercase copy prefix
+
     unspaced [prefix propercase-of (switch ensure word! t/(column) [
         '+ [as text! t/name]  ; type has its own unique hook
         '* [t/class]        ; type uses common hook for class

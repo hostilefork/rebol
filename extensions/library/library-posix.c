@@ -76,7 +76,7 @@ void *Open_Library(const REBVAL *path)
     rebFree(path_utf8);
 
     if (not dll) // dlerror() gives const char*
-        rebJumps("FAIL", rebT(dlerror()), rebEND);
+        rebJumps("fail", rebT(dlerror()), rebEND);
 
     return dll;
   #endif

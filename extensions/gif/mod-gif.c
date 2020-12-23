@@ -360,7 +360,7 @@ REBNATIVE(decode_gif)
     // !!! Should formats that can act as containers always return a BLOCK!?
     //
     REBVAL *result = rebValue("case [",
-        "empty?", frames, "[FAIL {No frames found in GIF}]",
+        "empty?", frames, "[fail {No frames found in GIF}]",
         "1 = length of", frames, "[first", frames, "]",
     "] else [", frames, "]", rebEND);
 

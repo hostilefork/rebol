@@ -65,7 +65,7 @@
 ATTRIBUTE_NO_RETURN static void fail_ZeroMQ(void) {
     int errnum = zmq_errno();
     const char *errmsg = zmq_strerror(errnum);
-    rebJumps("FAIL", rebT(errmsg));
+    rebJumps("fail", rebT(errmsg));
 }
 
 
@@ -127,7 +127,7 @@ REBNATIVE(zmq_msg_alloc) {
     //
     zmq_msg_t *msg = cast(zmq_msg_t*, malloc(sizeof(zmq_msg_t)));
     if (not msg)
-        rebJumps("FAIL {Insufficient memory for zmq_msg_t}");
+        rebJumps("fail {Insufficient memory for zmq_msg_t}");
 
     return rebHandle(msg, 0, nullptr); // !!! add cleanup;
 }
@@ -220,7 +220,7 @@ REBNATIVE(zmq_msg_init_data) {
     size_t msg_size = rebBytesIntoQ(nullptr, 0, ARG(data));  // query size
     REBYTE *msg_data = cast(REBYTE*, malloc(msg_size));
     if (not msg_data)
-        rebJumps ("FAIL {Insufficient memory for msg_data}");
+        rebJumps ("fail {Insufficient memory for msg_data}");
 
     size_t check_size = rebBytesIntoQ(msg_data, msg_size, ARG(data));
     assert(check_size == msg_size);
@@ -597,12 +597,12 @@ REBNATIVE(zmq_getsockopt) {
     if (rebDid("integer?", ARG(name))) {
         name = rebUnboxInteger(ARG(name)); // take their word for it :-/
         if (not REF(type))
-            rebJumps("FAIL {INTEGER! name use requires /TYPE specification}");
+            rebJumps("fail {INTEGER! name use requires /TYPE specification}");
         datatype = ARG(type);
     }
     else {
         if (REF(type))
-            rebJumps("FAIL {Can't override /TYPE unless INTEGER! name used}");
+            rebJumps("fail {Can't override /TYPE unless INTEGER! name used}");
 
         REBVAL *opts = Make_Sockopts_Table(); // !!! should cache on startup
 
@@ -628,7 +628,7 @@ REBNATIVE(zmq_getsockopt) {
 
         if (rebDid(datatype, "= logic!")) {
             if (value_data != 0 and value_data != 1)
-                rebJumps("FAIL {LOGIC! property didn't return a 1 or 0}");
+                rebJumps("fail {LOGIC! property didn't return a 1 or 0}");
             result = rebLogic(value_data);
         }
         else
@@ -815,7 +815,7 @@ REBNATIVE(zmq_poll)
     int spec_length = rebUnbox("length of", spec);
 
     if (spec_length % 2 != 0)
-        rebJumps("FAIL {Invalid poll-spec: length}");
+        rebJumps("fail {Invalid poll-spec: length}");
     int nitems = spec_length / 2;
 
     // Prepare pollitem_t array by mapping a pair of REBOL handle!/integer!
@@ -839,7 +839,7 @@ REBNATIVE(zmq_poll)
 
     int nready = zmq_poll(pollitems, nitems, timeout);
     if (nready == -1)
-        rebJumps("FAIL {zmq_poll() returned -1 (TBD: report errno)}");
+        rebJumps("fail {zmq_poll() returned -1 (TBD: report errno)}");
 
     // Create results block of the same form as the items block, but filter
     // out all 0MQ socket handle!s (& their events integer!) for which no

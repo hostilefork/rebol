@@ -54,7 +54,7 @@ int64_t Delta_Time(int64_t base)
 {
     LARGE_INTEGER time;
     if (not QueryPerformanceCounter(&time))
-        rebJumps("PANIC {Missing high performance timer}", rebEND);
+        rebJumps("panic {Missing high performance timer}", rebEND);
 
     if (base == 0) return time.QuadPart; // counter (may not be time)
 

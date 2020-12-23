@@ -646,7 +646,7 @@ REBVAL *Try_Get_One_Console_Event(STD_TERM *t, bool buffered)
         switch (first) {
           case 'H':   // !!! "home" (in what standard??)
           #if !defined(NDEBUG)
-            rebJumps("FAIL {ESC H: please report your system info}");
+            rebJumps("fail {ESC H: please report your system info}");
           #else
             e = xrebWord("home");
           #endif
@@ -654,7 +654,7 @@ REBVAL *Try_Get_One_Console_Event(STD_TERM *t, bool buffered)
 
           case 'F':  // !!! "end" (in what standard??)
           #if !defined(NDEBUG)
-            rebJumps("FAIL {ESC F: please report your system info}");
+            rebJumps("fail {ESC F: please report your system info}");
           #else
             e = xrebWord("end");
           #endif
@@ -686,7 +686,7 @@ REBVAL *Try_Get_One_Console_Event(STD_TERM *t, bool buffered)
             // involved at that level.  Using sigaction() on SIGINT and
             // causing EINTR is how we would like to be triggering HALT.
             //
-            rebJumps("FAIL {Unexpected literal Ctrl-C in console}");
+            rebJumps("fail {Unexpected literal Ctrl-C in console}");
         }
         else switch (first) {
           case DEL:  // delete (C0)

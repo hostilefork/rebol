@@ -105,7 +105,16 @@ cscape: function [
             any-lower: did find/case expr charset [#"a" - #"z"]
             keep pattern
 
-            code: load-all expr  ; compatibility hack needed, /ALL deprecated
+            ; With binding being case-sensitive, we lowercase the expression.
+            ; Since we do the lowercasing before the load, embedded string
+            ; literals will also wind up being lowercase.  It would be more
+            ; inconvenient to deep traverse the splice after loading to only
+            ; lowercase ANY-WORD!s, so this is considered fine
+            ;
+            ; !!! Needs LOAD-ALL shim hack for bootstrap since /ALL deprecated
+            ;
+            code: load-all lowercase expr
+
             if with [
                 if lit-word? with [with: dequote with]
 

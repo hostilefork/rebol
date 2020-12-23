@@ -152,11 +152,11 @@ REBVAL *OS_Do_Device(REBREQ *req)
 {
     REBDEV *dev = Req(req)->device;
     if (dev == NULL)
-        rebJumps("FAIL {Rebol Device Not Found}", rebEND);
+        rebJumps("fail {Rebol Device Not Found}", rebEND);
 
     if (not (dev->flags & RDF_INIT)) {
         if (dev->flags & RDO_MUST_INIT)
-            rebJumps("FAIL {Rebol Device Uninitialized}", rebEND);
+            rebJumps("fail {Rebol Device Uninitialized}", rebEND);
 
         if (
             !dev->commands[RDC_INIT]
@@ -167,7 +167,7 @@ REBVAL *OS_Do_Device(REBREQ *req)
     }
 
     if (dev->commands[Req(req)->command] == NULL)
-        rebJumps("FAIL {Invalid Command for Rebol Device}", rebEND);
+        rebJumps("fail {Invalid Command for Rebol Device}", rebEND);
 
     // !!! R3-Alpha had it so when an error was raised from a "device request"
     // it would give back DR_ERROR and the caller would have to interpret an

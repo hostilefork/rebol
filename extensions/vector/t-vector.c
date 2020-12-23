@@ -219,7 +219,7 @@ static void Set_Vector_At(REBCEL(const*) vec, REBLEN n, const RELVAL *set) {
   out_of_range:;
 
     rebJumps(
-        "FAIL [",
+        "fail [",
             SPECIFIC(set), "{out of range for}",
                 "unspaced [", rebI(bitsize), "{-bit}]",
                 rebT(sign ? "signed" : "unsigned"),

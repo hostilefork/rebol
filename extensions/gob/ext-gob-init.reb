@@ -99,7 +99,7 @@ register-gob-hooks [  ; !!! See remarks, block of generics is vaporware ATM
 sys/make-scheme [
     title: "GUI Events"
     name: 'event
-    actor: system/modules/event/get-event-actor-handle
+    actor: system/modules/Event/get-event-actor-handle
     awake: func [event] [
         print ["Default GUI event/awake:" event/type]
         true

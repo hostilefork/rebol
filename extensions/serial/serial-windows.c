@@ -96,7 +96,7 @@ DEVICE_CMD Open_Serial(REBREQ *serial)
     );
     if (chars_appended > buf_left)
         rebJumps(
-            "FAIL {Serial path too long for MAX_SERIAL_DEV_PATH}",
+            "fail {Serial path too long for MAX_SERIAL_DEV_PATH}",
             rebEND
         );
 

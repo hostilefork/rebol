@@ -174,7 +174,7 @@ static REB_R Transport_Actor(
 
                 assert(l_result != nullptr);
                 if (rebDid("error?", l_result, rebEND))
-                    rebJumps("FAIL", l_result, rebEND);
+                    rebJumps("fail", l_result, rebEND);
                 rebRelease(l_result); // ignore result
 
                 RETURN (port);
@@ -360,7 +360,7 @@ static REB_R Transport_Actor(
         }
         else {
             if (rebDid("error?", result, rebEND))
-                rebJumps("FAIL", result, rebEND);
+                rebJumps("fail", result, rebEND);
 
             // a note said "recv CAN happen immediately"
             //
@@ -429,7 +429,7 @@ static REB_R Transport_Actor(
         }
         else {
             if (rebDid("error?", result, rebEND))
-                rebJumps("FAIL", result, rebEND);
+                rebJumps("fail", result, rebEND);
 
             // Note here said "send CAN happen immediately"
             //
@@ -484,7 +484,7 @@ static REB_R Transport_Actor(
         }
         else {
             if (rebDid("error?", result, rebEND))
-                rebJumps("lib/FAIL", result, rebEND);
+                rebJumps("lib/fail", result, rebEND);
 
             // This can happen with UDP, which is connectionless so it
             // returns DR_DONE.
@@ -604,7 +604,7 @@ REBNATIVE(set_udp_multicast)
 
     struct rebol_devreq *req = Req(sock);
     if (not (req->modes & RST_UDP)) // !!! other checks?
-        rebJumps("FAIL {SET-UDP-MULTICAST used on non-UDP port}", rebEND);
+        rebJumps("fail {SET-UDP-MULTICAST used on non-UDP port}", rebEND);
 
     struct ip_mreq mreq;
     Get_Tuple_Bytes(&mreq.imr_multiaddr.s_addr, ARG(group), 4);
@@ -647,7 +647,7 @@ REBNATIVE(set_udp_ttl)
     struct rebol_devreq *req = Req(sock);
 
     if (not (req->modes & RST_UDP)) // !!! other checks?
-        rebJumps("FAIL {SET-UDP-TTL used on non-UDP port}", rebEND);
+        rebJumps("fail {SET-UDP-TTL used on non-UDP port}", rebEND);
 
     int ttl = VAL_INT32(ARG(ttl));
     int result = setsockopt(

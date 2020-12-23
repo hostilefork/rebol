@@ -62,7 +62,7 @@ trap [
         load-all: :load
     ]
 
-    QUIT
+    quit
 ]
 
 ; !!! This isn't perfect, but it should work for the cases in rebmake

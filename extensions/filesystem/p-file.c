@@ -392,7 +392,7 @@ REB_R File_Actor(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
             Cleanup_File(file);
 
             if (rebDid("error?", result, rebEND))
-                rebJumps("FAIL", result, rebEND);
+                rebJumps("fail", result, rebEND);
 
             rebRelease(result); // ignore result
         }
@@ -462,7 +462,7 @@ REB_R File_Actor(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
             Cleanup_File(file);
 
             if (rebDid("error?", result, rebEND))
-                rebJumps("FAIL", result, rebEND);
+                rebJumps("fail", result, rebEND);
 
             rebRelease(result);
         }
@@ -519,7 +519,7 @@ REB_R File_Actor(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
             Cleanup_File(file);
 
             if (rebDid("error?", result, rebEND))
-                rebJumps("FAIL", result, rebEND);
+                rebJumps("fail", result, rebEND);
 
             rebRelease(result); // ignore error
         }
@@ -537,7 +537,7 @@ REB_R File_Actor(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
         assert(result != NULL); // should be synchronous
 
         if (rebDid("error?", result, rebEND))
-            rebJumps("FAIL", result, rebEND);
+            rebJumps("fail", result, rebEND);
 
         rebRelease(result); // ignore result
         RETURN (port); }
@@ -555,7 +555,7 @@ REB_R File_Actor(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
         REBVAL *result = OS_DO_DEVICE(file, RDC_RENAME);
         assert(result != NULL); // should be synchronous
         if (rebDid("error?", result, rebEND))
-            rebJumps("FAIL", result, rebEND);
+            rebJumps("fail", result, rebEND);
         rebRelease(result); // ignore result
 
         RETURN (ARG(from)); }
@@ -567,13 +567,13 @@ REB_R File_Actor(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
             REBVAL *cr_result = OS_DO_DEVICE(file, RDC_CREATE);
             assert(cr_result != NULL);
             if (rebDid("error?", cr_result, rebEND))
-                rebJumps("FAIL", cr_result, rebEND);
+                rebJumps("fail", cr_result, rebEND);
             rebRelease(cr_result);
 
             REBVAL *cl_result = OS_DO_DEVICE(file, RDC_CLOSE);
             assert(cl_result != NULL);
             if (rebDid("error?", cl_result, rebEND))
-                rebJumps("FAIL", cl_result, rebEND);
+                rebJumps("fail", cl_result, rebEND);
             rebRelease(cl_result);
         }
 

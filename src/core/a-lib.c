@@ -959,7 +959,7 @@ void RL_rebElide(unsigned char quotes, const void *p, va_list *vaptr)
 //
 // rebJumps() is like rebElide, but has the noreturn attribute.  This helps
 // inform the compiler that the routine is not expected to return.  Use it
-// with things like `rebJumps("FAIL", ...)` or `rebJumps("THROW", ...)`.  If
+// with things like `rebJumps("fail", ...)` or `rebJumps("THROW", ...)`.  If
 // by some chance the code passed to it does not jump and finishes normally,
 // then an error will be raised.
 //

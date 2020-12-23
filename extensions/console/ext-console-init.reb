@@ -486,7 +486,7 @@ ext-console-impl: function [
     all [
         error? :result
         result/id = 'no-catch
-        :result/arg2 = :QUIT  ; throw's /NAME
+        :result/arg2 = :quit  ; throw's /NAME
     ] then [
         return switch type of get* 'result/arg1 [
             void! [0]  ; plain QUIT, no /WITH, call that success
@@ -506,7 +506,7 @@ ext-console-impl: function [
     all [
         error? :result
         result/id = 'no-catch
-        :result/arg2 = :HALT  ; throw's /NAME
+        :result/arg2 = :halt  ; throw's /NAME
     ] then [
         if find directives #quit-if-halt [
             return 128 + 2 ; standard cancellation exit status for bash
@@ -538,7 +538,7 @@ ext-console-impl: function [
         in lib 'resume
         error? :result
         result/id = 'no-catch
-        :result/arg2 = :LIB/RESUME  ; throw's /NAME
+        :result/arg2 = :lib/resume  ; throw's /NAME
     ] then [
         assert [match [sym-group! handle!] :result/arg1]
         if not resumable [

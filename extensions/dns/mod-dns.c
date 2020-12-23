@@ -154,18 +154,18 @@ static REB_R DNS_Actor(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
 
           case NO_RECOVERY:
             rebJumps(
-                "FAIL {A nonrecoverable name server error occurred}",
+                "fail {A nonrecoverable name server error occurred}",
                 rebEND
             );
 
           case TRY_AGAIN:
             rebJumps(
-                "FAIL {Temporary error on authoritative name server}",
+                "fail {Temporary error on authoritative name server}",
                 rebEND
             );
 
           default:
-            rebJumps("FAIL {Unknown host error}", rebEND);
+            rebJumps("fail {Unknown host error}", rebEND);
         } }
 
       case SYM_OPEN: {

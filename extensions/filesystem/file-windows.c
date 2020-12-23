@@ -263,7 +263,7 @@ DEVICE_CMD Open_File(REBREQ *file)
         attrib |= FILE_ATTRIBUTE_READONLY;
 
     if (access == 0)
-        rebJumps("FAIL {No access modes provided to Open_File()}", rebEND);
+        rebJumps("fail {No access modes provided to Open_File()}", rebEND);
 
     WCHAR *path_wide = rebSpellWideQ(
         "applique :file-to-local [",

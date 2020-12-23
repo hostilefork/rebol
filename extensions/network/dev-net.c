@@ -429,7 +429,7 @@ DEVICE_CMD Transfer_Socket(REBREQ *sock)
 
     if (not (req->state & RSM_CONNECT) and not (req->modes & RST_UDP))
         rebJumps(
-            "FAIL {RSM_CONNECT must be true in Transfer_Socket() unless UDP}",
+            "fail {RSM_CONNECT must be true in Transfer_Socket() unless UDP}",
             rebEND
         );
 

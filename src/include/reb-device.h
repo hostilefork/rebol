@@ -266,6 +266,6 @@ inline static void OS_DO_DEVICE_SYNC(
     REBVAL *result = OS_DO_DEVICE(req, command);
     assert(result != NULL);  // should be synchronous
     if (rebDid("error?", result, rebEND))
-        rebJumps("FAIL", result, rebEND);
+        rebJumps("fail", result, rebEND);
     rebRelease(result);  // ignore result
 }

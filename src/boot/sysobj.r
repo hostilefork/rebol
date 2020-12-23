@@ -229,20 +229,23 @@ standard: make object! [
             _
     ]
 
+    ; !!! Historically headers use titlecase keys.  In the current world, that
+    ; leads to a difference from if you use lowercase ones.
+    ;
     header: make object! [
-        title: {Untitled}
-        name:
-        type:
-        version:
-        date:
-        file:
-        author:
-        needs:
-        options:
-        checksum:
-;       compress:
-;       exports:
-;       content:
+        Title: {Untitled}
+        Name:
+        Type:
+        Version:
+        Date:
+        File:
+        Author:
+        Needs:
+        Options:
+        Checksum:
+;       Compress:
+;       Exports:
+;       Content:
             _
     ]
 

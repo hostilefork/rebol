@@ -267,7 +267,7 @@ int main(int argc, char *argv_ansi[])
     rebEND);
 
     if (rebNot("action?", rebQ(main_startup), rebEND))
-        rebJumps("PANIC-VALUE", rebQ(main_startup), rebEND);  // terminates
+        rebJumps("panic-value", rebQ(main_startup), rebEND);  // terminates
 
     // This runs the MAIN-STARTUP, which returns *requests* to execute
     // arbitrary code by way of its return results.  The ENTRAP is thus here
@@ -281,7 +281,7 @@ int main(int argc, char *argv_ansi[])
     rebRelease(main_startup);
 
     if (rebDid("error?", trapped, rebEND))  // error in MAIN-STARTUP itself
-        rebJumps("PANIC", trapped, rebEND);  // terminates
+        rebJumps("panic", trapped, rebEND);  // terminates
 
     REBVAL *code = rebValue("first", trapped, rebEND); // entrap's output
     rebRelease(trapped);  // don't need the outer block any more

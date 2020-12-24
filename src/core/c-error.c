@@ -418,13 +418,12 @@ const REBVAL *Find_Error_For_Sym(enum Reb_Symbol id_sym)
     const REBSTR *id_canon = Canon(id_sym);
 
     REBCTX *categories = VAL_CONTEXT(Get_System(SYS_CATALOG, CAT_ERRORS));
-    assert(CTX_KEY_SYM(categories, 1) == SYM_SELF);
 
-    REBLEN ncat = SELFISH(1);
+    REBLEN ncat = 1;
     for (; ncat <= CTX_LEN(categories); ++ncat) {
         REBCTX *category = VAL_CONTEXT(CTX_VAR(categories, ncat));
 
-        REBLEN n = SELFISH(1);
+        REBLEN n = 1;
         for (; n != CTX_LEN(category) + 1; ++n) {
             if (SAME_STR(CTX_KEY_SPELLING(category, n), id_canon)) {
                 REBVAL *message = CTX_VAR(category, n);
@@ -565,7 +564,7 @@ REB_R MAKE_Error(
         // be inconsistent with a Rebol system error, an error will be
         // raised later in the routine.
 
-        e = Merge_Contexts_Selfish_Managed(root_error, VAL_CONTEXT(arg));
+        e = Merge_Contexts_Managed(root_error, VAL_CONTEXT(arg));
         vars = ERR_VARS(e);
     }
     else if (IS_BLOCK(arg)) {
@@ -575,7 +574,7 @@ REB_R MAKE_Error(
         // Bind and do an evaluation step (as with MAKE OBJECT! with A_MAKE
         // code in REBTYPE(Context) and code in REBNATIVE(construct))
 
-        e = Make_Selfish_Context_Detect_Managed(
+        e = Make_Context_Detect_Managed(
             REB_ERROR, // type
             VAL_ARRAY_AT(arg), // values to scan for toplevel set-words
             root_error // parent
@@ -643,7 +642,6 @@ REB_R MAKE_Error(
 
         if (category) {
             assert(IS_OBJECT(category));
-            assert(CTX_KEY_SYM(VAL_CONTEXT(category), 1) == SYM_SELF);
 
             // Find correct message for ID: (if any)
 
@@ -1419,8 +1417,8 @@ REBCTX *Startup_Errors(const REBVAL *boot_errors)
     // Create objects for all error types (CAT_ERRORS is "selfish", currently
     // so self is in slot 1 and the actual errors start at context slot 2)
     //
-    REBVAL *val;
-    for (val = CTX_VAR(catalog, SELFISH(1)); NOT_END(val); val++) {
+    REBVAL *val = CTX_VARS_HEAD(catalog);
+    for (; NOT_END(val); val++) {
         REBCTX *error = Construct_Context_Managed(
             REB_OBJECT,
             ARR_HEAD(VAL_ARRAY_KNOWN_MUTABLE(val)),  // modifies bindings

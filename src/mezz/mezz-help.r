@@ -142,7 +142,7 @@ help: function [
             To view words and values of a context or object:
 
                 help lib    - the runtime library
-                help self   - your user context
+                help system/contexts/user   - your user context
                 help system - the system object
                 help system/options - special settings
 

@@ -130,12 +130,6 @@ REBTYPE(Datatype)
             REBVAL *var = CTX_VARS_HEAD(context);
             REBVAL *key = CTX_KEYS_HEAD(context);
 
-            // !!! Account for the "invisible" self key in the current
-            // stop-gap implementation of self, still default on MAKE OBJECT!s
-            //
-            assert(VAL_KEY_SYM(key) == SYM_SELF);
-            ++key; ++var;
-
             unstable RELVAL *item = ARR_HEAD(VAL_TYPE_SPEC(type));
 
             for (; NOT_END(var); ++var, ++key) {

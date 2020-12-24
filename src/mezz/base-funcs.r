@@ -137,8 +137,6 @@ func: func* [
     ; that should not be considered.  Note that COLLECT is not defined by
     ; this point in the bootstrap.
     ;
-    ; !!! REVIEW: ignore self too if binding object?
-    ;
     let other
     parse spec [any [
         <void> (append new-spec <void>)
@@ -216,7 +214,6 @@ func: func* [
     |
         <in> (
             new-body: default [
-                append exclusions 'self
                 copy/deep body
             ]
         )
@@ -246,7 +243,6 @@ func: func* [
         <static> (
             statics: default [copy []]
             new-body: default [
-                append exclusions 'self
                 copy/deep body
             ]
         )

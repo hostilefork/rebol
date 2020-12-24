@@ -228,14 +228,12 @@ elf-format: context [
         (mode: _)
     ]
 
-    find-section: function [
+    find-section: method [
         return: [<opt> integer!]
             {The index of the section header with encap (sh_xxx vars set)}
         name [text!]
         section-headers [binary!]
         string-section [binary!]
-
-        <in> self
     ][
         index: 0
         parse section-headers [
@@ -257,15 +255,13 @@ elf-format: context [
         return null
     ]
 
-    update-offsets: function [
+    update-offsets: method [
         {Adjust headers to account for insertion or removal of data @ offset}
 
         return: <void>
         executable [binary!]
         offset [integer!]
         delta [integer!]
-
-        <in> self
     ][
         assert [e_phoff < offset]  ; program headers are before any changes
 
@@ -294,13 +290,11 @@ elf-format: context [
         ]
     ]
 
-    update-embedding: function [
+    update-embedding: method [
         return: <void>
         executable [binary!]
             {Executable to be mutated to either add or update an embedding}
         embedding [binary!]
-
-        <in> self
     ][
         ; Up front, let's check to see if the executable has data past the
         ; tail or not--which indicates some other app added data using the
@@ -492,11 +486,9 @@ elf-format: context [
         ]
     ]
 
-    get-embedding: function [
+    get-embedding: method [
         return: [<opt> binary!]
         file [file!]
-
-        <in> self
     ][
         header-data: read/part file 64 ; 64-bit size, 32-bit is smaller
 
@@ -1162,13 +1154,11 @@ generic-format: context [
     signature: to-binary "ENCAP000"
     sig-length: length of signature
 
-    update-embedding: function [
+    update-embedding: method [
         return: <void>
         executable [binary!]
             {Executable to be mutated to either add or update an embedding}
         embedding [binary!]
-
-        <in> self
     ][
         embed-size: length of embedding
 
@@ -1212,11 +1202,9 @@ generic-format: context [
         append executable signature
     ]
 
-    get-embedding: function [
+    get-embedding: method [
         return: [<opt> binary!]
         file [file!]
-
-        <in> self
     ][
         info: query file
 

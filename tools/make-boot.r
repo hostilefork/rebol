@@ -560,15 +560,9 @@ make-obj-defs: function [
     obj
     prefix
     depth
-    /selfless
 ][
     items: collect [
-        either selfless [
-            n: 1
-        ][
-            keep cscape/with {${PREFIX}_SELF = 1} [prefix]
-            n: 2
-        ]
+        n: 1
 
         for-each field words-of obj [
             keep cscape/with {${PREFIX}_${FIELD} = $<n>} [prefix field n]
@@ -640,7 +634,6 @@ evks: collect [
     make-file [(prep-dir) include/tmp-error-funcs.h])
 
 fields: collect [
-    keep {RELVAL self}
     for-each word words-of ob/standard/error [
         either word = 'near [
             keep {/* near/far are old C keywords */ RELVAL nearest}
@@ -783,7 +776,7 @@ sctx: make object! collect [
         keep "stub proxy for %sys-base.r item"
     ]
 ]
-make-obj-defs/selfless e-sysctx sctx "SYS_CTX" 1
+make-obj-defs e-sysctx sctx "SYS_CTX" 1
 
 num: 1
 e-sysctx/emit newline

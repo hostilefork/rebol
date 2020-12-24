@@ -255,22 +255,17 @@ static void Shutdown_Action_Spec_Tags(void)
 // that this manual construction actually matches the definition in the file.
 //
 static void Init_Action_Meta_Shim(void) {
-    REBSYM field_syms[6] = {
-        SYM_SELF, SYM_DESCRIPTION, SYM_RETURN_TYPE, SYM_RETURN_NOTE,
+    REBSYM field_syms[5] = {
+        SYM_DESCRIPTION, SYM_RETURN_TYPE, SYM_RETURN_NOTE,
         SYM_PARAMETER_TYPES, SYM_PARAMETER_NOTES
     };
     REBCTX *meta = Alloc_Context_Core(REB_OBJECT, 6, NODE_FLAG_MANAGED);
     REBLEN i = 1;
-    for (; i != 7; ++i) // BLANK!, as `make object! [x: ()]` is illegal
+    for (; i != 6; ++i)  // !!! Should these be BLANK! or NULL ?
         Init_Blank(Append_Context(meta, nullptr, Canon(field_syms[i - 1])));
-
-    Init_Object(CTX_VAR(meta, 1), meta); // it's "selfish"
-    Hide_Param(CTX_KEY(meta, 1));  // hide self
-    SET_CELL_FLAG(CTX_VAR(meta, 1), ARG_MARKED_CHECKED);
 
     Root_Action_Meta = Init_Object(Alloc_Value(), meta);
     Force_Value_Frozen_Deep(Root_Action_Meta);
-
 }
 
 static void Shutdown_Action_Meta_Shim(void) {
@@ -560,7 +555,7 @@ static void Init_System_Object(
 
     // Create the system object from the sysobj block (defined in %sysobj.r)
     //
-    REBCTX *system = Make_Selfish_Context_Detect_Managed(
+    REBCTX *system = Make_Context_Detect_Managed(
         REB_OBJECT, // type
         VAL_ARRAY_AT(boot_sysobj_spec), // scan for toplevel set-words
         NULL // parent
@@ -640,10 +635,6 @@ static void Init_System_Object(
   #if !defined(NDEBUG)
     rootvar->header.bits |= CELL_FLAG_PROTECTED;
   #endif
-
-    assert(CTX_KEY_SYM(c, 1) == SYM_SELF);
-    mutable_KIND3Q_BYTE(CTX_VAR(c, 1)) = REB_ERROR;
-    mutable_HEART_BYTE(CTX_VAR(c, 1)) = REB_ERROR;
   }
 }
 

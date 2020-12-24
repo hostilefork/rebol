@@ -77,7 +77,6 @@ poke
 
 enfix
 native
-self
 blank
 true
 false

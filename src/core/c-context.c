@@ -437,7 +437,6 @@ static void Collect_Inner_Loop(
 // the complexity to move handling for that case in this routine.
 //
 REBARR *Collect_Keylist_Managed(
-    REBLEN *self_index_out, // which context index SELF is in (if COLLECT_SELF)
     unstable const RELVAL *head,
     option(REBCTX*) prior,
     REBFLGS flags // see %sys-core.h for COLLECT_ANY_WORD, etc.
@@ -453,48 +452,6 @@ REBARR *Collect_Keylist_Managed(
     //
     Init_Unreadable_Void(ARR_HEAD(BUF_COLLECT));
     SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 1);
-
-    if (flags & COLLECT_ENSURE_SELF) {
-        const bool strict = true;
-        if (
-            not prior or (
-                0 == (*self_index_out = Find_Symbol_In_Context(
-                    CTX_ARCHETYPE(unwrap(prior)),
-                    Canon(SYM_SELF),
-                    strict
-                ))
-            )
-        ) {
-            // No prior or no SELF in prior, so we'll add it as the first key
-            //
-            unstable RELVAL *self_key = ARR_AT(BUF_COLLECT, 1);
-            Init_Param(
-                self_key,
-                REB_P_LOCAL,
-                Canon(SYM_SELF),
-                TS_VALUE  // !!! Type meaningless in objects?
-            );
-
-            // !!! Self is hidden, but not unbindable due to being a
-            // REB_P_LOCAL param class.  It would be different if it were
-            // REB_P_SEALED, which would then be not accessible.
-            //
-            Hide_Param(self_key);
-
-            assert(cl->index == 1);
-            Add_Binder_Index(&cl->binder, VAL_KEY_SPELLING(self_key), cl->index);
-            *self_index_out = cl->index;
-            ++cl->index;
-            SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 2); // [0] rootkey, plus SELF
-        }
-        else {
-            // No need to add SELF if it's going to be added via the `prior`
-            // so just return the `self_index_out` as-is.
-        }
-    }
-    else {
-        assert(self_index_out == NULL);
-    }
 
     // Setup binding table with existing words, no need to check duplicates
     //
@@ -648,7 +605,7 @@ void Rebind_Context_Deep(
 
 
 //
-//  Make_Selfish_Context_Detect_Managed: C
+//  Make_Context_Detect_Managed: C
 //
 // Create a context by detecting top-level set-words in an array of values.
 // So if the values were the contents of the block `[a: 10 b: 20]` then the
@@ -657,29 +614,15 @@ void Rebind_Context_Deep(
 // Optionally a parent context may be passed in, which will contribute its
 // keylist of words to the result if provided.
 //
-// The resulting context will have a SELF: defined as a hidden key (will not
-// show up in `words of` but will be bound during creation).  As part of
-// the migration away from SELF being a keyword, the logic for adding and
-// managing SELF has been confined to this function (called by `make object!`
-// and some other context-creating routines).  This will ultimately turn
-// into something paralleling the non-keyword definitional RETURN:, where
-// the generators (like OBJECT) will be taking responsibility for it.
-//
-// This routine will *always* make a context with a SELF.  This lacks the
-// nuance that is expected of the generators, which will have an equivalent
-// to `<with> return` to suppress it.
-//
-REBCTX *Make_Selfish_Context_Detect_Managed(
+REBCTX *Make_Context_Detect_Managed(
     enum Reb_Kind kind,
     unstable const RELVAL *head,
     option(REBCTX*) parent
 ) {
-    REBLEN self_index;
     REBARR *keylist = Collect_Keylist_Managed(
-        &self_index,
         head,
         parent,
-        COLLECT_ONLY_SET_WORDS | COLLECT_ENSURE_SELF
+        COLLECT_ONLY_SET_WORDS
     );
 
     REBLEN len = ARR_LEN(keylist);
@@ -739,15 +682,6 @@ REBCTX *Make_Selfish_Context_Detect_Managed(
         }
     }
 
-    // We should have a SELF key in all cases here.  Set it to be a copy of
-    // the object we just created.  (It is indeed a copy of the [0] element,
-    // but it doesn't need to be protected because the user overwriting it
-    // won't destroy the integrity of the context.)
-    //
-    assert(CTX_KEY_SYM(context, self_index) == SYM_SELF);
-    Move_Value(CTX_VAR(context, self_index), CTX_ARCHETYPE(context));
-    SET_CELL_FLAG(CTX_VAR(context, self_index), ARG_MARKED_CHECKED);
-
     if (parent)  // v-- passing in nullptr to indicate no more binds
         Rebind_Context_Deep(unwrap(parent), context, nullptr);
 
@@ -791,7 +725,7 @@ REBCTX *Construct_Context_Managed(
     REBSPC *specifier,
     option(REBCTX*) parent
 ){
-    REBCTX *context = Make_Selfish_Context_Detect_Managed(
+    REBCTX *context = Make_Context_Detect_Managed(
         kind, // type
         head, // values to scan for toplevel set-words
         parent // parent
@@ -887,14 +821,14 @@ REBARR *Context_To_Array(const RELVAL *context, REBINT mode)
 
 
 //
-//  Merge_Contexts_Selfish_Managed: C
+//  Merge_Contexts_Managed: C
 //
 // Create a child context from two parent contexts. Merge common fields.
 // Values from the second parent take precedence.
 //
 // Deep copy and rebind the child.
 //
-REBCTX *Merge_Contexts_Selfish_Managed(REBCTX *parent1, REBCTX *parent2)
+REBCTX *Merge_Contexts_Managed(REBCTX *parent1, REBCTX *parent2)
 {
     if (parent2 != NULL) {
         assert(CTX_TYPE(parent1) == CTX_TYPE(parent2));
@@ -907,7 +841,7 @@ REBCTX *Merge_Contexts_Selfish_Managed(REBCTX *parent1, REBCTX *parent2)
     struct Reb_Collector collector;
     Collect_Start(
         &collector,
-        COLLECT_ANY_WORD | COLLECT_ENSURE_SELF | COLLECT_AS_TYPESET
+        COLLECT_ANY_WORD | COLLECT_AS_TYPESET
     );
 
     // Leave the [0] slot blank while collecting (ROOTKEY/ROOTPARAM), but
@@ -1009,18 +943,6 @@ REBCTX *Merge_Contexts_Selfish_Managed(REBCTX *parent1, REBCTX *parent2)
     // release the bind table
     //
     Collect_End(&collector);
-
-    // We should have gotten a SELF in the results, one way or another.
-    //
-    const bool strict = true;
-    REBLEN self_index = Find_Symbol_In_Context(
-        CTX_ARCHETYPE(merged),
-        Canon(SYM_SELF),
-        strict
-    );
-    assert(self_index != 0);
-    assert(CTX_KEY_SYM(merged, self_index) == SYM_SELF);
-    Move_Value(CTX_VAR(merged, self_index), CTX_ARCHETYPE(merged));
 
     return merged;
 }
@@ -1276,10 +1198,9 @@ void Startup_Collector(void)
     // Temporary block used while scanning for words.
     //
     // Note that the logic inside Collect_Keylist managed assumes it's at
-    // least 2 long to hold the rootkey (SYM_0) and a possible SYM_SELF
-    // hidden actual key.
+    // least long enough to hold the rootkey (SYM_0).
     //
-    TG_Buf_Collect = Make_Array_Core(2 + 98, 0);
+    TG_Buf_Collect = Make_Array_Core(1 + 99, SERIES_FLAGS_NONE);
 }
 
 

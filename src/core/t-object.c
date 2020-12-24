@@ -158,8 +158,8 @@ REBINT CT_Context(REBCEL(const*) a, REBCEL(const*) b, bool strict)
         return 0;  // short-circuit, always equal if same context pointer
 
     // Note: can't short circuit on unequal frame lengths alone, as hidden
-    // fields of objects (notably `self`) do not figure into the `equal?`
-    // of their public portions.
+    // fields of objects do not figure into the `equal?` of their public
+    // portions.
 
     const REBVAL *key1 = CTX_KEYS_HEAD(c1);
     const REBVAL *key2 = CTX_KEYS_HEAD(c2);
@@ -314,7 +314,7 @@ REB_R MAKE_Context(
         : nullptr;
 
     if (IS_BLOCK(arg)) {
-        REBCTX *ctx = Make_Selfish_Context_Detect_Managed(
+        REBCTX *ctx = Make_Context_Detect_Managed(
             REB_OBJECT,
             VAL_ARRAY_AT(arg),
             parent_ctx
@@ -338,27 +338,11 @@ REB_R MAKE_Context(
     // `make object! 10` - currently not prohibited for any context type
     //
     if (ANY_NUMBER(arg)) {
-        //
-        // !!! Temporary!  Ultimately SELF will be a user protocol.
-        // We use Make_Selfish_Context while MAKE is filling in for
-        // what will be responsibility of the generators, just to
-        // get "completely fake SELF" out of index slot [0]
-        //
-        REBCTX *context = Make_Selfish_Context_Detect_Managed(
+        REBCTX *context = Make_Context_Detect_Managed(
             kind,
             END_NODE,  // values to scan for toplevel set-words (empty)
             parent_ctx
         );
-
-        // !!! Allocation when SELF is not the responsibility of MAKE
-        // will be more basic and look like this.
-        //
-        /*
-        REBINT n = Int32s(arg, 0);
-        context = Alloc_Context(kind, n);
-        RESET_VAL_HEADER(CTX_ARCHETYPE(context), target, CELL_MASK_NONE);
-        CTX_SPEC(context) = NULL;
-        CTX_BODY(context) = NULL; */
 
         return Init_Any_Context(out, kind, context);
     }
@@ -980,7 +964,7 @@ REBNATIVE(construct)
     // Scan the object for top-level set words in order to make an
     // appropriately sized context.
     //
-    REBCTX *ctx = Make_Selfish_Context_Detect_Managed(
+    REBCTX *ctx = Make_Context_Detect_Managed(
         parent ? CTX_TYPE(parent) : REB_OBJECT,  // !!! Presume object?
         VAL_ARRAY_AT(spec),
         parent

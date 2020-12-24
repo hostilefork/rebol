@@ -447,23 +447,6 @@ inline static REBVAL *VAL_CONTEXT_KEYS_HEAD(unstable REBCEL(*) context)
     CTX_VARS_HEAD(VAL_CONTEXT(context))  // all views have same varlist
 
 
-// The movement of the SELF word into the domain of the object generators
-// means that an object may wind up having a hidden SELF key (and it may not).
-// Ultimately this key may well occur at any position.  While user code is
-// discouraged from accessing object members by integer index (`pick obj 1`
-// is an error), system code has historically relied upon this.
-//
-// During a transitional period where all MAKE OBJECT! constructs have a
-// "real" SELF key/var in the first position, there needs to be an adjustment
-// to the indexing of some of this system code.  Some of these will be
-// temporary, because not all objects will need a definitional SELF (just as
-// not all functions need a definitional RETURN).  Exactly which require it
-// and which do not remains to be seen, so this macro helps review the + 1
-// more easily than if it were left as just + 1.
-//
-#define SELFISH(n) \
-    ((n) + 1)
-
 // Common routine for initializing OBJECT, MODULE!, PORT!, and ERROR!
 //
 // A fully constructed context can reconstitute the ANY-CONTEXT! REBVAL

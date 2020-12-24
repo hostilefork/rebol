@@ -305,7 +305,7 @@ enum {
     COLLECT_ANY_WORD = 1 << 1,
     COLLECT_DEEP = 1 << 2,
     COLLECT_NO_DUP = 1 << 3, // Do not allow dups during collection (for specs)
-    COLLECT_ENSURE_SELF = 1 << 4, // !!! Ensure SYM_SELF in context (temp)
+    COLLECT_4 = 1 << 4,  // was COLLECT_ENSURE_SELF
     COLLECT_AS_TYPESET = 1 << 5
 };
 

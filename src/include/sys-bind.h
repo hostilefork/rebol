@@ -349,42 +349,6 @@ inline static void INIT_BINDING_MAY_MANAGE(
 ){
     EXTRA(Binding, out).node = binding;
 
-    // If a QUOTED! cell is 4 quotes or more, then the VAL_UNESCAPED() payload
-    // contains a binding that must match that of the REB_QUOTED.  But this
-    // may be shared with other REB_QUOTED instances, that can't have their
-    // bindings corrupted.  A new payload must be made in that case.
-    //
-    if (KIND3Q_BYTE(out) == REB_QUOTED) {  // always claims to be bindable
-        RELVAL *old = VAL_QUOTED_PAYLOAD_CELL(out);
-        if (not Is_Bindable(old))
-            return;  // unescaped value isn't *actually* a bindable type
-
-        if (EXTRA(Binding, old).node == binding) {
-            assert(not binding or GET_SERIES_FLAG(binding, MANAGED));
-            return;  // can reuse the allocation
-        }
-
-        REBVAL *paired = Alloc_Pairing();
-        paired->header = old->header;
-        EXTRA(Binding, paired).node = binding;
-        paired->payload = old->payload;
-
-        Init_Unreadable_Void(PAIRING_KEY(paired));
-
-      #if !defined(NDEBUG)
-        paired->header.bits &= ~CELL_FLAG_PROTECTED;  // need to manage it
-      #endif
-
-        Manage_Pairing(paired);
-
-      #if !defined(NDEBUG)
-        SET_CELL_FLAG(paired, PROTECTED);  // may become shared; can't change
-      #endif
-
-        PAYLOAD(Any, out).first.node = NOD(paired);  // update to new binding
-        assert(GET_CELL_FLAG(out, FIRST_IS_NODE));  // should have been set
-    }
-
     if (not binding or GET_SERIES_FLAG(binding, MANAGED))
         return;  // unbound or managed already (frame OR object context)
 
@@ -401,27 +365,31 @@ inline static void INIT_BINDING_MAY_MANAGE(
 // bound directly to a context) or into the paramlist (if relative to an
 // action, requiring a frame specifier to fully resolve).
 //
-inline static bool IS_WORD_UNBOUND(unstable REBCEL(const*) v) {
-    assert(ANY_WORD_KIND(CELL_HEART(v)));
+inline static bool IS_WORD_UNBOUND(const RELVAL *v) {
+    assert(ANY_WORD_KIND(CELL_HEART(VAL_UNESCAPED(v))));
     return VAL_WORD_BINDING_NODE(v)->header.bits & SERIES_FLAG_IS_STRING;
 }
 
 #define IS_WORD_BOUND(v) \
     (not IS_WORD_UNBOUND(v))
 
-inline static REBLEN VAL_WORD_INDEX(unstable REBCEL(const*) v) {
+
+inline static REBLEN VAL_WORD_INDEX(const RELVAL *v) {
     assert(IS_WORD_BOUND(v));
-    REBINT i = PAYLOAD(Any, v).second.i32;
+    uint32_t i = VAL_WORD_PRIMARY_INDEX_UNCHECKED(v);
     assert(i > 0);
     return cast(REBLEN, i);
 }
 
+#ifdef CPLUSPLUS_11
+    inline static bool IS_WORD_UNBOUND(unstable REBCEL(const*) v) = delete;
+    inline static REBLEN VAL_WORD_INDEX(unstable REBCEL(const*) v) = delete;
+#endif
+
 inline static void Unbind_Any_Word(unstable RELVAL *v) {
     const REBSTR *spelling = VAL_WORD_SPELLING(v);
     INIT_VAL_WORD_BINDING(v, NOD(spelling));
-  #if !defined(NDEBUG)
-    INIT_WORD_INDEX(v, -1);
-  #endif
+    INIT_VAL_WORD_PRIMARY_INDEX(v, 0);
 }
 
 inline static REBCTX *VAL_WORD_CONTEXT(unstable const REBVAL *v) {
@@ -442,16 +410,23 @@ inline static REBCTX *VAL_WORD_CONTEXT(unstable const REBVAL *v) {
 // up space in word cell for other features.  Note that this means if a
 // context is freed, its keylist must be retained to provide the words.
 //
-inline static const REBSTR *VAL_WORD_SPELLING(unstable REBCEL(const*) v) {
-    assert(ANY_WORD_KIND(CELL_HEART(v)));
-    if (IS_WORD_UNBOUND(v))
-        return STR(VAL_WORD_BINDING_NODE(v));
+inline static const REBSTR *VAL_WORD_SPELLING(unstable REBCEL(const*) cell) {
+    assert(ANY_WORD_KIND(CELL_HEART(cell)));
+    const REBNOD *binding = VAL_WORD_BINDING_NODE(cell);
 
-    const REBARR *binding = ARR(VAL_WORD_BINDING(v));
-    if (GET_ARRAY_FLAG(binding, IS_DETAILS))  // relative
+    if (binding->header.bits & SERIES_FLAG_IS_STRING)
+        return STR(VAL_WORD_BINDING_NODE(cell));
+
+    // Note: inside QUOTED! cells, all words should be bound to strings.  This
+    // is because different bindings can be made at each reference site.
+    // So at this point, we can be certain the cell is a RELVAL.
+
+    const RELVAL *v = CELL_TO_VAL(cell);
+
+    if (binding->header.bits & ARRAY_FLAG_IS_DETAILS)  // relative
         return VAL_PARAM_SPELLING(ACT_PARAM(ACT(binding), VAL_WORD_INDEX(v)));
 
-    assert(GET_ARRAY_FLAG(binding, IS_VARLIST));  // specific
+    assert(binding->header.bits & ARRAY_FLAG_IS_VARLIST);  // specific
     return CTX_KEY_SPELLING(CTX(binding), VAL_WORD_INDEX(v));
 }
 
@@ -493,11 +468,9 @@ inline static const REBSTR *VAL_WORD_SPELLING(unstable REBCEL(const*) v) {
 // that is applicable.
 //
 inline static REBCTX *Get_Word_Context(
-    unstable REBCEL(const*) any_word,
+    unstable const RELVAL* any_word,
     REBSPC *specifier
 ){
-    assert(ANY_WORD_KIND(CELL_HEART(any_word)));
-
     REBNOD *binding = VAL_WORD_BINDING(any_word);
     assert(binding); // caller should check so context won't be null
 
@@ -577,7 +550,7 @@ inline static REBCTX *Get_Word_Context(
 }
 
 static inline const REBVAL *Lookup_Word_May_Fail(
-    unstable REBCEL(const*) any_word,
+    unstable const RELVAL *any_word,
     REBSPC *specifier
 ){
     if (not VAL_WORD_BINDING(any_word))
@@ -591,7 +564,7 @@ static inline const REBVAL *Lookup_Word_May_Fail(
 }
 
 static inline option(const REBVAL*) Lookup_Word(
-    REBCEL(const*) any_word,
+    unstable const RELVAL *any_word,
     REBSPC *specifier
 ){
     if (not VAL_WORD_BINDING(any_word))
@@ -606,7 +579,7 @@ static inline option(const REBVAL*) Lookup_Word(
 
 static inline const REBVAL *Get_Word_May_Fail(
     RELVAL *out,
-    unstable REBCEL(const*) any_word,
+    unstable const RELVAL* any_word,
     REBSPC *specifier
 ){
     const REBVAL *var = Lookup_Word_May_Fail(any_word, specifier);
@@ -620,7 +593,7 @@ static inline const REBVAL *Get_Word_May_Fail(
 }
 
 static inline REBVAL *Lookup_Mutable_Word_May_Fail(
-    unstable REBCEL(const*) any_word,
+    unstable const RELVAL* any_word,
     REBSPC *specifier
 ){
     if (not VAL_WORD_BINDING(any_word))
@@ -652,7 +625,7 @@ static inline REBVAL *Lookup_Mutable_Word_May_Fail(
 }
 
 inline static REBVAL *Sink_Word_May_Fail(
-    unstable REBCEL(const*) any_word,
+    unstable const RELVAL* any_word,
     REBSPC *specifier
 ){
     REBVAL *var = Lookup_Mutable_Word_May_Fail(any_word, specifier);
@@ -826,7 +799,7 @@ inline static REBVAL *Derelativize(
 
 inline static REBSPC *Derive_Specifier(
     REBSPC *parent,
-    unstable REBCEL(const*) item
+    unstable const RELVAL* item
 ){
     if (IS_SPECIFIC(item))
         return VAL_SPECIFIER(SPECIFIC(CELL_TO_VAL(item)));

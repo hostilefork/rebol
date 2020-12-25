@@ -49,6 +49,12 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
         assert(GET_CELL_FLAG(v, FIRST_IS_NODE));
         assert(HEART_BYTE(v) == REB_QUOTED);
         assert(Is_Marked(PAYLOAD(Any, v).first.node));
+        assert(VAL_QUOTED_DEPTH(v) >= 3);
+        REBCEL(const*) cell = VAL_UNESCAPED(v);
+        if (ANY_WORD_KIND(CELL_KIND(cell))) {
+            assert(VAL_WORD_BINDING_NODE(cell)->header.bits
+                & SERIES_FLAG_IS_STRING);
+        }
         return;
     }
 
@@ -362,15 +368,10 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
             and MISC(spelling).bind_index.low == 0
         );
 
-        if (IS_WORD_BOUND(v)) {
-            assert(PAYLOAD(Any, v).second.i32 > 0);
-        }
-        else {
-            // The word is unbound...make sure index is 0 in debug build.
-            // (it can be left uninitialized in release builds, for now)
-            //
-            assert(PAYLOAD(Any, v).second.i32 == -1);
-        }
+        if (IS_WORD_BOUND(v))
+            assert(VAL_WORD_PRIMARY_INDEX_UNCHECKED(v) != 0);
+        else
+            assert(VAL_WORD_VIRTUAL_INDEX_UNCHECKED(v) == 0);
         break; }
 
       case REB_ACTION: {

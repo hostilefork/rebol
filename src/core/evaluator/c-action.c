@@ -314,7 +314,7 @@ bool Process_Action_Maybe_Stale_Throws(REBFRM * const f)
 
                 Init_Sym_Word(DS_PUSH(), partial_symbol);
                 INIT_VAL_WORD_BINDING(DS_TOP, f->varlist);
-                INIT_WORD_INDEX(DS_TOP, partial_index);
+                INIT_VAL_WORD_PRIMARY_INDEX(DS_TOP, partial_index);
             }
             else
                 assert(Is_Void_With_Sym(f->special, SYM_UNSET));
@@ -337,7 +337,7 @@ bool Process_Action_Maybe_Stale_Throws(REBFRM * const f)
 
                 REBLEN offset = f->arg - FRM_ARGS_HEAD(f);
                 INIT_VAL_WORD_BINDING(ordered, f->varlist);
-                INIT_WORD_INDEX(ordered, offset + 1);
+                INIT_VAL_WORD_PRIMARY_INDEX(ordered, offset + 1);
 
                 if (Is_Typeset_Empty(f->param)) {
                     //

@@ -414,7 +414,7 @@ REB_R PD_Context(
         // and it will be discarded.
         //
         INIT_VAL_WORD_BINDING(m_cast(RELVAL*, picker), NOD(c));
-        INIT_WORD_INDEX(m_cast(RELVAL*, picker), n);
+        INIT_VAL_WORD_PRIMARY_INDEX(m_cast(RELVAL*, picker), n);
     }
 
     REBVAL *var = CTX_VAR(c, n);

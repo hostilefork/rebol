@@ -202,8 +202,18 @@ inline static OPT_REBSYM VAL_WORD_SYM(unstable REBCEL(const*) v) {
     return STR_SYMBOL(VAL_WORD_SPELLING(v));
 }
 
-inline static void INIT_WORD_INDEX(unstable RELVAL *v, REBLEN i) {
-    PAYLOAD(Any, v).second.i32 = cast(REBINT, i);
+inline static void INIT_VAL_WORD_PRIMARY_INDEX(unstable RELVAL *v, REBLEN i) {
+    assert(ANY_WORD_KIND(CELL_HEART(VAL_UNESCAPED(v))));
+    assert(i < 1048576);  // 20 bit number for physical indices
+    VAL_WORD_INDEXES_U32(v) &= 0xFFF00000;
+    VAL_WORD_INDEXES_U32(v) |= i;
+}
+
+inline static void INIT_VAL_WORD_VIRTUAL_INDEX(unstable RELVAL *v, REBLEN i) {
+    assert(ANY_WORD_KIND(CELL_HEART(VAL_UNESCAPED(v))));
+    assert(i < 4096);  // 12 bit number for virtual indices
+    VAL_WORD_INDEXES_U32(v) &= 0x000FFFFF;
+    VAL_WORD_INDEXES_U32(v) |= i << 20;
 }
 
 inline static REBVAL *Init_Any_Word(
@@ -212,13 +222,9 @@ inline static REBVAL *Init_Any_Word(
     const REBSTR *spelling
 ){
     RESET_CELL(out, kind, CELL_FLAG_FIRST_IS_NODE);
-    INIT_VAL_WORD_BINDING(out, NOD(spelling));
-  #if !defined(NDEBUG)
-    INIT_WORD_INDEX(out, -1);  // index not heeded if no binding
-  #endif
-
-    PAYLOAD(Any, out).first.node = nullptr;
-    /*INIT_SPECIFIER(out, UNBOUND);*/
+    VAL_WORD_BINDING_NODE(out) = NOD(spelling);
+    VAL_WORD_INDEXES_U32(out) = 0;
+    VAL_WORD_CACHE_NODE(out) = UNSPECIFIED;
 
     return cast(REBVAL*, out);
 }
@@ -235,11 +241,9 @@ inline static REBVAL *Init_Any_Word_Bound(
     REBLEN index
 ){
     RESET_CELL(out, type, CELL_FLAG_FIRST_IS_NODE);
-    INIT_VAL_WORD_BINDING(out, context);
-    INIT_WORD_INDEX(out, index);
-
-    PAYLOAD(Any, out).first.node = nullptr;
-    /*INIT_SPECIFIER(out, UNBOUND);*/
+    VAL_WORD_BINDING_NODE(out) = NOD(context);
+    VAL_WORD_INDEXES_U32(out) = index;
+    VAL_WORD_CACHE_NODE(out) = UNSPECIFIED;
 
     return cast(REBVAL*, out);
 }

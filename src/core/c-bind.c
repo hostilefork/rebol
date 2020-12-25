@@ -44,10 +44,7 @@ void Bind_Values_Inner_Loop(
     REBFLGS flags
 ){
     for (; NOT_END(head); ++head) {
-        unstable REBCEL(const*) cell = VAL_UNESCAPED(head);
-        enum Reb_Kind kind = CELL_KIND(cell);
-        UNUSED(kind);  // !!! TBD: be influenced by KIND vs HEART?
-
+        REBCEL(const*) cell = VAL_UNESCAPED(head);
         enum Reb_Kind heart = CELL_HEART(cell);
 
         // !!! Review use of `heart` bit here, e.g. when a REB_PATH has an
@@ -71,26 +68,22 @@ void Bind_Values_Inner_Loop(
                 // We're overwriting any previous binding, which may have
                 // been relative.
 
-                REBLEN depth = Dequotify(head); // must ensure new cell
-                INIT_BINDING_MAY_MANAGE(head, NOD(context));
-                INIT_WORD_INDEX(head, n);
-                Quotify(head, depth); // new cell made for higher escapes
+                INIT_VAL_WORD_BINDING(head, NOD(context));
+                INIT_VAL_WORD_PRIMARY_INDEX(head, n);
             }
             else if (type_bit & add_midstream_types) {
                 //
                 // Word is not in context, so add it if option is specified
                 //
-                REBLEN depth = Dequotify(head); // must ensure new cell
                 Append_Context(context, head, 0);
                 Add_Binder_Index(binder, symbol, VAL_WORD_INDEX(head));
-                Quotify(head, depth); // new cell made for higher escapes
             }
         }
         else if (flags & BIND_DEEP) {
             if (ANY_ARRAY_KIND(heart))
                 Bind_Values_Inner_Loop(
                     binder,
-                    VAL_ARRAY_AT_MUTABLE_HACK(CELL_TO_VAL(cell)),
+                    VAL_ARRAY_AT_MUTABLE_HACK(VAL_UNESCAPED(head)),
                     context,
                     bind_types,
                     add_midstream_types,
@@ -168,8 +161,7 @@ void Unbind_Values_Core(RELVAL *head, option(REBCTX*) context, bool deep)
         // !!! We inefficiently dequote all values just to make sure we don't
         // damage shared bindings; review more efficient means of doing this.
         //
-        REBLEN num_quotes = Dequotify(v);
-        enum Reb_Kind heart = CELL_HEART(cast(REBCEL(const*), v));
+        enum Reb_Kind heart = CELL_HEART(VAL_UNESCAPED(v));
 
         if (
             ANY_WORD_KIND(heart)
@@ -179,8 +171,6 @@ void Unbind_Values_Core(RELVAL *head, option(REBCTX*) context, bool deep)
         }
         else if (ANY_ARRAY_KIND(heart) and deep)
             Unbind_Values_Core(VAL_ARRAY_AT_MUTABLE_HACK(v), context, true);
-
-        Quotify(v, num_quotes);
     }
 }
 
@@ -201,7 +191,7 @@ REBLEN Try_Bind_Word(const RELVAL *context, REBVAL *word)
     );
     if (n != 0) {
         INIT_VAL_WORD_BINDING(word, VAL_CONTEXT(context));
-        INIT_WORD_INDEX(word, n);  // ^-- may have been relative bind before
+        INIT_VAL_WORD_PRIMARY_INDEX(word, n);  // ^-- may have been relative
     }
     return n;
 }
@@ -385,16 +375,11 @@ static void Clonify_And_Bind_Relative(
         REBINT n = Get_Binder_Index_Else_0(binder, VAL_WORD_SPELLING(v));
         if (n != 0) {
             //
-            // Word's canon symbol is in frame.  Relatively bind it.
-            // (clear out existing binding flags first).
+            // Word' symbol is in frame.  Relatively bind it.  Note that the
+            // action bound to can be "incomplete" (LETs still gathering)
             //
-            Unbind_Any_Word(v);
-            INIT_VAL_WORD_BINDING(v, relative);  // "incomplete func" (LETs gathering?)
-
-            // !!! Right now we don't actually add the parameters as we go.
-            // This means INIT_WORD_INDEX()
-            //
-            INIT_WORD_INDEX(v, n);
+            INIT_VAL_WORD_BINDING(v, relative);
+            INIT_VAL_WORD_PRIMARY_INDEX(v, n);
         }
     }
     else if (ANY_ARRAY_OR_PATH_KIND(heart)) {
@@ -565,7 +550,7 @@ void Rebind_Values_Deep(
             INIT_VAL_WORD_BINDING(v, dst);
 
             if (binder) {
-                INIT_WORD_INDEX(
+                INIT_VAL_WORD_PRIMARY_INDEX(
                     v,
                     Get_Binder_Index_Else_0(
                         unwrap(binder),

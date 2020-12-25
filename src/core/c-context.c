@@ -154,7 +154,7 @@ void Expand_Context(REBCTX *context, REBLEN delta)
 //
 REBVAL *Append_Context(
     REBCTX *context,
-    option(unstable RELVAL*) any_word,
+    option(unstable RELVAL*) any_word,  // allowed to be quoted as well
     option(const REBSTR*) spelling
 ) {
     REBARR *keylist = CTX_KEYLIST(context);
@@ -169,7 +169,9 @@ REBVAL *Append_Context(
     EXPAND_SERIES_TAIL(SER(keylist), 1);
     Init_Context_Key(
         ARR_LAST(keylist),
-        spelling ? unwrap(spelling) : VAL_WORD_SPELLING(unwrap(any_word))
+        spelling
+            ? unwrap(spelling)
+            : VAL_WORD_SPELLING(VAL_UNESCAPED(unwrap(any_word)))
     );
     TERM_ARRAY_LEN(keylist, ARR_LEN(keylist));
 
@@ -190,7 +192,7 @@ REBVAL *Append_Context(
 
         REBLEN len = CTX_LEN(context); // length we just bumped
         INIT_VAL_WORD_BINDING(unwrap(any_word), context);
-        INIT_WORD_INDEX(unwrap(any_word), len);
+        INIT_VAL_WORD_PRIMARY_INDEX(unwrap(any_word), len);
     }
 
     return value;  // location we just added (void cell)

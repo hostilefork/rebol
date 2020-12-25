@@ -871,12 +871,16 @@ inline static REBVAL *SPECIFIC(const_if_c RELVAL *v) {
     ((REBSPC*)nullptr)  // cast() doesn't like nullptr, fix
 
 #define UNBOUND nullptr  // not always a REBNOD* (sometimes REBCTX)
+#define UNSPECIFIED nullptr
 
-#define VAL_WORD_BINDING_NODE(v) \
-    EXTRA(Binding, (v)).node
 
-inline static REBNOD *VAL_WORD_BINDING(unstable REBCEL(const*) v) {
-    assert(ANY_WORD_KIND(CELL_HEART(v)));
+#define VAL_WORD_BINDING_NODE(v)        EXTRA(Binding, (v)).node
+#define VAL_WORD_CACHE_NODE(v)          PAYLOAD(Any, (v)).first.node
+#define VAL_WORD_INDEXES_U32(v)         PAYLOAD(Any, (v)).second.u32
+
+
+inline static REBNOD *VAL_WORD_BINDING(unstable const RELVAL *v) {
+    assert(ANY_WORD_KIND(CELL_HEART(VAL_UNESCAPED(v))));
     REBNOD *binding = VAL_WORD_BINDING_NODE(v);
     if (binding->header.bits & SERIES_FLAG_IS_STRING)
         return UNBOUND;
@@ -884,7 +888,8 @@ inline static REBNOD *VAL_WORD_BINDING(unstable REBCEL(const*) v) {
 }
 
 inline static void INIT_VAL_WORD_BINDING(unstable RELVAL *v, const void *p) {
-    assert(ANY_WORD_KIND(CELL_HEART_UNCHECKED(v)));
+    assert(ANY_WORD_KIND(CELL_HEART(VAL_UNESCAPED(v))));
+
     const REBNOD *binding = cast(const REBNOD*, p);
     VAL_WORD_BINDING_NODE(v) = m_cast(REBNOD*, binding);
 
@@ -955,8 +960,8 @@ inline static void Move_Value_Header(
 
   #ifdef DEBUG_TRACK_EXTEND_CELLS
     out->track = v->track;
-    out->tick = v->tick; // initialization tick
-    out->touch = v->touch; // arbitrary debugging use via TOUCH_CELL
+    out->tick = TG_Tick;  // initialization tick
+    out->touch = v->touch;  // arbitrary debugging use via TOUCH_CELL
   #endif
 }
 

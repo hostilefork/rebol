@@ -205,13 +205,18 @@
     FLAG_LEFT_BIT(12)
 
 
-//=//// SERIES_FLAG_UTF8_NONWORD //////////////////////////////////////////=//
+//=//// STRING_FLAG_IS_SYMBOL /////////////////////////////////////////////=//
 //
-// !!! Temporary flag to be used while a backing store for an ANY-STRING! is
-// separate from the SERIES_FLAG_UTF8_STRING.
+// If a string is a symbol, then that means it is legal to use in ANY-WORD!.
+// If it is aliased in an ANY-STRING! or BINARY!, it will be read-only.
 //
-#define SERIES_FLAG_UTF8_NONWORD \
+// !!! It is possible for non-symbols to be interned and hashed as well, with
+// filenames.  What removes those interning table entries?
+//
+#define SERIES_FLAG_13 \
     FLAG_LEFT_BIT(13)
+
+#define STRING_FLAG_IS_SYMBOL SERIES_FLAG_13
 
 
 //=//// SERIES_FLAG_LINK_NODE_NEEDS_MARK //////////////////////////////////=//

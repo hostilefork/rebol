@@ -195,7 +195,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
                 if (
                     sigaddset(
                         &ReqPosixSignal(signal)->mask,
-                        sig_word_num(VAL_WORD_CANON(sig))
+                        sig_word_num(VAL_WORD_SPELLING(sig))
                     ) < 0
                 ){
                     fail (Error_Invalid_Spec_Raw(sig));

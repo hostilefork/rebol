@@ -883,6 +883,7 @@ REBTYPE(Context)
       case SYM_SELECT:
       case SYM_FIND: {
         INCLUDE_PARAMS_OF_FIND;
+        UNUSED(ARG(series));  // extracted as `c`
         UNUSED(ARG(part));
         UNUSED(ARG(only));
         UNUSED(ARG(skip));

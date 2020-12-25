@@ -38,7 +38,7 @@ REBSTR *Make_String_Core(REBSIZ encoded_capacity, REBFLGS flags)
     REBSER *s = Make_Series_Core(
         encoded_capacity + 1,  // +1 is for NUL terminator
         sizeof(REBYTE),
-        flags | SERIES_FLAG_IS_STRING | SERIES_FLAG_UTF8_NONWORD
+        flags | SERIES_FLAG_IS_STRING
     );
     MISC(s).length = 0;
     LINK(s).bookmarks = nullptr;  // generated on demand

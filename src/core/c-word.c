@@ -265,7 +265,7 @@ const REBSTR *Intern_UTF8_Managed(const REBYTE *utf8, size_t size)
     REBSER *s = Make_Series_Core(
         size + 1,  // if small, fits in a REBSER node (w/no data allocation)
         sizeof(REBYTE),
-        SERIES_FLAG_IS_STRING | SERIES_FLAG_FIXED_SIZE
+        SERIES_FLAG_IS_STRING | STRING_FLAG_IS_SYMBOL | SERIES_FLAG_FIXED_SIZE
     );
 
     // The incoming string isn't always null terminated, e.g. if you are

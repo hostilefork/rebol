@@ -223,12 +223,12 @@ STATIC_ASSERT(DETAILS_FLAG_IS_NATIVE == SERIES_INFO_HOLD);
         bool b = base;  // needed to avoid compiler constexpr warning
         if (b and p and (reinterpret_cast<const REBSER*>(p)->header.bits & (
             NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
-                | SERIES_MASK_PARAMLIST
+                | SERIES_MASK_DETAILS
                 | ARRAY_FLAG_IS_VARLIST
                 | ARRAY_FLAG_IS_PAIRLIST
                 | ARRAY_FLAG_HAS_FILE_LINE_UNMASKED
         )) != (
-            NODE_FLAG_NODE | SERIES_MASK_PARAMLIST
+            NODE_FLAG_NODE | SERIES_MASK_DETAILS
         )){
             panic (p);
         }

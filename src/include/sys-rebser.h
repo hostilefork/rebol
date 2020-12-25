@@ -902,13 +902,13 @@ struct Reb_Series {
 //
 
 #define SET_SERIES_FLAG(s,name) \
-    (m_cast(REBSER*, SER(s))->header.bits |= SERIES_FLAG_##name)
+    (SER(s)->header.bits |= SERIES_FLAG_##name)
 
 #define GET_SERIES_FLAG(s,name) \
     ((SER(s)->header.bits & SERIES_FLAG_##name) != 0)
 
 #define CLEAR_SERIES_FLAG(s,name) \
-    (m_cast(REBSER*, SER(s))->header.bits &= ~SERIES_FLAG_##name)
+    (SER(s)->header.bits &= ~SERIES_FLAG_##name)
 
 #define NOT_SERIES_FLAG(s,name) \
     ((SER(s)->header.bits & SERIES_FLAG_##name) == 0)

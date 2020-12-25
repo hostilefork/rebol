@@ -137,9 +137,10 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
         break;
 
       case REB_TYPESET: {  // bitset bits don't need marking, but symbol may
-        REBSTR *s = VAL_TYPESET_STRING(v);
-        if (GET_CELL_FLAG(v, FIRST_IS_NODE))
+        if (GET_CELL_FLAG(v, FIRST_IS_NODE)) {
+            REBSTR *s = VAL_TYPESET_STRING(v);
             assert(s == nullptr or Is_Marked(s));
+        }
         break; }
 
       case REB_BITSET: {
@@ -526,7 +527,7 @@ void Assert_Array_Marked_Correctly(const REBARR *a) {
             UNUSED(ctx_specialty);
         }
         else
-            assert(specialty == ACT_PARAMLIST(ACT(a)));
+            assert(specialty == ACT_PARAMLIST(ACT(m_cast(REBARR*, a))));
     }
     else if (GET_ARRAY_FLAG(a, IS_VARLIST)) {
         const REBVAL *archetype = CTX_ARCHETYPE(CTX(a));

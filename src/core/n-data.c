@@ -1132,8 +1132,8 @@ bool Try_As_String(
 
                 ++num_codepoints;
             }
-            SET_SERIES_FLAG(bin, IS_STRING);
             SET_SERIES_FLAG(bin, UTF8_NONWORD);
+            SET_SERIES_FLAG(m_cast(REBSER*, bin), IS_STRING);
             str = STR(bin);
 
             SET_STR_LEN_SIZE(
@@ -1481,7 +1481,7 @@ REBNATIVE(as)
                 // Constrain the input in the way it would be if we were doing
                 // the more efficient reuse.
                 //
-                SET_SERIES_FLAG(bin, IS_STRING);  // might be set already
+                SET_SERIES_FLAG(m_cast(REBSER*, bin), IS_STRING);
                 Freeze_Series(bin);
             }
 

@@ -222,7 +222,7 @@ inline static REBVAL *Init_Any_Word(
     const REBSTR *spelling
 ){
     RESET_CELL(out, kind, CELL_FLAG_FIRST_IS_NODE);
-    VAL_WORD_BINDING_NODE(out) = NOD(spelling);
+    VAL_WORD_BINDING_NODE(out) = NOD(m_cast(REBSTR*, spelling));
     VAL_WORD_INDEXES_U32(out) = 0;
     VAL_WORD_CACHE_NODE(out) = UNSPECIFIED;
 

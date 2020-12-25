@@ -158,13 +158,13 @@ STATIC_ASSERT(ARRAY_FLAG_CONST_SHALLOW == CELL_FLAG_CONST);
 // they don't have to say ARRAY and FLAG twice.
 
 #define SET_ARRAY_FLAG(s,name) \
-    (m_cast(REBSER*, SER(ARR(s)))->header.bits |= ARRAY_FLAG_##name)
+    (cast(REBSER*, ARR(s))->header.bits |= ARRAY_FLAG_##name)
 
 #define GET_ARRAY_FLAG(s,name) \
     ((cast(const REBSER*, ARR(s))->header.bits & ARRAY_FLAG_##name) != 0)
 
 #define CLEAR_ARRAY_FLAG(s,name) \
-    (m_cast(REBSER*, SER(ARR(s)))->header.bits &= ~ARRAY_FLAG_##name)
+    (cast(REBSER*, ARR(s))->header.bits &= ~ARRAY_FLAG_##name)
 
 #define NOT_ARRAY_FLAG(s,name) \
     ((cast(const REBSER*, ARR(s))->header.bits & ARRAY_FLAG_##name) == 0)

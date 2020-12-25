@@ -412,7 +412,7 @@ inline static REBCTX *VAL_WORD_CONTEXT(unstable const REBVAL *v) {
 //
 inline static const REBSTR *VAL_WORD_SPELLING(unstable REBCEL(const*) cell) {
     assert(ANY_WORD_KIND(CELL_HEART(cell)));
-    const REBNOD *binding = VAL_WORD_BINDING_NODE(cell);
+    REBNOD *binding = VAL_WORD_BINDING_NODE(cell);
 
     if (binding->header.bits & SERIES_FLAG_IS_STRING)
         return STR(VAL_WORD_BINDING_NODE(cell));

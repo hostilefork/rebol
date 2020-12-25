@@ -69,7 +69,7 @@ void Splice_Block_Into_Feed(REBFED *feed, const REBVAL *splice) {
         // The feed->value which would have been seen next has to be preserved
         // as the first thing to run when the next splice happens.
         //
-        MISC_PENDING_NODE(saved) = NOD(feed->value);
+        MISC_PENDING_NODE(saved) = NOD(m_cast(RELVAL*, feed->value));
     }
 
     feed->value = VAL_ARRAY_AT(splice);

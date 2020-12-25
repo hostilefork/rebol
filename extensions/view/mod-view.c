@@ -228,7 +228,7 @@ REBNATIVE(request_file_p)
     // Currently unused stuff.
     //
     ofn.lpstrDefExt = nullptr;
-    ofn.lCustData = cast(LPARAM, nullptr);
+    ofn.lCustData = (LPARAM)(nullptr);  // !!! cast() macro failing on nullptr
     ofn.lpfnHook = nullptr;
     ofn.lpTemplateName = nullptr;
 

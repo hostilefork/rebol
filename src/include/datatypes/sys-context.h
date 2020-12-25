@@ -434,7 +434,7 @@ inline static void INIT_VAL_FRAME_LABEL(
 // visible for that phase of execution and which aren't.
 //
 
-inline static REBVAL *VAL_CONTEXT_KEYS_HEAD(unstable REBCEL(*) context)
+inline static REBVAL *VAL_CONTEXT_KEYS_HEAD(unstable REBCEL(const*) context)
 {
     if (CELL_KIND(context) != REB_FRAME)
         return CTX_KEYS_HEAD(VAL_CONTEXT(context));

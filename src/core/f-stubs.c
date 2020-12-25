@@ -296,10 +296,11 @@ void Extra_Init_Any_Context_Checks_Debug(enum Reb_Kind kind, REBCTX *c) {
     // REBVAL is reserved for future use in other context types...so make
     // sure it's null at this point in time.
     //
+    REBNOD *archetype_phase = VAL_FRAME_PHASE_OR_LABEL_NODE(archetype);
     if (CTX_TYPE(c) == REB_FRAME)
-        assert(GET_ARRAY_FLAG(VAL_FRAME_PHASE(archetype), IS_DETAILS));
+        assert(GET_ARRAY_FLAG(archetype_phase, IS_DETAILS));
     else
-        assert(VAL_FRAME_PHASE_OR_LABEL_NODE(archetype) == nullptr);
+        assert(archetype_phase == nullptr);
 
   #ifdef DEBUG_UNREADABLE_VOIDS
     assert(IS_UNREADABLE_DEBUG(CTX_ROOTKEY(c)));  // unused at this time

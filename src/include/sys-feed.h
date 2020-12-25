@@ -487,7 +487,7 @@ inline static REBFED* Alloc_Feed(void) {
     Init_Unreadable_Void(Prep_Cell(&feed->fetched));
     Init_Unreadable_Void(Prep_Cell(&feed->lookback));
 
-    REBSER *s = SER(FEED_SINGULAR(feed));
+    REBSER *s = &feed->singular;  // SER() not yet valid
     s->header.bits = NODE_FLAG_NODE
                         | SERIES_FLAG_8_IS_TRUE;
     s->info.bits = Endlike_Header(

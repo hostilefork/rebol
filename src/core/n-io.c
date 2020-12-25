@@ -178,6 +178,7 @@ REBNATIVE(new_line)
 
     REBVAL *pos = ARG(position);
     RELVAL *item = VAL_ARRAY_AT_ENSURE_MUTABLE(pos);
+    REBARR *a = VAL_ARRAY_KNOWN_MUTABLE(pos);  // for setting at tail
 
     REBINT skip;
     if (REF(all))
@@ -197,9 +198,9 @@ REBNATIVE(new_line)
 
         if (IS_END(item)) {  // no cell at tail; use flag on array
             if (mark)
-                SET_ARRAY_FLAG(VAL_ARRAY(pos), NEWLINE_AT_TAIL);
+                SET_ARRAY_FLAG(a, NEWLINE_AT_TAIL);
             else
-                CLEAR_ARRAY_FLAG(VAL_ARRAY(pos), NEWLINE_AT_TAIL);
+                CLEAR_ARRAY_FLAG(a, NEWLINE_AT_TAIL);
             break;
         }
 

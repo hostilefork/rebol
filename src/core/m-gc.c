@@ -263,7 +263,7 @@ static void Queue_Mark_Opt_Value_Deep(unstable const RELVAL *v)
     if (IS_BINDABLE_KIND(heart)) {
         REBNOD *binding = EXTRA(Binding, v).node;
         if (binding != UNBOUND and (binding->header.bits & NODE_FLAG_MANAGED))
-            Queue_Mark_Node_Deep(ARR(binding));
+            Queue_Mark_Node_Deep(binding);
     }
 
     if (GET_CELL_FLAG(v, FIRST_IS_NODE) and PAYLOAD(Any, v).first.node)

@@ -48,7 +48,7 @@ inline static REBVAL *Init_Void_Core(
     const REBSTR *label
 ){
     RESET_CELL(out, REB_VOID, CELL_FLAG_FIRST_IS_NODE);
-    VAL_NODE(out) = NOD(label);
+    VAL_NODE(out) = NOD(m_cast(REBSTR*, label));
     return cast(REBVAL*, out);
 }
 

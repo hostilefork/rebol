@@ -384,7 +384,7 @@ Special internal defines used by RT, not Host-Kit developers:
 #endif
 
 #ifdef __SANITIZE_ADDRESS__
-    #ifdef CPLUSPLUS_11
+    #ifdef __cplusplus  // Note: CPLUSPLUS_11 macro not defined yet
         //
         // Cast checks in SER(), NOD(), ARR() are expensive--they ensure that
         // when you cast a void pointer to a REBSER, that the header actually

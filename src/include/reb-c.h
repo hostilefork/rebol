@@ -744,10 +744,16 @@
 
         T* p;
 
+        // C++ won't let you default construct objects without a default
+        // constructor.  To be C compatible, it cannot have behavior.
+        //
         optional_pointer () {}  // garbage (or nullptr if in global scope)
-        optional_pointer (T* p) : p (p) {}
 
-        T* try_unwrap_helper() const { return p; }  // null ok
+        template <typename X>
+        optional_pointer (X p) : p (p) {}
+
+        template <typename X>
+        optional_pointer (optional_pointer<X> op) : p (op.p) {}
 
         T* unwrap_helper() const {
             assert(p != nullptr);  // asserts only on DEBUG_CHECK_OPTIONALS
@@ -785,7 +791,7 @@
 
     #define option(TP) optional_pointer<TP>
     #define unwrap(v) (v).unwrap_helper()
-    #define try_unwrap(v) (v).try_unwrap_helper()
+    #define try_unwrap(v) (v).p
 #else
     #define option(T) T
     #define unwrap(v) (v)

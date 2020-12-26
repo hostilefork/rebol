@@ -177,11 +177,11 @@ static void Startup_True_And_False(void)
 {
     REBCTX *lib = VAL_CONTEXT(Lib_Context);
 
-    REBVAL *true_value = Append_Context(lib, 0, Canon(SYM_TRUE));
+    REBVAL *true_value = Append_Context(lib, nullptr, Canon(SYM_TRUE));
     Init_True(true_value);
     assert(IS_TRUTHY(true_value) and VAL_LOGIC(true_value) == true);
 
-    REBVAL *false_value = Append_Context(lib, 0, Canon(SYM_FALSE));
+    REBVAL *false_value = Append_Context(lib, nullptr, Canon(SYM_FALSE));
     Init_False(false_value);
     assert(IS_FALSEY(false_value) and VAL_LOGIC(false_value) == false);
 }
@@ -558,7 +558,7 @@ static void Init_System_Object(
     REBCTX *system = Make_Context_Detect_Managed(
         REB_OBJECT, // type
         VAL_ARRAY_AT(boot_sysobj_spec), // scan for toplevel set-words
-        NULL // parent
+        nullptr  // parent
     );
 
     Bind_Values_Deep(spec_head, Lib_Context);
@@ -579,7 +579,7 @@ static void Init_System_Object(
     // and have it bound in lines like `sys: system/contexts/sys`)
     //
     Init_Object(
-        Append_Context(VAL_CONTEXT(Lib_Context), NULL, Canon(SYM_SYSTEM)),
+        Append_Context(VAL_CONTEXT(Lib_Context), nullptr, Canon(SYM_SYSTEM)),
         system
     );
 

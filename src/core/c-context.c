@@ -939,7 +939,7 @@ REBCTX *Merge_Contexts_Managed(REBCTX *parent1, REBCTX *parent2)
 
     // Rebind the child
     //
-    Rebind_Context_Deep(parent1, merged, NULL);
+    Rebind_Context_Deep(parent1, merged, nullptr);
     Rebind_Context_Deep(parent2, merged, &collector.binder);
 
     // release the bind table
@@ -1069,7 +1069,7 @@ void Resolve_Context(
                 //
                 // Note: no protect check is needed here
                 //
-                REBVAL *var = Append_Context(target, 0, canon);
+                REBVAL *var = Append_Context(target, nullptr, canon);
                 Move_Var(var, CTX_VAR(source, n));  // preserves flags
             }
         }

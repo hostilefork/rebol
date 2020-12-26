@@ -96,7 +96,11 @@ REB_R MAKE_Money(
         return Move_Value(out, arg);
 
       case REB_TEXT: {
-        const REBYTE *bp = Analyze_String_For_Scan(NULL, arg, MAX_SCAN_MONEY);
+        const REBYTE *bp = Analyze_String_For_Scan(
+            nullptr,
+            arg,
+            MAX_SCAN_MONEY
+        );
 
         const REBYTE *end;
         Init_Money(out, string_to_deci(bp, &end));

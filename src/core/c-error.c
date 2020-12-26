@@ -1411,7 +1411,7 @@ REBCTX *Startup_Errors(const REBVAL *boot_errors)
         REB_OBJECT,
         VAL_ARRAY_KNOWN_MUTABLE_AT(boot_errors),  // modifies bindings
         VAL_SPECIFIER(boot_errors),
-        NULL
+        nullptr
     );
 
     // Create objects for all error types (CAT_ERRORS is "selfish", currently
@@ -1423,7 +1423,7 @@ REBCTX *Startup_Errors(const REBVAL *boot_errors)
             REB_OBJECT,
             ARR_HEAD(VAL_ARRAY_KNOWN_MUTABLE(val)),  // modifies bindings
             SPECIFIED, // source array not in a function body
-            NULL
+            nullptr
         );
         Init_Object(val, error);
     }

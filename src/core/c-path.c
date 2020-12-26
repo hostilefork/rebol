@@ -836,7 +836,7 @@ REBNATIVE(pick)
 
     PATH_HOOK *hook = Path_Hook_For_Type_Of(D_OUT);
 
-    REB_R r = hook(pvs, PVS_PICKER(pvs), NULL);
+    REB_R r = hook(pvs, PVS_PICKER(pvs), nullptr);
 
     if (not r or r == pvs->out) {
         // Do nothing, let caller handle

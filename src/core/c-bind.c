@@ -75,7 +75,7 @@ void Bind_Values_Inner_Loop(
                 //
                 // Word is not in context, so add it if option is specified
                 //
-                Append_Context(context, head, 0);
+                Append_Context(context, head, nullptr);
                 Add_Binder_Index(binder, symbol, VAL_WORD_INDEX(head));
             }
         }

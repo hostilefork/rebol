@@ -1310,7 +1310,7 @@ REBNATIVE(default)
             D_OUT,
             target,  // !!! May not be array-based
             VAL_SPECIFIER(target),
-            NULL, // not requesting value to set means it's a get
+            nullptr,  // not requesting value to set means it's a get
             EVAL_MASK_DEFAULT
                 | EVAL_FLAG_PATH_HARD_QUOTE // pre-COMPOSE'd, GROUP!s literal
         )){

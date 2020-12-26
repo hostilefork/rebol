@@ -170,7 +170,7 @@ REBVAL *Make_Native(
 
     // Append the native to the module under the name given.
     //
-    REBVAL *var = Append_Context(VAL_CONTEXT(module), name, 0);
+    REBVAL *var = Append_Context(VAL_CONTEXT(module), name, nullptr);
     Init_Action(var, act, VAL_WORD_SPELLING(name), UNBOUND);
 
     return var;

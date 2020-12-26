@@ -2383,7 +2383,7 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
             //
             Expand_Context(context, 1);
             Move_Var(  // preserve enfix state
-                Append_Context(context, DS_TOP, 0),
+                Append_Context(context, DS_TOP, nullptr),
                 CTX_VAR(lib, -n)  // -n is positive
             );
             REBINT check = Remove_Binder_Index_Else_0(binder, symbol);
@@ -2397,7 +2397,7 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
             // and isolation, but going with it for the API for now).
             //
             Expand_Context(context, 1);
-            Append_Context(context, DS_TOP, 0);
+            Append_Context(context, DS_TOP, nullptr);
             Add_Binder_Index(binder, symbol, VAL_WORD_INDEX(DS_TOP));
         }
     }

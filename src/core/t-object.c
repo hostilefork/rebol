@@ -38,7 +38,7 @@ static void Append_To_Context(REBVAL *context, REBVAL *arg)
             strict
         )){
             Expand_Context(c, 1); // copy word table also
-            Append_Context(c, 0, VAL_WORD_SPELLING(arg));
+            Append_Context(c, nullptr, VAL_WORD_SPELLING(arg));
             // default of Append_Context is that arg's value is void
         }
         return;
@@ -102,7 +102,7 @@ static void Append_To_Context(REBVAL *context, REBVAL *arg)
 
     unstable RELVAL *collect_key = ARR_AT(BUF_COLLECT, len);
     for (; NOT_END(collect_key); ++collect_key)
-        Append_Context(c, NULL, VAL_KEY_SPELLING(collect_key));
+        Append_Context(c, nullptr, VAL_KEY_SPELLING(collect_key));
   }
 
     // Set new values to obj words

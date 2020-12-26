@@ -167,7 +167,7 @@ REBNATIVE(bind)
         // not in context, bind/new means add it if it's not.
         //
         if (REF(new) or (IS_SET_WORD(v) and REF(set))) {
-            Append_Context(VAL_CONTEXT(context), v, NULL);
+            Append_Context(VAL_CONTEXT(context), v, nullptr);
             RETURN (Quotify(v, num_quotes));
         }
 
@@ -574,7 +574,7 @@ inline static void Get_Var_May_Fail(
             out,
             STABLE_HACK(source),  // !!! Review
             specifier,
-            NULL, // not requesting value to set means it's a get
+            nullptr,  // not requesting value to set means it's a get
             EVAL_MASK_DEFAULT
                 | (hard ? EVAL_FLAG_PATH_HARD_QUOTE : EVAL_FLAG_NO_PATH_GROUPS)
         )){

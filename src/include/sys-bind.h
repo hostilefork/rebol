@@ -462,12 +462,17 @@ inline static const REBSTR *VAL_WORD_SPELLING(unstable REBCEL(const*) cell) {
 //
 
 
-// Find the context a word is bound into.  This accounts for relative binding.
-// So if the word is bound to the arguments or locals of a function, the
-// `specifier` should be the REBFRM* (or FRAME! REBCTX*) for the instance
-// that is applicable.
+// Find the context a word is bound into.  This must account for the various
+// binding forms: Relative Binding, Derived Binding, and Virtual Binding.
+//
+// The reason this is broken out from the Lookup_Word() routines is because
+// sometimes read-only-ness of the context is heeded, and sometimes it is not.
+// Splitting into a step that returns the context and the index means the
+// main work of finding where to look up doesn't need to be parameterized
+// with that.
 //
 inline static REBCTX *Get_Word_Context(
+    REBLEN *index_out,
     unstable const RELVAL* any_word,
     REBSPC *specifier
 ){
@@ -539,11 +544,7 @@ inline static REBCTX *Get_Word_Context(
         assert(Action_Is_Base_Of(ACT(binding), CTX_FRAME_ACTION(c)));
     }
 
-  #ifdef DEBUG_BINDING_NAME_MATCH // this is expensive, and hasn't happened
-    assert(
-        VAL_WORD_SPELLING(any_word)
-        == VAL_KEY_SPELLING(CTX_KEY(c, VAL_WORD_INDEX(any_word))));
-  #endif
+    *index_out = VAL_WORD_INDEX(any_word);
 
     FAIL_IF_INACCESSIBLE_CTX(c); // usually VAL_CONTEXT() checks, need to here
     return c;
@@ -556,11 +557,12 @@ static inline const REBVAL *Lookup_Word_May_Fail(
     if (not VAL_WORD_BINDING(any_word))
         fail (Error_Not_Bound_Raw(SPECIFIC(CELL_TO_VAL(any_word))));
 
-    REBCTX *c = Get_Word_Context(any_word, specifier);
+    REBLEN index;
+    REBCTX *c = Get_Word_Context(&index, any_word, specifier);
     if (GET_SERIES_INFO(c, INACCESSIBLE))
         fail (Error_No_Relative_Core(any_word));
 
-    return CTX_VAR(c, VAL_WORD_INDEX(any_word));
+    return CTX_VAR(c, index);
 }
 
 static inline option(const REBVAL*) Lookup_Word(
@@ -570,11 +572,12 @@ static inline option(const REBVAL*) Lookup_Word(
     if (not VAL_WORD_BINDING(any_word))
         return nullptr;
 
-    REBCTX *c = Get_Word_Context(any_word, specifier);
+    REBLEN index;
+    REBCTX *c = Get_Word_Context(&index, any_word, specifier);
     if (GET_SERIES_INFO(c, INACCESSIBLE))
         return nullptr;
 
-    return CTX_VAR(c, VAL_WORD_INDEX(any_word));
+    return CTX_VAR(c, index);
 }
 
 static inline const REBVAL *Get_Word_May_Fail(
@@ -599,7 +602,8 @@ static inline REBVAL *Lookup_Mutable_Word_May_Fail(
     if (not VAL_WORD_BINDING(any_word))
         fail (Error_Not_Bound_Raw(SPECIFIC(CELL_TO_VAL(any_word))));
 
-    REBCTX *ctx = Get_Word_Context(any_word, specifier);
+    REBLEN index;
+    REBCTX *c = Get_Word_Context(&index, any_word, specifier);
 
     // A context can be permanently frozen (`lock obj`) or temporarily
     // protected, e.g. `protect obj | unprotect obj`.  A native will
@@ -608,9 +612,9 @@ static inline REBVAL *Lookup_Mutable_Word_May_Fail(
     //
     // Lock bits are all in SER->info and checked in the same instruction.
     //
-    FAIL_IF_READ_ONLY_SER(SER(CTX_VARLIST(ctx)));
+    FAIL_IF_READ_ONLY_SER(SER(CTX_VARLIST(c)));
 
-    REBVAL *var = CTX_VAR(ctx, VAL_WORD_INDEX(any_word));
+    REBVAL *var = CTX_VAR(c, index);
 
     // The PROTECT command has a finer-grained granularity for marking
     // not just contexts, but individual fields as protected.

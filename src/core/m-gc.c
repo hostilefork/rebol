@@ -668,7 +668,7 @@ static void Mark_Frame_Stack_Deep(void)
             f_specifier != SPECIFIED
             and (f_specifier->header.bits & NODE_FLAG_MANAGED)
         ){
-            Queue_Mark_Node_Deep(CTX(f_specifier));
+            Queue_Mark_Node_Deep(f_specifier);
         }
 
         // f->out can be nullptr at the moment, when a frame is created that

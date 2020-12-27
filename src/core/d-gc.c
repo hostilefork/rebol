@@ -265,10 +265,13 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
         // a method for that object.)
         //
         if (VAL_FRAME_BINDING_NODE(v) != UNBOUND) {
-            assert(CTX_TYPE(context) == REB_FRAME);
-            struct Reb_Frame *f = CTX_FRAME_IF_ON_STACK(context);
-            if (f)  // comes from execution, not MAKE FRAME!
-                assert(VAL_FRAME_BINDING(v) == FRM_BINDING(f));
+            if (CTX_TYPE(context) == REB_FRAME) {
+                struct Reb_Frame *f = CTX_FRAME_IF_ON_STACK(context);
+                if (f)  // comes from execution, not MAKE FRAME!
+                    assert(VAL_FRAME_BINDING(v) == FRM_BINDING(f));
+            }
+            else
+                assert(GET_ARRAY_FLAG(Singular_From_Cell(v), IS_PATCH));
         }
 
         if (PAYLOAD(Any, v).second.node) {
@@ -352,7 +355,16 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
       case REB_SYM_WORD: {
         assert(GET_CELL_FLAG(v, FIRST_IS_NODE));
 
-        assert(PAYLOAD(Any, v).first.node == nullptr);  // for future use
+        REBNOD *cache = VAL_WORD_CACHE_NODE(v);
+        if (cache) {
+            assert(
+                (cache->header.bits & ARRAY_FLAG_IS_PATCH)
+                or (
+                    (cache->header.bits & ARRAY_FLAG_IS_VARLIST)
+                    and (SER(Singular_From_Cell(v))->header.bits & ARRAY_FLAG_IS_PATCH)
+                )
+            );
+        }
 
         const REBSTR *spelling = VAL_WORD_SPELLING(v);
         assert(Is_Series_Frozen(SER(spelling)));
@@ -372,7 +384,7 @@ void Assert_Cell_Marked_Correctly(unstable const RELVAL *v)
         if (IS_WORD_BOUND(v))
             assert(VAL_WORD_PRIMARY_INDEX_UNCHECKED(v) != 0);
         else
-            assert(VAL_WORD_VIRTUAL_INDEX_UNCHECKED(v) == 0);
+            assert(VAL_WORD_PRIMARY_INDEX_UNCHECKED(v) == 0);
         break; }
 
       case REB_ACTION: {

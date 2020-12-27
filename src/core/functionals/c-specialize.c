@@ -327,19 +327,11 @@ bool Specialize_Action_Throws(
         // to whatever value was in the context the specialization is running
         // in, but this is likely the more useful behavior.
         //
-        // !!! This binds the actual arg data, not a copy of it--following
-        // OBJECT!'s lead.  However, ordinary functions make a copy of the
-        // body they are passed before rebinding.  Rethink.
-
-        // See Bind_Values_Core() for explanations of how the binding works.
-
-        Bind_Values_Inner_Loop(
-            &binder,
-            VAL_ARRAY_AT_MUTABLE_HACK(unwrap(def)),
+        Virtual_Bind_Deep_To_Existing_Context(
+            unwrap(def),
             exemplar,
-            FLAGIT_KIND(REB_SET_WORD),  // types to bind (just set-word!)
-            0,  // types to "add midstream" to binding as we go (nothing)
-            BIND_DEEP
+            &binder,
+            REB_SET_WORD
         );
 
         // !!! Only one binder can be in effect, and we're calling arbitrary

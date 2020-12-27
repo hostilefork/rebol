@@ -321,13 +321,18 @@ REB_R MAKE_Context(
         );
         Init_Any_Context(out, kind, ctx); // GC guards it
 
-        // !!! This binds the actual body data, not a copy of it.  See
-        // Virtual_Bind_Deep_To_New_Context() for future directions.
-        //
-        Bind_Values_Deep(VAL_ARRAY_AT_MUTABLE_HACK(arg), CTX_ARCHETYPE(ctx));
+        DECLARE_LOCAL (virtual_arg);
+        Move_Value(virtual_arg, arg);
+
+        Virtual_Bind_Deep_To_Existing_Context(
+            virtual_arg,
+            ctx,
+            nullptr,  // !!! no binder made at present
+            REB_WORD  // all internal refs are to the object
+        );
 
         DECLARE_LOCAL (dummy);
-        if (Do_Any_Array_At_Throws(dummy, arg, SPECIFIED)) {
+        if (Do_Any_Array_At_Throws(dummy, virtual_arg, SPECIFIED)) {
             Move_Value(out, dummy);
             return R_THROWN;
         }

@@ -209,11 +209,14 @@ inline static void INIT_VAL_WORD_PRIMARY_INDEX(unstable RELVAL *v, REBLEN i) {
     VAL_WORD_INDEXES_U32(v) |= i;
 }
 
-inline static void INIT_VAL_WORD_VIRTUAL_INDEX(unstable RELVAL *v, REBLEN i) {
+inline static void INIT_VAL_WORD_VIRTUAL_MONDEX(
+    unstable const RELVAL *v,  // mutation allowed on cached property
+    REBLEN mondex  // index mod 4095 (hence invented name "mondex")
+){
     assert(ANY_WORD_KIND(CELL_HEART(VAL_UNESCAPED(v))));
-    assert(i < 4096);  // 12 bit number for virtual indices
-    VAL_WORD_INDEXES_U32(v) &= 0x000FFFFF;
-    VAL_WORD_INDEXES_U32(v) |= i << 20;
+    assert(mondex <= MONDEX_MOD);  // 12 bit number for virtual indices
+    VAL_WORD_INDEXES_U32(m_cast(RELVAL*, v)) &= 0x000FFFFF;
+    VAL_WORD_INDEXES_U32(m_cast(RELVAL*, v)) |= mondex << 20;
 }
 
 inline static REBVAL *Init_Any_Word(

@@ -586,10 +586,18 @@ REB_R MAKE_Error(
         Init_Error(out, e);
 
         Rebind_Context_Deep(root_error, e, nullptr);  // NULL=>no more binds
-        Bind_Values_Deep(VAL_ARRAY_AT_MUTABLE_HACK(arg), CTX_ARCHETYPE(e));
+
+        DECLARE_LOCAL (virtual_arg);
+        Move_Value(virtual_arg, arg);
+        Virtual_Bind_Deep_To_Existing_Context(
+            virtual_arg,
+            e,
+            nullptr,  // binder
+            REB_WORD
+        );
 
         DECLARE_LOCAL (evaluated);
-        if (Do_Any_Array_At_Throws(evaluated, arg, SPECIFIED)) {
+        if (Do_Any_Array_At_Throws(evaluated, virtual_arg, SPECIFIED)) {
             Move_Value(out, evaluated);
             return R_THROWN;
         }

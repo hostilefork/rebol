@@ -386,8 +386,8 @@ inline static REBLEN VAL_WORD_INDEX(const RELVAL *v) {
     inline static REBLEN VAL_WORD_INDEX(unstable REBCEL(const*) v) = delete;
 #endif
 
-inline static void Unbind_Any_Word(unstable RELVAL *v) {
-    const REBSTR *spelling = VAL_WORD_SPELLING(v);
+inline static void Unbind_Any_Word(RELVAL *v) {
+    const REBSTR *spelling = VAL_WORD_SPELLING(VAL_UNESCAPED(v));
     INIT_VAL_WORD_BINDING(v, NOD(spelling));
     INIT_VAL_WORD_PRIMARY_INDEX(v, 0);
 }
@@ -471,15 +471,158 @@ inline static const REBSTR *VAL_WORD_SPELLING(unstable REBCEL(const*) cell) {
 // main work of finding where to look up doesn't need to be parameterized
 // with that.
 //
-inline static REBCTX *Get_Word_Context(
+// This function is used by Derelativize(), and so it shouldn't have any
+// failure mode while it's running...even if the context is inaccessible or
+// the word is unbound.  Errors should be raised by callers if applicable.
+//
+inline static option(REBCTX*) Get_Word_Context(
     REBLEN *index_out,
     unstable const RELVAL* any_word,
     REBSPC *specifier
 ){
     REBNOD *binding = VAL_WORD_BINDING(any_word);
-    assert(binding); // caller should check so context won't be null
+
+    if (specifier == SPECIFIED) {  // Note: may become SPECIFIED again below
+        if (binding == UNBOUND)
+            return nullptr;
+
+        assert(binding->header.bits & ARRAY_FLAG_IS_VARLIST);  // not relative
+        *index_out = VAL_WORD_INDEX(any_word);
+        return CTX(binding);
+    }
+
+    // Virtual binding shortcut; if a virtual binding is in effect and it
+    // matches the cache in the word, then trust the information in it...
+    // whether that's a hit or a miss.
+    //
+    if (specifier == VAL_WORD_CACHE_NODE(any_word)) {
+        //
+        // Since the number of bits available in a virtual bind is limited,
+        // the value stored is the index modulo MONDEX_MOD.  A miss is
+        // recorded with the actual value MONDEX_MOD (since 0 can be an
+        // actual modulus result).
+        //
+        REBLEN mondex = VAL_WORD_VIRTUAL_MONDEX_UNCHECKED(any_word);
+        if (mondex == MONDEX_MOD)
+            goto virtual_miss;
+
+      blockscope {
+        const REBSTR *spelling = VAL_WORD_SPELLING(VAL_UNESCAPED(any_word));
+
+        // We have the primary binding's spelling to check against, so we
+        // can recognize when the lossy index matches up.  It needs to match
+        // one of the virtual overriding contexts...we don't have enough bits
+        // to say which one so check them all.
+        //
+        // !!! To improve locality it might be better to take a couple of
+        // mondex bits to use as the mod of the chain length.
+        //
+        REBARR *temp = ARR(specifier);
+        do {
+            assert(GET_ARRAY_FLAG(temp, IS_PATCH));
+            if (
+                IS_SET_WORD(ARR_SINGLE(temp))
+                and REB_SET_WORD != CELL_KIND(VAL_UNESCAPED(any_word))
+            ){
+                goto skip_hit_patch;
+            }
+
+          blockscope {
+            REBCTX *overload = CTX(VAL_WORD_BINDING_NODE(ARR_SINGLE(temp)));
+
+            // Length at time of virtual bind is cached by index.  This avoids
+            // allowing untrustworthy cache states.
+            //
+            REBLEN cached_len = VAL_WORD_INDEX(ARR_SINGLE(ARR(temp)));
+
+            REBLEN index = mondex;
+            for (; index <= cached_len; index += MONDEX_MOD) {
+                if (spelling != CTX_KEY_SPELLING(overload, mondex))
+                    continue;
+
+                *index_out = mondex;
+                return overload;
+            }
+          }
+
+          skip_hit_patch:
+            temp = ARR(LINK(temp).custom.node);
+        } while (temp != nullptr);
+
+        panic (any_word);  // bad cache in value
+      }
+    }
+
+  virtual_miss:
+
+    if (GET_ARRAY_FLAG(specifier, IS_PATCH)) {
+        //
+        // Bad news: We have a virtual bind in effect, but not the virtual
+        // bind that is cached in the word.  We have no way of knowing if
+        // this word is overridden without doing a linear search.  Do it
+        // and then save the hit or miss information in the word for next use.
+        //
+        VAL_WORD_CACHE_NODE(any_word) = NOD(specifier);  // we're updating it
+
+        const REBSTR *spelling = VAL_WORD_SPELLING(VAL_UNESCAPED(any_word));
+
+        // !!! Virtual binding could use the bind table as a kind of next
+        // level cache if it encounters a large enough object to make it
+        // wortwhile?
+        //
+        REBARR *temp = ARR(specifier);
+        do {
+            if (
+                IS_SET_WORD(ARR_SINGLE(temp))
+                and REB_SET_WORD != CELL_KIND(VAL_UNESCAPED(any_word))
+            ){
+                goto skip_miss_patch;
+            }
+
+          blockscope {
+            REBCTX *overload = CTX(VAL_WORD_BINDING_NODE(ARR_SINGLE(temp)));
+
+            // Length at time of virtual bind is cached by index.  This avoids
+            // allowing untrustworthy cache states.
+            //
+            REBLEN cached_len = VAL_WORD_INDEX(ARR_SINGLE(ARR(temp)));
+
+            REBLEN index = 1;
+            REBVAL *key = CTX_KEYS_HEAD(overload);
+            for (; index <= cached_len; ++key, ++index) {
+                if (VAL_KEY_SPELLING(key) != spelling)
+                    continue;
+
+                // Found a match!  Cache it to speed up next time.  Note that
+                // since specifier chains change frames for relativization,
+                // we have to store the head of the chain.  Review.
+                //
+                INIT_VAL_WORD_VIRTUAL_MONDEX(any_word, index % MONDEX_MOD);
+                *index_out = index;
+                return overload;
+            }
+          }
+          skip_miss_patch:
+            temp = ARR(LINK(temp).custom.node);
+        } while (temp != nullptr);
+
+        // Update the cache to say we miss on this particular specifier
+        //
+        INIT_VAL_WORD_VIRTUAL_MONDEX(any_word, MONDEX_MOD);
+
+        // The specifier in effect is whichever one is held by the outermost
+        // entry in the chain.  (The rest of the chain may have been reused.)
+        // This may mean `specifier = SPECIFIED` below.
+        //
+        specifier = VAL_WORD_CACHE_NODE(ARR_SINGLE(ARR(specifier)));
+    }
+
+    assert(specifier == SPECIFIED or NOT_ARRAY_FLAG(specifier, IS_PATCH));
 
     REBCTX *c;
+
+    if (binding == UNBOUND)
+        return nullptr;  // once no virtual bind found, no binding is unbound
 
     if (binding->header.bits & ARRAY_FLAG_IS_VARLIST) {
 
@@ -533,7 +676,6 @@ inline static REBCTX *Get_Word_Context(
       #endif
 
         c = CTX(specifier);
-        FAIL_IF_INACCESSIBLE_CTX(c);
 
         // We can only check for a match of the underlying function.  If we
         // checked for an exact match, then the same function body could not
@@ -545,8 +687,6 @@ inline static REBCTX *Get_Word_Context(
     }
 
     *index_out = VAL_WORD_INDEX(any_word);
-
-    FAIL_IF_INACCESSIBLE_CTX(c); // usually VAL_CONTEXT() checks, need to here
     return c;
 }
 
@@ -554,11 +694,10 @@ static inline const REBVAL *Lookup_Word_May_Fail(
     unstable const RELVAL *any_word,
     REBSPC *specifier
 ){
-    if (not VAL_WORD_BINDING(any_word))
-        fail (Error_Not_Bound_Raw(SPECIFIC(CELL_TO_VAL(any_word))));
-
     REBLEN index;
-    REBCTX *c = Get_Word_Context(&index, any_word, specifier);
+    REBCTX *c = try_unwrap(Get_Word_Context(&index, any_word, specifier));
+    if (not c)
+        fail (Error_Not_Bound_Raw(SPECIFIC(any_word)));
     if (GET_SERIES_INFO(c, INACCESSIBLE))
         fail (Error_No_Relative_Core(any_word));
 
@@ -569,11 +708,10 @@ static inline option(const REBVAL*) Lookup_Word(
     unstable const RELVAL *any_word,
     REBSPC *specifier
 ){
-    if (not VAL_WORD_BINDING(any_word))
-        return nullptr;
-
     REBLEN index;
-    REBCTX *c = Get_Word_Context(&index, any_word, specifier);
+    REBCTX *c = try_unwrap(Get_Word_Context(&index, any_word, specifier));
+    if (not c)
+        return nullptr;
     if (GET_SERIES_INFO(c, INACCESSIBLE))
         return nullptr;
 
@@ -599,11 +737,10 @@ static inline REBVAL *Lookup_Mutable_Word_May_Fail(
     unstable const RELVAL* any_word,
     REBSPC *specifier
 ){
-    if (not VAL_WORD_BINDING(any_word))
-        fail (Error_Not_Bound_Raw(SPECIFIC(CELL_TO_VAL(any_word))));
-
     REBLEN index;
-    REBCTX *c = Get_Word_Context(&index, any_word, specifier);
+    REBCTX *c = try_unwrap(Get_Word_Context(&index, any_word, specifier));
+    if (not c)
+        fail (Error_Not_Bound_Raw(SPECIFIC(any_word)));
 
     // A context can be permanently frozen (`lock obj`) or temporarily
     // protected, e.g. `protect obj | unprotect obj`.  A native will
@@ -663,6 +800,18 @@ inline static REBVAL *Sink_Word_May_Fail(
 // a mechanic between both...TBD.
 //
 
+inline static REBSPC *Derive_Specifier(
+    REBSPC *parent,
+    unstable const RELVAL* item
+);
+
+#ifdef CPLUSPLUS_11
+    inline static REBSPC *Derive_Specifier(
+        REBSPC *parent,
+        unstable const REBVAL* item
+    ) = delete;
+#endif
+
 inline static REBVAL *Derelativize(
     unstable_ok RELVAL *out,  // relative dest overwritten w/specific value
     unstable const RELVAL *v,
@@ -670,92 +819,66 @@ inline static REBVAL *Derelativize(
 ){
     Move_Value_Header(out, v);
     out->payload = STABLE(v)->payload;
-
     if (not Is_Bindable(v)) {
         out->extra = STABLE(v)->extra;
         return cast(REBVAL*, out);
     }
 
-    REBNOD *binding = EXTRA(Binding, v).node;
+    enum Reb_Kind heart = CELL_HEART(VAL_UNESCAPED(v));
 
-    if (
-        not binding  // v-- unbound word stores spelling in binding slot
-        or (binding->header.bits & SERIES_FLAG_IS_STRING)
-    ){
-        EXTRA(Binding, out).node = binding;
-    }
-    else if (binding->header.bits & ARRAY_FLAG_IS_DETAILS) {
-        //
-        // The stored binding is relative to a function, and so the specifier
-        // needs to be a frame to have a precise invocation to lookup in.
-
-      #if !defined(NDEBUG)
-        enum Reb_Kind heart = CELL_HEART(VAL_UNESCAPED(v));
-        assert(ANY_WORD_KIND(heart) or ANY_ARRAY_OR_PATH_KIND(heart));
-
-        if (not specifier) {
-            printf("Relative item used with SPECIFIED\n");
-            panic (v);
-        }
-
-        if (specifier->header.bits & ARRAY_FLAG_IS_PATCH)
-            assert(!"Got to write this part...");
-
-        // We have to be content with checking for a match in underlying
-        // functions, vs. checking for an exact match.  Otherwise, then
-        // hijackings or COPY'd actions, or adapted preludes, could not match
-        // up with action put in the specifier.  We'd have to make new and
-        // re-relativized copies of the bodies--which is not only wasteful,
-        // but it would break the "black box" quality of function composition.
-        //
-        if (
-            NOT_SERIES_INFO(specifier, INACCESSIBLE) and
-            not Action_Is_Base_Of(
-                ACT(binding),
-                CTX_FRAME_ACTION(CTX(specifier))
-            )
-        ){
-            printf("Function mismatch in specific binding, expected:\n");
-            PROBE(ACT_ARCHETYPE(ACT(binding)));
-            printf("Panic on relative value\n");
-            panic (v);
-        }
-      #endif
-
-        INIT_BINDING_MAY_MANAGE(out, specifier);
-    }
-    else if (
-        specifier and (binding->header.bits & ARRAY_FLAG_IS_VARLIST)
-    ){
-        if (specifier->header.bits & ARRAY_FLAG_IS_PATCH)
-            assert(!"Got to write this part...");
-
-        REBNOD *f_binding = SPC_BINDING(specifier); // can't fail(), see notes
-
-        if (
-            f_binding
-            and Is_Overriding_Context(CTX(binding), CTX(f_binding))
-        ){
-            // !!! Repeats code in Get_Var_Core, see explanation there
-            //
-            INIT_BINDING_MAY_MANAGE(out, f_binding);
-        }
-        else
-            INIT_BINDING_MAY_MANAGE(out, binding);
-    }
-    else { // no potential override
-        assert(
-            (binding->header.bits & ARRAY_FLAG_IS_VARLIST)
-            or (binding->header.bits & ARRAY_FLAG_IS_PATCH)  // just passthru
-            or REB_VARARGS == CELL_KIND(VAL_UNESCAPED(v))
-            // ^-- BLOCK! style varargs use binding to hold array
-        );
-        INIT_BINDING_MAY_MANAGE(out, binding);
-    }
-
-    // in case the caller had a relative value slot and wants to use its
-    // known non-relative form... this is inline, so no cost if not used.
+    // For words, we go ahead and pay for the lookup at the moment of a
+    // derelativize.  While this is a bit unfortunate to have to pay the cost
+    // even if a WORD!s binding is not going to be used, it helps reduce the
+    // spread of patch specifier nodes in the system.
     //
+    if (ANY_WORD_KIND(heart)) {
+        REBLEN index;
+        REBCTX *c = try_unwrap(Get_Word_Context(&index, v, specifier));
+        if (not c) {
+            assert(VAL_WORD_BINDING(v) == UNBOUND);
+            out->extra = STABLE(v)->extra;
+            Unbind_Any_Word(out);  // !!! do this more efficiently
+        }
+        else {
+            out->extra = STABLE(v)->extra;  // !!! for knowing spelling in binding, temp...
+            INIT_BINDING_MAY_MANAGE(out, NOD(c));
+            INIT_VAL_WORD_PRIMARY_INDEX(out, index);
+        }
+
+        // When we resolve a word specifically, we clear out the specifier
+        // cache.  The same virtual specifier is unlikely to be used with it
+        // again (as any new series are pulled out of the "wave" of binding).
+        //
+        // We don't want to do this with REB_QUOTED since the cache is shared.
+        //
+        if (KIND3Q_BYTE_UNCHECKED(v) != REB_QUOTED) {
+            VAL_WORD_CACHE_NODE(out) = UNSPECIFIED;
+            INIT_VAL_WORD_VIRTUAL_MONDEX(out, MONDEX_MOD);  // necessary?
+        }
+        return cast(REBVAL*, out);
+    }
+    else if (ANY_ARRAY_KIND(heart)) {
+        //
+        // The job of an array in a derelativize operation is to carry along
+        // the specifier.  However, it cannot lose any prior existing info
+        // that's in the specifier it holds.
+        //
+        // THE BINDING IN ARRAYS MAY BE UNMANAGED...due to an optimization
+        // for passing things to natives that is probably not needed any
+        // longer.  Review.
+        //
+        // The mechanism otherwise is shared with specifier derivation.
+        // That includes the case of if specifier==SPECIFIED.
+        //
+        INIT_BINDING_MAY_MANAGE(out, Derive_Specifier(specifier, v));
+    }
+    else {
+        // Things like contexts and varargs are not affected by specifiers,
+        // at least not currently.
+        //
+        out->extra = STABLE(v)->extra;
+    }
+
     return cast(REBVAL*, out);
 }
 
@@ -801,13 +924,162 @@ inline static REBVAL *Derelativize(
 // would need such derivation.
 //
 
+// A specifier can be a FRAME! context, or it may be a chain of virtual binds
+// that holds a frame context.
+//
+inline static option(REBCTX*) SPC_FRAME_CTX(REBSPC *specifier)
+{
+    if (specifier == UNBOUND)  // !!! have caller check?
+        return nullptr;
+    if (specifier->header.bits & ARRAY_FLAG_IS_VARLIST)
+        return CTX(specifier);
+    assert(specifier->header.bits & ARRAY_FLAG_IS_PATCH);
+    return CTX(VAL_WORD_CACHE_NODE(ARR_SINGLE(ARR(specifier))));
+}
+
+
 inline static REBSPC *Derive_Specifier(
-    REBSPC *parent,
-    unstable const RELVAL* item
+    REBSPC *specifier,  // merge this specifier...
+    unstable const RELVAL* any_array  // ...onto the binding in this array
 ){
-    if (IS_SPECIFIC(item))
-        return VAL_SPECIFIER(SPECIFIC(CELL_TO_VAL(item)));
-    return parent;
+    REBNOD *binding = EXTRA(Binding, any_array).node;
+
+    if (specifier == SPECIFIED) {  // no override being requested
+        assert(
+            binding == UNBOUND
+            or (binding->header.bits & ARRAY_FLAG_IS_VARLIST)
+            or (binding->header.bits & ARRAY_FLAG_IS_PATCH)
+        );
+        return binding;  // so give back what was the array was holding
+    }
+
+    if (binding == UNBOUND) {  // no binding information in the incoming cell
+        //
+        // It is legal to use a specifier with a "fully resolved" value.
+        // A virtual specifier must be propagated, but it's not necessary to
+        // add a frame node.  While it would be "harmless" to put it on, it
+        // would mean specifier chains would have to be made to preserve it
+        // when it wasn't actually useful...and it taxes the GC.  Drop if
+        // possible.
+        //
+        if (not (specifier->header.bits & ARRAY_FLAG_IS_PATCH))
+            return SPECIFIED;
+
+        return specifier;  // so just propagate the incoming specifier
+    }
+
+    // v-- NOTE: The following two IFs just `return specifier`.  Separate for
+    // clarity and assertions, but trust the optimizer to fold them together
+    // in the release build.
+
+    if (specifier == binding) {  // basically a no-op as specifier in effect
+        assert(
+            (specifier->header.bits & ARRAY_FLAG_IS_VARLIST)
+            or (specifier->header.bits & ARRAY_FLAG_IS_PATCH)
+        );
+        return specifier;
+    }
+
+    if (binding->header.bits & ARRAY_FLAG_IS_DETAILS) {
+        //
+        // The stored binding is relative to a function, and so the specifier
+        // we have *must* be able to give us the matching FRAME! instance.
+        //
+        // We have to be content with checking for a match in underlying
+        // functions, vs. checking for an exact match.  Else hijackings or
+        // COPY'd actions, or adapted preludes, could not match up with
+        // actions put in the specifier.  We'd have to make new and
+        // re-relativized copies of the bodies--which is not only wasteful,
+        // but breaks the "black box" quality of function composition.
+        //
+      #if !defined(NDEBUG)
+        REBCTX *frame_ctx = try_unwrap(SPC_FRAME_CTX(specifier));
+        if (
+            frame_ctx == nullptr
+            or (
+                NOT_SERIES_INFO(frame_ctx, INACCESSIBLE) and
+                not Action_Is_Base_Of(
+                    ACT(binding),
+                    CTX_FRAME_ACTION(frame_ctx)
+                )
+            )
+        ){
+            printf("Function mismatch in specific binding, expected:\n");
+            PROBE(ACT_ARCHETYPE(ACT(binding)));
+            printf("Panic on relative value\n");
+            panic (any_array);
+        }
+      #endif
+
+        return specifier;  // input specifier will serve for derelativizations
+    }
+
+    // Either binding or the specifier have virtual components.  Whatever
+    // happens, the specifier we give back has to have the frame resolution
+    // compatible with what's in the value.
+
+    if (binding->header.bits & ARRAY_FLAG_IS_VARLIST) {
+        //
+        // If the array cell is already holding a frame, then it intends to
+        // broadcast that down for resolving relative values underneath it.
+        // We can only pass thru the incoming specifier if it is compatible.
+        // Otherwise we need a new specifier that folds in the binding.
+        //
+        assert(specifier->header.bits & ARRAY_FLAG_IS_PATCH);
+
+        // !!! This case of a match could be handled by the swap below, but
+        // break it out separately for now for the sake of asserts.
+        //
+        REBCTX *specifier_frame_ctx
+            = CTX(VAL_WORD_CACHE_NODE(ARR_SINGLE(ARR(specifier))));
+        if (NOD(specifier_frame_ctx) == binding)  // all clear to reuse
+            return specifier;
+
+        REBARR *patch = Alloc_Singular(
+            NODE_FLAG_MANAGED
+            | SERIES_FLAG_LINK_NODE_NEEDS_MARK
+            | ARRAY_FLAG_IS_PATCH
+        );
+
+        Move_Value(ARR_SINGLE(patch), SPECIFIC(ARR_SINGLE(ARR(specifier))));
+        VAL_WORD_CACHE_NODE(ARR_SINGLE(patch)) = NOD(binding);
+
+        LINK(patch).custom.node = LINK(specifier).custom.node;
+
+        return NOD(patch);
+    }
+
+    // The situation for if the array is already holding a patch is that we
+    // have to integrate our new patch on top of it.
+    //
+    // !!! How do we make sure this doesn't make a circularly linked list?
+
+    assert(binding->header.bits & ARRAY_FLAG_IS_PATCH);
+    REBCTX *binding_frame_ctx = try_unwrap(SPC_FRAME_CTX(binding));
+
+    if (not (specifier->header.bits & ARRAY_FLAG_IS_PATCH)) {
+        assert(specifier->header.bits & ARRAY_FLAG_IS_VARLIST);
+        return binding;  // The binding can be disregarded on this value
+    }
+
+    // Specifier is a patch -and- the binding is a patch.  Ick.  If you think
+    // of how often derelativizes are run, this will fill up all memory
+    // with the chains unless something is done.
+    //
+    // !!! This is the achilles heel of virtual binding, review it.
+
+    REBARR *patch = Alloc_Singular(
+        NODE_FLAG_MANAGED
+        | SERIES_FLAG_LINK_NODE_NEEDS_MARK
+        | ARRAY_FLAG_IS_PATCH
+    );
+
+    Move_Value(ARR_SINGLE(patch), SPECIFIC(ARR_SINGLE(ARR(specifier))));
+    VAL_WORD_CACHE_NODE(ARR_SINGLE(patch)) = NOD(binding_frame_ctx);
+
+    LINK(patch).custom.node = binding;
+
+    return NOD(patch);
 }
 
 

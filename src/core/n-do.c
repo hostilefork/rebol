@@ -786,20 +786,11 @@ REBNATIVE(applique)
     );
     Manage_Array(CTX_VARLIST(exemplar)); // binding code into it
 
-    // Bind any SET-WORD!s in the supplied code block into the FRAME!, so
-    // e.g. APPLY 'APPEND [VALUE: 10]` will set VALUE in exemplar to 10.
-    //
-    // !!! Today's implementation mutates the bindings on the passed-in block,
-    // like R3-Alpha's MAKE OBJECT!.  See Virtual_Bind_Deep_To_New_Context()
-    // for potential future directions.
-    //
-    Bind_Values_Inner_Loop(
-        &binder,
-        VAL_ARRAY_AT_MUTABLE_HACK(ARG(def)),  // mutates bindings
+    Virtual_Bind_Deep_To_Existing_Context(
+        ARG(def),
         exemplar,
-        FLAGIT_KIND(REB_SET_WORD),  // types to bind (just set-word!),
-        0,  // types to "add midstream" to binding as we go (nothing)
-        BIND_DEEP
+        &binder,
+        REB_SET_WORD
     );
 
     // Reset all the binder indices to zero, balancing out what was added.

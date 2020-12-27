@@ -221,6 +221,67 @@ REBNATIVE(bind)
 }
 
 
+//
+//  Virtual_Bind_Patchify: C
+//
+void Virtual_Bind_Patchify(RELVAL *block, REBCTX *context, enum Reb_Kind kind)
+{
+    // Should we walk the block to say "hey, you've been virtualized" on the
+    // words?  The pre-walk could set a bit corresponding to what virtual
+    // steps apply.
+
+    if (CTX_LEN(context) == 0)  // no keys in context
+        return;  // nothing to bind to
+
+    REBARR *patch = Alloc_Singular(
+        NODE_FLAG_MANAGED
+        | SERIES_FLAG_LINK_NODE_NEEDS_MARK
+        | ARRAY_FLAG_IS_PATCH
+    );
+    REBSPC *block_specifier = VAL_SPECIFIER(block);
+    REBCTX* frame_ctx = try_unwrap(SPC_FRAME_CTX(block_specifier));
+
+    // Virtual binds are done with a bound WORD!.  Reasons are:
+    //
+    // * Gives more header information than storing information already
+    //   available in the archetypal context.  So we can assume things like
+    //   a SET-WORD! means "only virtual bind the set-words".
+    //
+    // * Can be used to bind to the last word in the context at the time of
+    //   the virtual bind.  This allows for expansion.  The problem with
+    //   just using however-many-items-are-current is that it would mean
+    //   the extant cached virtual index information could not be trusted.
+    //   This gives reproducible effects on when you'll get hits or misses
+    //   instead of being subject to the whim of internal cache state.
+    //
+    // * If something changes the CTX_TYPE() that doesn't have to be reflected
+    //   here.  This is a rare case, but happens with MAKE ERROR! in startup
+    //   because the standard error object starts life as an object.  (This
+    //   mechanism needs revisiting, but it's just another reason.)
+    //
+    assert(kind == REB_WORD or kind == REB_SET_WORD);
+    Init_Any_Word_Bound(
+        ARR_SINGLE(patch),
+        kind,
+        context,
+        CTX_LEN(context)
+    );
+    VAL_WORD_CACHE_NODE(ARR_SINGLE(patch)) = NOD(frame_ctx);
+
+    if (NOD(frame_ctx) == block_specifier)
+        LINK(patch).custom.node = nullptr;
+    else {
+        assert(block_specifier->header.bits & ARRAY_FLAG_IS_PATCH);
+        LINK(patch).custom.node = block_specifier;
+    }
+
+    // misc might be used to link common chains with different specifiers?
+
+    // What would misc be used for?  Some kind of backpointer?
+
+    INIT_BINDING_MAY_MANAGE(block, NOD(patch));  // bound to the patch
+}
+
 
 //
 //  vbind: native [
@@ -239,28 +300,7 @@ REBNATIVE(vbind)
     REBVAL *block = ARG(block);
     REBVAL *context = ARG(context);
 
-    // Should we walk the block to say "hey, you've been virtualized" on the
-    // words?  The pre-walk could set a bit corresponding to what virtual
-    // steps apply.
-
-    REBARR *patch = Alloc_Singular(
-        NODE_FLAG_MANAGED
-        | SERIES_FLAG_LINK_NODE_NEEDS_MARK
-        | ARRAY_FLAG_IS_PATCH
-    );
-    REBSPC *prior = VAL_SPECIFIER(block);
-
-    // We are sort of wasting the header (we know it's a context), but we
-    // need the context pointer and the binding.  And the phase.  Maybe we
-    // could contract it for a single bind (as in for each) to being a WORD!
-    // and thus shortcut?
-    //
-    Move_Value(ARR_SINGLE(patch), context);
-    LINK(patch).custom.node = NOD(prior);  // make accessible
-
-    // What would misc be used for?  Some kind of backpointer?
-
-    INIT_BINDING_MAY_MANAGE(block, NOD(patch));  // bound to the patch
+    Virtual_Bind_Patchify(block, VAL_CONTEXT(context), REB_WORD);
     RETURN (block);
 }
 
@@ -268,92 +308,38 @@ REBNATIVE(vbind)
 //
 //  in: native [
 //
-//  "Returns the word or block bound into the given context."
+//  "Returns a view of the input bound virtually to the context"
 //
-//      return: [<opt> <requote> any-word! block! group!]
-//      context [any-context! block!]
-//      word [any-word! block! group!] "(modified if series)"
+//      return: [<opt> any-word! any-array!]
+//      context [any-context!]
+//      value [<const> <blank> any-word! any-array!]  ; QUOTED! support?
 //  ]
 //
 REBNATIVE(in)
-//
-// !!! Currently this is just the same as BIND, with the arguments reordered.
-// That may change... IN is proposed to do virtual biding.
-//
-// !!! The argument names here are bad... not necessarily a context and not
-// necessarily a word.  `code` or `source` to be bound in a `target`, perhaps?
 {
     INCLUDE_PARAMS_OF_IN;
 
-    REBVAL *val = ARG(context); // object, error, port, block
-    REBVAL *word = ARG(word);
+    REBCTX *ctx = VAL_CONTEXT(ARG(context));
+    REBVAL *v = ARG(value);
 
-    REBLEN num_quotes = VAL_NUM_QUOTES(word);
-    Dequotify(word);
-
-    DECLARE_LOCAL (safe);
-
-    if (IS_BLOCK(val) || IS_GROUP(val)) {
-        if (IS_WORD(word)) {
-            const REBVAL *v;
-            REBLEN i;
-            for (i = VAL_INDEX(val); i < VAL_LEN_HEAD(val); i++) {
-                Get_Simple_Value_Into(
-                    safe,
-                    VAL_ARRAY_AT_HEAD(val, i),
-                    VAL_SPECIFIER(val)
-                );
-
-                v = safe;
-                if (IS_OBJECT(v)) {
-                    const bool strict = true;
-                    REBLEN index = Find_Symbol_In_Context(
-                        v,
-                        VAL_WORD_SPELLING(word),
-                        strict
-                    );
-                    if (index != 0)
-                        return Init_Any_Word_Bound(
-                            D_OUT,
-                            VAL_TYPE(word),
-                            VAL_CONTEXT(v),
-                            index
-                        );
-                }
-            }
+    // !!! Note that BIND of a WORD! in historical Rebol/Red would return the
+    // input word as-is if the word wasn't in the requested context, while
+    // IN would return NONE! on failure.  We carry forward the NULL-failing
+    // here in IN, but BIND's behavior on words may need revisiting.
+    //
+    if (ANY_WORD(v)) {
+        const REBSTR *spelling = VAL_WORD_SPELLING(v);
+        const bool strict = true;
+        REBLEN index = Find_Symbol_In_Context(ARG(context), spelling, strict);
+        if (index == 0)
             return nullptr;
-        }
-
-        fail (word);
+        return Init_Any_Word_Bound(D_OUT, VAL_TYPE(v), ctx, index);
     }
 
-    REBVAL *context = val;
-
-    // Special form: IN object block
-    if (IS_BLOCK(word) or IS_GROUP(word)) {
-        Bind_Values_Deep(VAL_ARRAY_AT_MUTABLE_HACK(word), context);
-        Quotify(word, num_quotes);
-        RETURN (word);
-    }
-
-    const bool strict = true;
-    REBLEN index = Find_Symbol_In_Context(
-        context,
-        VAL_WORD_SPELLING(word),
-        strict
-    );
-    if (index == 0)
-        return nullptr;
-
-    Init_Any_Word_Bound(
-        D_OUT,
-        VAL_TYPE(word),
-        VAL_CONTEXT(context),
-        index
-    );
-    return Quotify(D_OUT, num_quotes);
+    assert(ANY_ARRAY(v));
+    Virtual_Bind_Deep_To_Existing_Context(v, ctx, nullptr, REB_WORD);
+    RETURN (v);
 }
-
 
 
 //
@@ -369,21 +355,6 @@ REBNATIVE(in)
 //  ]
 //
 REBNATIVE(use)
-//
-// !!! R3-Alpha's USE was written in userspace and was based on building a
-// CLOSURE! that it would DO.  Hence it took advantage of the existing code
-// for tying function locals to a block, and could be relatively short.  This
-// was wasteful in terms of creating an unnecessary function that would only
-// be called once.  The fate of CLOSURE-like semantics is in flux in Ren-C
-// (how much automatic-gathering and indefinite-lifetime will be built-in),
-// yet it's also more efficient to just make a native.
-//
-// As it stands, the code already existed for loop bodies to do this more
-// efficiently.  The hope is that with virtual binding, such constructs will
-// become even more efficient--for loops, BIND, and USE.
-//
-// !!! Should USE allow LIT-WORD!s to mean basically a no-op, just for common
-// interface with the loops?
 {
     INCLUDE_PARAMS_OF_USE;
 
@@ -717,7 +688,7 @@ void Set_Var_May_Fail(
         DECLARE_LOCAL (dummy);
         if (Eval_Path_Throws_Core(
             dummy,
-            CELL_TO_VAL(target),
+            target,
             target_specifier,
             specific,
             flags

@@ -1281,7 +1281,7 @@ REBNATIVE(default)
                 const RELVAL *item = VAL_SEQUENCE_AT(D_SPARE, target, i);
 
                 if (not IS_GROUP(item))
-                    Derelativize(dest, CELL_TO_VAL(item), VAL_SPECIFIER(target));
+                    Derelativize(dest, item, VAL_SPECIFIER(target));
                 else {
                     if (Do_Any_Array_At_Throws(D_OUT, item, specifier))
                         return R_THROWN;

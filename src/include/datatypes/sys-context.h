@@ -181,7 +181,10 @@ inline static void INIT_VAL_FRAME_ROOTVAR(
     REBACT *phase,
     REBCTX *binding  // allowed to be UNBOUND
 ){
-    assert(out == ARR_HEAD(varlist));
+    assert(
+        (GET_SERIES_INFO(varlist, INACCESSIBLE) and out == ARR_SINGLE(varlist))
+        or out == ARR_HEAD(varlist)
+    );
     assert(phase != nullptr);
     RESET_CELL(out, REB_FRAME, CELL_MASK_CONTEXT);
     VAL_CONTEXT_VARLIST_NODE(out) = NOD(varlist);
@@ -243,8 +246,9 @@ static inline void INIT_CTX_KEYLIST_UNIQUE(REBCTX *c, REBARR *keylist) {
 // so long as it is valid.
 //
 
-#define CTX_LEN(c) \
-    (cast(REBSER*, (c))->content.dynamic.used - 1)  // -1 for archetype in [0]
+inline static REBLEN CTX_LEN(REBCTX *c) {
+    return cast(REBSER*, (c))->content.dynamic.used - 1;  // -1 for archetype
+}
 
 #define CTX_ROOTKEY(c) \
     cast(REBVAL*, SER(CTX_KEYLIST(c))->content.dynamic.data)  // never fixed

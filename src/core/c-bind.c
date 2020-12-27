@@ -616,7 +616,7 @@ void Rebind_Values_Deep(
 // The context is effectively an ordinary object, and outlives the loop:
 //
 //     x-word: none
-//     for-each x [1 2 3] [x-word: 'x | break]
+//     for-each x [1 2 3] [x-word: 'x, break]
 //     get x-word  ; returns 3
 //
 // Ren-C adds a feature of letting LIT-WORD!s be used to indicate that the
@@ -624,20 +624,8 @@ void Rebind_Values_Deep(
 // LIT-WORD! specified.  If all loop variables are of this form, then no
 // copy will be made.
 //
-// !!! Ren-C managed to avoid deep copying function bodies yet still get
-// "specific binding" by means of "relative values" (RELVALs) and specifiers.
-// Extending this approach is hoped to be able to avoid the deep copy, and
-// the speculative name of "virtual binding" is given to this routine...even
-// though it is actually copying.
 //
-// !!! With stack-backed contexts in Ren-C, it may be the case that the
-// chunk stack is used as backing memory for the loop, so it can be freed
-// when the loop is over and word lookups will error.
-//
-// !!! Since a copy is made at time of writing (as opposed to using a binding
-// "view" of the same underlying data), the locked status of series is not
-// mirrored.  A short term remedy might be to parameterize copying such that
-// it mirrors the locks, but longer term remedy will hopefully be better.
+// !!! Loops should probably free their objects by default when finished
 //
 void Virtual_Bind_Deep_To_New_Context(
     REBVAL *body_in_out, // input *and* output parameter
@@ -681,39 +669,6 @@ void Virtual_Bind_Deep_To_New_Context(
         item = spec;
         specifier = SPECIFIED;
         rebinding = IS_WORD(item);
-    }
-
-    // If we need to copy the body, do that *first*, because copying can
-    // fail() (out of memory, or cyclical recursions, etc.) and that can't
-    // happen while a binder is in effect unless we PUSH_TRAP to catch and
-    // correct for it, which has associated cost.
-    //
-    if (rebinding) {
-        //
-        // Note that this deep copy of the block isn't exactly semantically
-        // the same, because it's truncated before the index.  You cannot
-        // go BACK on it before the index.
-        //
-        bool in_const = GET_CELL_FLAG(body_in_out, CONST);
-        Init_Any_Array(
-            body_in_out,
-            VAL_TYPE(body_in_out),
-            Copy_Array_Core_Managed(
-                VAL_ARRAY(body_in_out),
-                VAL_INDEX(body_in_out), // at
-                VAL_SPECIFIER(body_in_out),
-                ARR_LEN(VAL_ARRAY(body_in_out)), // tail
-                0, // extra
-                ARRAY_MASK_HAS_FILE_LINE, // flags
-                TS_ARRAY | TS_PATH // types to copy deeply
-            )
-        );
-
-        if (in_const)  // preserve CONST-ness of the original body
-            Constify(body_in_out);
-    }
-    else {
-        // Just leave body_in_out as it is, and make the context
     }
 
     // Keylists are always managed, but varlist is unmanaged by default (so
@@ -870,13 +825,11 @@ void Virtual_Bind_Deep_To_New_Context(
         // but we want to reuse the binder we had anyway for detecting the
         // duplicates.
         //
-        Bind_Values_Inner_Loop(
-            &binder,
-            VAL_ARRAY_AT_MUTABLE_HACK(body_in_out),
+        Virtual_Bind_Deep_To_Existing_Context(
+            body_in_out,
             c,
-            TS_WORD,
-            0,
-            BIND_DEEP
+            &binder,
+            REB_WORD
         );
     }
 
@@ -903,6 +856,42 @@ void Virtual_Bind_Deep_To_New_Context(
         Init_Word(word, duplicate);
         fail (Error_Dup_Vars_Raw(word));
     }
+}
+
+
+//
+//  Virtual_Bind_Deep_To_Existing_Context: C
+//
+void Virtual_Bind_Deep_To_Existing_Context(
+    REBVAL *any_array,
+    REBCTX *context,
+    struct Reb_Binder *binder,
+    enum Reb_Kind kind
+){
+    // Most of the time if the context isn't trivially small then it's
+    // probably best to go ahead and cache bindings.
+    //
+    UNUSED(binder);
+
+/*
+    // Bind any SET-WORD!s in the supplied code block into the FRAME!, so
+    // e.g. APPLY 'APPEND [VALUE: 10]` will set VALUE in exemplar to 10.
+    //
+    // !!! Today's implementation mutates the bindings on the passed-in block,
+    // like R3-Alpha's MAKE OBJECT!.  See Virtual_Bind_Deep_To_New_Context()
+    // for potential future directions.
+    //
+    Bind_Values_Inner_Loop(
+        &binder,
+        VAL_ARRAY_AT_MUTABLE_HACK(ARG(def)),  // mutates bindings
+        exemplar,
+        FLAGIT_KIND(REB_SET_WORD),  // types to bind (just set-word!),
+        0,  // types to "add midstream" to binding as we go (nothing)
+        BIND_DEEP
+    );
+ */
+
+    Virtual_Bind_Patchify(any_array, context, kind);
 }
 
 

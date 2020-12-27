@@ -327,6 +327,10 @@ inline static REBTYP *CELL_CUSTOM_TYPE(unstable REBCEL(const*) v) {
 inline static const RELVAL* CELL_TO_VAL(unstable_ok REBCEL(const*) cell)
   { return cast(const RELVAL*, cell); }
 
+#ifdef CPLUSPLUS_11
+    inline static const RELVAL* CELL_TO_VAL(const RELVAL* cell) = delete;
+#endif
+
 #ifdef DEBUG_UNSTABLE_CELLS
     inline static const unstable RELVAL* CELL_TO_VAL(
         unstable REBCEL(const*) cell
@@ -875,7 +879,11 @@ inline static REBVAL *SPECIFIC(const_if_c RELVAL *v) {
 
 
 #define VAL_WORD_BINDING_NODE(v)        EXTRA(Binding, (v)).node
-#define VAL_WORD_CACHE_NODE(v)          PAYLOAD(Any, (v)).first.node
+
+#define VAL_WORD_CACHE_NODE(v) \
+    PAYLOAD(Any, m_cast(RELVAL*, cast(const RELVAL*, (v)))).first.node
+
+#define MONDEX_MOD 4095  // modulus for the cached index modulus ("mondex")
 #define VAL_WORD_INDEXES_U32(v)         PAYLOAD(Any, (v)).second.u32
 
 
@@ -891,10 +899,11 @@ inline static void INIT_VAL_WORD_BINDING(unstable RELVAL *v, const void *p) {
     assert(ANY_WORD_KIND(CELL_HEART(VAL_UNESCAPED(v))));
 
     const REBNOD *binding = cast(const REBNOD*, p);
+    assert(binding);  // can't set word bindings to nullptr
     VAL_WORD_BINDING_NODE(v) = m_cast(REBNOD*, binding);
 
   #if !defined(NDEBUG)
-    if (not binding or (binding->header.bits & SERIES_FLAG_IS_STRING))
+    if (binding->header.bits & SERIES_FLAG_IS_STRING)
         return;  // e.g. UNBOUND (words use strings to indicate unbounds)
 
     assert(not (binding->header.bits & NODE_FLAG_CELL));  // not currently used

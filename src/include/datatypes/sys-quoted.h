@@ -58,13 +58,13 @@
 #define VAL_WORD_PRIMARY_INDEX_UNCHECKED(v) \
     (VAL_WORD_INDEXES_U32(v) & 0x000FFFFF)
 
-#define VAL_WORD_VIRTUAL_INDEX_UNCHECKED(v) \
+#define VAL_WORD_VIRTUAL_MONDEX_UNCHECKED(v) \
     ((VAL_WORD_INDEXES_U32(v) & 0xFFF00000) >> 20)
 
 
 inline static REBLEN VAL_QUOTED_PAYLOAD_DEPTH(unstable const RELVAL *v) {
     assert(IS_QUOTED(v));
-    REBLEN depth = VAL_WORD_VIRTUAL_INDEX_UNCHECKED(v);
+    REBLEN depth = VAL_WORD_VIRTUAL_MONDEX_UNCHECKED(v);
     assert(depth > 3);  // else quote fits entirely in cell
     return depth;
 }
@@ -95,7 +95,7 @@ inline static RELVAL *Quotify_Core(
     REBLEN depth
 ){
     if (KIND3Q_BYTE_UNCHECKED(v) == REB_QUOTED) {  // reuse payload
-        assert(VAL_QUOTED_PAYLOAD_DEPTH(v) + depth < 4096);  // limited bits
+        assert(VAL_QUOTED_PAYLOAD_DEPTH(v) + depth <= MONDEX_MOD);  // limited
         VAL_WORD_INDEXES_U32(v) += (depth << 20);
         return v;
     }

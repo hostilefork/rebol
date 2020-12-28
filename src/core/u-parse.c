@@ -95,7 +95,8 @@
     USED(ARG(flags)); \
     USED(ARG(collection)); \
     USED(ARG(num_quotes)); \
-    USED(ARG(position))
+    USED(ARG(position)); \
+    USED(ARG(save))
 
 #define P_RULE              (frame_->feed->value + 0)  // rvalue
 #define P_RULE_SPECIFIER    FRM_SPECIFIER(frame_)
@@ -117,6 +118,19 @@
 #define P_NUM_QUOTES        VAL_INT32(ARG(num_quotes))
 
 #define P_POS               VAL_INDEX_UNBOUNDED(ARG(position))
+
+// !!! The way that PARSE works, it will sometimes run the thing it finds
+// in the array...but if it's a WORD! or PATH! it will look it up and run
+// the result.  When it's in the array, the specifier for that array needs
+// to be applied to it.  But when the value has been fetched, that specifier
+// shouldn't be used again...because virtual binding isn't supposed to
+// carry through references.  The hack to get virtual binding running is to
+// always put the fetched rule in the same place...and then the specifier
+// is only used when the rule *isn't* in that cell.
+//
+#define P_SAVE              ARG(save)
+#define rule_specifier() \
+    (rule == ARG(save) ? SPECIFIED : P_RULE_SPECIFIER)
 
 
 // !!! R3-Alpha's PARSE code long predated frames, and was retrofitted to use
@@ -283,6 +297,7 @@ static bool Subparse_Throws(
     //
     Init_Void(Prep_Cell(ARG(num_quotes)), SYM_UNSET);
     Init_Void(Prep_Cell(ARG(position)), SYM_UNSET);
+    Init_Void(Prep_Cell(ARG(save)), SYM_UNSET);
 
     // !!! By calling the subparse native here directly from its C function
     // vs. going through the evaluator, we don't get the opportunity to do
@@ -467,7 +482,9 @@ REB_R Process_Group_For_Parse(
     bool inject = IS_GET_GROUP(group);  // plain groups always discard
 
     assert(IS_GROUP(group) or IS_GET_GROUP(group));
-    REBSPC *derived = Derive_Specifier(P_RULE_SPECIFIER, group);
+    REBSPC *derived = (group == P_SAVE)
+        ? SPECIFIED
+        : Derive_Specifier(P_RULE_SPECIFIER, group);
 
     if (Do_Any_Array_At_Throws(cell, group, derived))
         return R_THROWN;
@@ -564,7 +581,7 @@ static REB_R Parse_One_Rule(
 
         DECLARE_FRAME_AT_CORE (
             subframe,
-            rule, P_RULE_SPECIFIER,
+            rule, rule_specifier(),
             EVAL_MASK_DEFAULT
         );
 
@@ -604,7 +621,7 @@ static REB_R Parse_One_Rule(
 
         switch (VAL_TYPE(rule)) {
           case REB_QUOTED:
-            Derelativize(D_SPARE, rule, P_RULE_SPECIFIER);
+            Derelativize(D_SPARE, rule, rule_specifier());
             rule = Unquotify(D_SPARE, 1);
             break;  // fall through to direct match
 
@@ -1345,7 +1362,7 @@ static REB_R Handle_Seek_Rule_Dont_Update_Begin(
 //      flags [integer!]
 //      /collection "Array into which any KEEP values are collected"
 //          [any-series!]
-//      <local> position num-quotes
+//      <local> position num-quotes save
 //  ]
 //
 REBNATIVE(subparse)
@@ -1434,8 +1451,6 @@ REBNATIVE(subparse)
   #if defined(DEBUG_COUNT_TICKS)
     REBTCK tick = TG_Tick;  // helpful to cache for visibility also
   #endif
-
-    DECLARE_LOCAL (save);
 
     REBIDX begin = P_POS;  // point at beginning of match
 
@@ -1527,7 +1542,7 @@ REBNATIVE(subparse)
     //=//// (GROUP!) AND :(GET-GROUP!) PROCESSING /////////////////////////=//
 
     if (IS_BLANK(rule)) {  // pre-evaluative source blanks act like SKIP
-        rule = Init_Word(save, Canon(SYM_SKIP));
+        rule = Init_Word(P_SAVE, Canon(SYM_SKIP));
     }
     else if (IS_GROUP(rule) or IS_GET_GROUP(rule)) {
 
@@ -1542,15 +1557,18 @@ REBNATIVE(subparse)
 
       process_group:
 
-        rule = Process_Group_For_Parse(f, save, rule);
+        rule = Process_Group_For_Parse(f, D_SPARE, rule);
         if (rule == R_THROWN) {
-            Move_Value(D_OUT, save);
+            Move_Value(D_OUT, D_SPARE);
             return R_THROWN;
         }
         if (rule == R_INVISIBLE) {  // was a (...), or null-bearing :(...)
             FETCH_NEXT_RULE(f);  // ignore result and go on to next rule
             goto pre_rule;
         }
+        assert(rule == D_SPARE);
+        rule = Move_Value(P_SAVE, D_SPARE);
+
         // was a GET-GROUP!, e.g. :(...), fall through so its result will
         // act as a rule in its own right.
         //
@@ -1724,7 +1742,7 @@ REBNATIVE(subparse)
 
                 REBLEN pos_before = P_POS;
 
-                rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
+                rule = Get_Parse_Value(P_SAVE, P_RULE, P_RULE_SPECIFIER);
 
                 if (IS_GET_BLOCK(rule)) {
                     //
@@ -1736,7 +1754,7 @@ REBNATIVE(subparse)
                     if (Do_Any_Array_At_Throws(
                         D_OUT,
                         rule,
-                        P_RULE_SPECIFIER
+                        rule_specifier()
                     )){
                         goto return_thrown;
                     }
@@ -2006,19 +2024,19 @@ REBNATIVE(subparse)
 
             assert(IS_WORD(rule));  // word - some other variable
 
-            if (rule != save) {
-                Get_Word_May_Fail(save, rule, P_RULE_SPECIFIER);
-                rule = save;
+            if (rule != P_SAVE) {
+                Get_Word_May_Fail(P_SAVE, rule, P_RULE_SPECIFIER);
+                rule = P_SAVE;
             }
         }
     }
     else if (ANY_SEQUENCE(rule)) {
         if (IS_PATH(rule) or IS_TUPLE(rule)) {
-            if (Get_Path_Throws_Core(save, rule, P_RULE_SPECIFIER)) {
-                Move_Value(D_OUT, save);
+            if (Get_Path_Throws_Core(D_SPARE, rule, P_RULE_SPECIFIER)) {
+                Move_Value(D_OUT, D_SPARE);
                 goto return_thrown;
             }
-            rule = save;
+            rule = Move_Value(P_SAVE, D_SPARE);
         }
         else if (IS_SET_PATH(rule) or IS_SET_TUPLE(rule)) {
             Handle_Mark_Rule(f, rule, P_RULE_SPECIFIER);
@@ -2070,7 +2088,7 @@ REBNATIVE(subparse)
         if (IS_END(P_RULE))
             fail (Error_Parse_End());
 
-        rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
+        rule = Get_Parse_Value(P_SAVE, P_RULE, P_RULE_SPECIFIER);
 
         if (IS_INTEGER(rule)) {
             maxcount = Int32s(rule, 0);
@@ -2079,7 +2097,7 @@ REBNATIVE(subparse)
             if (IS_END(P_RULE))
                 fail (Error_Parse_End());
 
-            rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
+            rule = Get_Parse_Value(P_SAVE, P_RULE, P_RULE_SPECIFIER);
         }
 
         if (IS_INTEGER(rule)) {
@@ -2145,7 +2163,7 @@ REBNATIVE(subparse)
 
                 if (!subrule) {  // capture only on iteration #1
                     subrule = Get_Parse_Value(
-                        save, P_RULE, P_RULE_SPECIFIER
+                        P_SAVE, P_RULE, P_RULE_SPECIFIER
                     );
                     FETCH_NEXT_RULE(f);
                 }
@@ -2248,7 +2266,7 @@ REBNATIVE(subparse)
                     fail (Error_Parse_End());
 
                 if (!subrule) {
-                    subrule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
+                    subrule = Get_Parse_Value(P_SAVE, P_RULE, P_RULE_SPECIFIER);
                     FETCH_NEXT_RULE(f);
                 }
 
@@ -2349,7 +2367,7 @@ REBNATIVE(subparse)
 
             DECLARE_FRAME_AT_CORE (
                 subframe,
-                rule, P_RULE_SPECIFIER,
+                rule, rule_specifier(),
                 EVAL_MASK_DEFAULT
             );
 
@@ -2639,7 +2657,7 @@ REBNATIVE(subparse)
                 }
 
                 // new value...comment said "CHECK FOR QUOTE!!"
-                rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
+                rule = Get_Parse_Value(P_SAVE, P_RULE, P_RULE_SPECIFIER);
                 FETCH_NEXT_RULE(f);
 
                 // If a GROUP!, then execute it first.  See #1279

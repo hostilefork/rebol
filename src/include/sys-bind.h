@@ -517,23 +517,23 @@ inline static option(REBCTX*) Get_Word_Context(
         // !!! To improve locality it might be better to take a couple of
         // mondex bits to use as the mod of the chain length.
         //
-        REBARR *temp = ARR(specifier);
         do {
-            assert(GET_ARRAY_FLAG(temp, IS_PATCH));
+            assert(specifier->header.bits & ARRAY_FLAG_IS_PATCH);
             if (
-                IS_SET_WORD(ARR_SINGLE(temp))
+                IS_SET_WORD(ARR_SINGLE(ARR(specifier)))
                 and REB_SET_WORD != CELL_KIND(VAL_UNESCAPED(any_word))
             ){
                 goto skip_hit_patch;
             }
 
           blockscope {
-            REBCTX *overload = CTX(VAL_WORD_BINDING_NODE(ARR_SINGLE(temp)));
+            REBCTX *overload
+                = CTX(VAL_WORD_BINDING_NODE(ARR_SINGLE(ARR(specifier))));
 
             // Length at time of virtual bind is cached by index.  This avoids
             // allowing untrustworthy cache states.
             //
-            REBLEN cached_len = VAL_WORD_INDEX(ARR_SINGLE(ARR(temp)));
+            REBLEN cached_len = VAL_WORD_INDEX(ARR_SINGLE(ARR(specifier)));
 
             REBLEN index = mondex;
             for (; index <= cached_len; index += MONDEX_MOD) {
@@ -546,8 +546,10 @@ inline static option(REBCTX*) Get_Word_Context(
           }
 
           skip_hit_patch:
-            temp = ARR(LINK(temp).custom.node);
-        } while (temp != nullptr);
+            specifier = LINK(specifier).custom.node;
+        } while (
+            specifier and not (specifier->header.bits & ARRAY_FLAG_IS_VARLIST)
+        );
 
         panic (any_word);  // bad cache in value
       }
@@ -570,22 +572,22 @@ inline static option(REBCTX*) Get_Word_Context(
         // level cache if it encounters a large enough object to make it
         // wortwhile?
         //
-        REBARR *temp = ARR(specifier);
         do {
             if (
-                IS_SET_WORD(ARR_SINGLE(temp))
+                IS_SET_WORD(ARR_SINGLE(ARR(specifier)))
                 and REB_SET_WORD != CELL_KIND(VAL_UNESCAPED(any_word))
             ){
                 goto skip_miss_patch;
             }
 
           blockscope {
-            REBCTX *overload = CTX(VAL_WORD_BINDING_NODE(ARR_SINGLE(temp)));
+            REBCTX *overload
+                = CTX(VAL_WORD_BINDING_NODE(ARR_SINGLE(ARR(specifier))));
 
             // Length at time of virtual bind is cached by index.  This avoids
             // allowing untrustworthy cache states.
             //
-            REBLEN cached_len = VAL_WORD_INDEX(ARR_SINGLE(ARR(temp)));
+            REBLEN cached_len = VAL_WORD_INDEX(ARR_SINGLE(ARR(specifier)));
 
             REBLEN index = 1;
             REBVAL *key = CTX_KEYS_HEAD(overload);
@@ -603,21 +605,21 @@ inline static option(REBCTX*) Get_Word_Context(
             }
           }
           skip_miss_patch:
-            temp = ARR(LINK(temp).custom.node);
-        } while (temp != nullptr);
+            specifier = LINK(specifier).custom.node;
+        } while (
+            specifier and not (specifier->header.bits & ARRAY_FLAG_IS_VARLIST)
+        );
 
         // Update the cache to say we miss on this particular specifier
         //
         INIT_VAL_WORD_VIRTUAL_MONDEX(any_word, MONDEX_MOD);
 
-        // The specifier in effect is whichever one is held by the outermost
-        // entry in the chain.  (The rest of the chain may have been reused.)
-        // This may mean `specifier = SPECIFIED` below.
-        //
-        specifier = VAL_WORD_CACHE_NODE(ARR_SINGLE(ARR(specifier)));
+        // The linked list of specifiers bottoms out with either null or the
+        // varlist of the frame we want to bind relative values with.  So
+        // `specifier` should be set now.
     }
 
-    assert(specifier == SPECIFIED or NOT_ARRAY_FLAG(specifier, IS_PATCH));
+    assert(specifier == SPECIFIED or GET_ARRAY_FLAG(specifier, IS_VARLIST));
 
     REBCTX *c;
 
@@ -924,21 +926,50 @@ inline static REBVAL *Derelativize(
 // would need such derivation.
 //
 
-// A specifier can be a FRAME! context, or it may be a chain of virtual binds
-// that holds a frame context.
+// A specifier can be a FRAME! context for fulfilling relative words.  Or it
+// may be a chain of virtual binds where the last link in the chain is to
+// a frame context.
 //
+// It's Derive_Specifier()'s job to make sure that if specifiers get linked on
+// top of each other, the chain always bottoms out on the same FRAME! that
+// the original specifier was pointing to.
+//
+inline static REBNOD** SPC_FRAME_CTX_ADDRESS(REBSPC *specifier)
+{
+    assert(specifier->header.bits & ARRAY_FLAG_IS_PATCH);
+    while (
+        (LINK(specifier).custom.node != nullptr) and not
+        (LINK(specifier).custom.node->header.bits & ARRAY_FLAG_IS_VARLIST)
+    ){
+        specifier = LINK(specifier).custom.node;
+    }
+    return &(LINK(specifier).custom.node);
+}
+
 inline static option(REBCTX*) SPC_FRAME_CTX(REBSPC *specifier)
 {
     if (specifier == UNBOUND)  // !!! have caller check?
         return nullptr;
     if (specifier->header.bits & ARRAY_FLAG_IS_VARLIST)
         return CTX(specifier);
-    assert(specifier->header.bits & ARRAY_FLAG_IS_PATCH);
-    return CTX(VAL_WORD_CACHE_NODE(ARR_SINGLE(ARR(specifier))));
+    return CTX(*SPC_FRAME_CTX_ADDRESS(specifier));
 }
 
 
-inline static REBSPC *Derive_Specifier(
+// An ANY-ARRAY! cell has a pointer's-worth of spare space in it, which is
+// used to keep track of the information required to further resolve the
+// words and arrays that are inside of it.  Each time code wishes to take a
+// step descending into an array's contents, this "specifier" information
+// must be merged with the specifier that is being applied.
+//
+// Specifier state only accrues in this way while descending through nodes.
+// Jumping to a new value...e.g. fetching a REBVAL* out of a WORD! variable,
+// should restart the process with a new specifier.
+//
+// The returned specifier must not lose the ability to resolve relative
+// values, so it has to remember what frame relative values are for.
+//
+inline static REBSPC *Derive_Specifier_Core(
     REBSPC *specifier,  // merge this specifier...
     unstable const RELVAL* any_array  // ...onto the binding in this array
 ){
@@ -1030,10 +1061,28 @@ inline static REBSPC *Derive_Specifier(
         // !!! This case of a match could be handled by the swap below, but
         // break it out separately for now for the sake of asserts.
         //
-        REBCTX *specifier_frame_ctx
-            = CTX(VAL_WORD_CACHE_NODE(ARR_SINGLE(ARR(specifier))));
-        if (NOD(specifier_frame_ctx) == binding)  // all clear to reuse
+        // !!! We already know it's a patch so calling SPC_FRAME_CTX() does
+        // an extra check of that, review when efficiency is being revisited
+        // (SPC_PATCH_CTX() as separate entry point?)
+        //
+        REBNOD **specifier_frame_ctx_addr = SPC_FRAME_CTX_ADDRESS(specifier);
+        if (*specifier_frame_ctx_addr == binding)  // all clear to reuse
             return specifier;
+
+        if (*specifier_frame_ctx_addr == UNSPECIFIED) {
+            //
+            // If the patch had no specifier, then it doesn't hurt to modify
+            // it directly.  This will only work once for specifier's chain.
+            //
+            *specifier_frame_ctx_addr = binding;
+            return specifier;
+        }
+
+        // Patch resolves to a binding, and it's an incompatible one.  We
+        // hope this happens rarely, because it means we have to duplicate
+        // the whole chain.
+
+        assert(!"This has to be written.");
 
         REBARR *patch = Alloc_Singular(
             NODE_FLAG_MANAGED
@@ -1042,7 +1091,6 @@ inline static REBSPC *Derive_Specifier(
         );
 
         Move_Value(ARR_SINGLE(patch), SPECIFIC(ARR_SINGLE(ARR(specifier))));
-        VAL_WORD_CACHE_NODE(ARR_SINGLE(patch)) = NOD(binding);
 
         LINK(patch).custom.node = LINK(specifier).custom.node;
 
@@ -1055,7 +1103,6 @@ inline static REBSPC *Derive_Specifier(
     // !!! How do we make sure this doesn't make a circularly linked list?
 
     assert(binding->header.bits & ARRAY_FLAG_IS_PATCH);
-    REBCTX *binding_frame_ctx = try_unwrap(SPC_FRAME_CTX(binding));
 
     if (not (specifier->header.bits & ARRAY_FLAG_IS_PATCH)) {
         assert(specifier->header.bits & ARRAY_FLAG_IS_VARLIST);
@@ -1075,13 +1122,49 @@ inline static REBSPC *Derive_Specifier(
     );
 
     Move_Value(ARR_SINGLE(patch), SPECIFIC(ARR_SINGLE(ARR(specifier))));
-    VAL_WORD_CACHE_NODE(ARR_SINGLE(patch)) = NOD(binding_frame_ctx);
-
     LINK(patch).custom.node = binding;
 
     return NOD(patch);
 }
 
+#if !defined(NDEBUG)
+    #define DEBUG_VIRTUAL_BINDING
+#endif
+#if !defined(DEBUG_VIRTUAL_BINDING)
+    #define Derive_Specifier Derive_Specifier_Core
+#else
+    inline static REBSPC *Derive_Specifier(
+        REBSPC *specifier,
+        unstable const RELVAL* any_array
+    ){
+        REBSPC *derived = Derive_Specifier_Core(specifier, any_array);
+        REBNOD *binding = EXTRA(Binding, any_array).node;
+        if (
+            binding == UNSPECIFIED
+            or (binding->header.bits & ARRAY_FLAG_IS_VARLIST)
+        ){
+            // no special invariant to check, anything goes for derived
+        }
+        else if (binding->header.bits & ARRAY_FLAG_IS_DETAILS) {  // relative
+            REBCTX *derived_ctx = try_unwrap(SPC_FRAME_CTX(derived));
+            REBCTX *specifier_ctx = try_unwrap(SPC_FRAME_CTX(specifier));
+            assert(derived_ctx == specifier_ctx);
+        }
+        else {
+            assert(binding->header.bits & ARRAY_FLAG_IS_PATCH);
+
+            REBCTX *binding_ctx = try_unwrap(SPC_FRAME_CTX(binding));
+            if (binding_ctx == UNSPECIFIED) {
+                // anything goes for the frame in the derived specifier
+            }
+            else {
+                REBCTX *derived_ctx = try_unwrap(SPC_FRAME_CTX(derived));
+                assert(derived_ctx == binding_ctx);
+            }
+        }
+        return derived;
+    }
+#endif
 
 //
 // BINDING CONVENIENCE MACROS

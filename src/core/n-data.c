@@ -238,8 +238,6 @@ void Virtual_Bind_Patchify(RELVAL *block, REBCTX *context, enum Reb_Kind kind)
         | SERIES_FLAG_LINK_NODE_NEEDS_MARK
         | ARRAY_FLAG_IS_PATCH
     );
-    REBSPC *block_specifier = VAL_SPECIFIER(block);
-    REBCTX* frame_ctx = try_unwrap(SPC_FRAME_CTX(block_specifier));
 
     // Virtual binds are done with a bound WORD!.  Reasons are:
     //
@@ -266,18 +264,12 @@ void Virtual_Bind_Patchify(RELVAL *block, REBCTX *context, enum Reb_Kind kind)
         context,
         CTX_LEN(context)
     );
-    VAL_WORD_CACHE_NODE(ARR_SINGLE(patch)) = NOD(frame_ctx);
 
-    if (NOD(frame_ctx) == block_specifier)
-        LINK(patch).custom.node = nullptr;
-    else {
-        assert(block_specifier->header.bits & ARRAY_FLAG_IS_PATCH);
-        LINK(patch).custom.node = block_specifier;
-    }
+    LINK(patch).custom.node = VAL_SPECIFIER(block);
 
-    // misc might be used to link common chains with different specifiers?
-
-    // What would misc be used for?  Some kind of backpointer?
+    // This leaves us with VAL_WORD_CACHE_NODE() and MISC() free.
+    // The concept is to use these to find related chains to avoid creating
+    // too many redundant ones.  Think through that.
 
     INIT_BINDING_MAY_MANAGE(block, NOD(patch));  // bound to the patch
 }

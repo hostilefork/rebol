@@ -408,6 +408,7 @@ Special internal defines used by RT, not Host-Kit developers:
 #endif
 
 
+#define DEBUG_TRACK_EXTEND_CELLS
 #ifdef DEBUG_TRACK_EXTEND_CELLS
     #define DEBUG_TRACK_CELLS
     #define UNUSUAL_REBVAL_SIZE // sizeof(REBVAL)*2 may be > sizeof(REBSER)

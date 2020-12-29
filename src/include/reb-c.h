@@ -727,6 +727,7 @@
 // Note: This needs special handling in %make-headers.r to recognize the
 // format.  See the `typemacro_parentheses` rule.
 //
+#define DEBUG_CHECK_OPTIONALS
 #ifdef DEBUG_CHECK_OPTIONALS
     //
     // Trying to use `std::optional` is more trouble than it's worth; we'd

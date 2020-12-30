@@ -71,6 +71,10 @@
 // so that locations using them may avoid overhead in invocation.
 
 
+// Next node is either to another patch, a frame specifier REBCTX, or nullptr.
+//
+#define LINK_PATCH_NEXT_NODE(patch)     LINK(patch).custom.node
+
 #ifdef NDEBUG
     #define SPC(p) \
         cast(REBSPC*, (p)) // makes UNBOUND look like SPECIFIED
@@ -546,7 +550,7 @@ inline static option(REBCTX*) Get_Word_Context(
           }
 
           skip_hit_patch:
-            specifier = LINK(specifier).custom.node;
+            specifier = LINK_PATCH_NEXT_NODE(specifier);
         } while (
             specifier and not (specifier->header.bits & ARRAY_FLAG_IS_VARLIST)
         );
@@ -605,7 +609,7 @@ inline static option(REBCTX*) Get_Word_Context(
             }
           }
           skip_miss_patch:
-            specifier = LINK(specifier).custom.node;
+            specifier = LINK_PATCH_NEXT_NODE(specifier);
         } while (
             specifier and not (specifier->header.bits & ARRAY_FLAG_IS_VARLIST)
         );
@@ -938,12 +942,12 @@ inline static REBNOD** SPC_FRAME_CTX_ADDRESS(REBSPC *specifier)
 {
     assert(specifier->header.bits & ARRAY_FLAG_IS_PATCH);
     while (
-        (LINK(specifier).custom.node != nullptr) and not
-        (LINK(specifier).custom.node->header.bits & ARRAY_FLAG_IS_VARLIST)
+        (LINK_PATCH_NEXT_NODE(specifier) != nullptr) and not
+        (LINK_PATCH_NEXT_NODE(specifier)->header.bits & ARRAY_FLAG_IS_VARLIST)
     ){
-        specifier = LINK(specifier).custom.node;
+        specifier = LINK_PATCH_NEXT_NODE(specifier);
     }
-    return &(LINK(specifier).custom.node);
+    return &LINK_PATCH_NEXT_NODE(specifier);
 }
 
 inline static option(REBCTX*) SPC_FRAME_CTX(REBSPC *specifier)
@@ -953,6 +957,74 @@ inline static option(REBCTX*) SPC_FRAME_CTX(REBSPC *specifier)
     if (specifier->header.bits & ARRAY_FLAG_IS_VARLIST)
         return CTX(specifier);
     return CTX(*SPC_FRAME_CTX_ADDRESS(specifier));
+}
+
+
+// This routine will merge virtual binding patches, returning one where the
+// child is at the beginning of the chain.  This will preserve the child's
+// frame resolving context (if any) that terminates it.
+//
+inline bool Merge_Patches_Reused(
+    REBARR **merged,
+    REBARR *parent,
+    REBARR *child
+){
+    assert(GET_ARRAY_FLAG(parent, IS_PATCH));
+    assert(GET_ARRAY_FLAG(child, IS_PATCH));
+
+    // If we find the child already accounted for in the parent, we're done.
+    // Recursions should notice this case and return up to make a no-op.
+    //
+    if (LINK_PATCH_NEXT_NODE(parent) == NOD(child)) {
+        *merged = parent;
+        return true;  // reused existing
+    }
+
+    // If we get to the end of the merge chain and don't find the child, then
+    // we're going to need a patch that incorporates it.
+    //
+    REBARR *next = nullptr;  // so no warming on the jump
+    if (
+        LINK_PATCH_NEXT_NODE(parent) == nullptr
+        or (LINK_PATCH_NEXT_NODE(parent)->header.bits & ARRAY_FLAG_IS_VARLIST)
+    ){
+        next = child;
+        goto reused;
+    }
+
+    if (Merge_Patches_Reused(&next, ARR(LINK_PATCH_NEXT_NODE(parent)), child)) {
+      reused:
+        //
+        // If we reused an existing patch, there's a possibility we can find
+        // it in the list of synonyms for the parent patch.
+        //
+        REBARR *temp = MISC(parent).variant;
+        while (temp != parent) {
+            if (LINK_PATCH_NEXT_NODE(temp) == NOD(next)) {
+                *merged = temp;
+                return true;  // reused
+            }
+        }
+    }
+
+    // Nope.  Have to allocate a new variation.
+    //
+    REBARR *patch = Alloc_Singular(
+        NODE_FLAG_MANAGED
+        | SERIES_FLAG_LINK_NODE_NEEDS_MARK
+        | ARRAY_FLAG_IS_PATCH
+    );
+
+    Move_Value(ARR_SINGLE(patch), SPECIFIC(ARR_SINGLE(parent)));
+    LINK_PATCH_NEXT_NODE(patch) = NOD(next);
+
+    // Link into the circular list.
+    //
+    MISC(patch).variant = MISC(parent).variant;
+    MISC(parent).variant = patch;
+
+    *merged = patch;
+    return false;  // not reused, allocated
 }
 
 
@@ -1078,23 +1150,11 @@ inline static REBSPC *Derive_Specifier_Core(
             return specifier;
         }
 
-        // Patch resolves to a binding, and it's an incompatible one.  We
-        // hope this happens rarely, because it means we have to duplicate
-        // the whole chain.
+        // Patch resolves to a binding, and it's an incompatible one.  If
+        // this happens, we have to copy the whole chain.  Is this possible?
+        // Haven't come up with a situation that forces it yet.
 
-        assert(!"This has to be written.");
-
-        REBARR *patch = Alloc_Singular(
-            NODE_FLAG_MANAGED
-            | SERIES_FLAG_LINK_NODE_NEEDS_MARK
-            | ARRAY_FLAG_IS_PATCH
-        );
-
-        Move_Value(ARR_SINGLE(patch), SPECIFIC(ARR_SINGLE(ARR(specifier))));
-
-        LINK(patch).custom.node = LINK(specifier).custom.node;
-
-        return NOD(patch);
+        panic ("Incompatible patch bindings; if you hit this, report it.");
     }
 
     // The situation for if the array is already holding a patch is that we
@@ -1109,22 +1169,14 @@ inline static REBSPC *Derive_Specifier_Core(
         return binding;  // The binding can be disregarded on this value
     }
 
-    // Specifier is a patch -and- the binding is a patch.  Ick.  If you think
-    // of how often derelativizes are run, this will fill up all memory
-    // with the chains unless something is done.
-    //
-    // !!! This is the achilles heel of virtual binding, review it.
-
-    REBARR *patch = Alloc_Singular(
-        NODE_FLAG_MANAGED
-        | SERIES_FLAG_LINK_NODE_NEEDS_MARK
-        | ARRAY_FLAG_IS_PATCH
-    );
-
-    Move_Value(ARR_SINGLE(patch), SPECIFIC(ARR_SINGLE(ARR(specifier))));
-    LINK(patch).custom.node = binding;
-
-    return NOD(patch);
+    REBARR *merged;
+    if (Merge_Patches_Reused(&merged, ARR(specifier), ARR(binding))) {
+        //
+        // The patch might be able to be reused and it might not.  Is this
+        // interesting information at the end of the chain?
+        //
+    }
+    return NOD(merged);
 }
 
 #if !defined(NDEBUG)

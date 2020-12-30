@@ -1096,6 +1096,17 @@ void Decay_Series(REBSER *s)
         else
             Free_Bookmarks_Maybe_Null(STR(s));
     }
+    else if (IS_SER_ARRAY(s) and GET_ARRAY_FLAG(s, IS_PATCH)) {
+        //
+        // Remove patch from circularly linked list of variants.
+        // (if it's the last one, this winds up making no meaningful change)
+        //
+        REBARR *temp = MISC(s).variant;
+        while (SER(MISC(temp).variant) != s) {
+            temp = MISC(temp).variant;
+        }
+        MISC(temp).variant = MISC(s).variant;
+    }
 
     // Remove series from expansion list, if found:
     REBLEN n;

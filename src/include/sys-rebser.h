@@ -738,6 +738,13 @@ union Reb_Series_Misc {
     //
     int quoting_delta;
 
+    // The virtual binding patches keep a circularly linked list of all of
+    // their variations that have distinct next pointers.  This way, they
+    // can look through that list before creating an equivalent chain to one
+    // that already exists.
+    //
+    REBARR *variant;
+
     // If a REBSER is used by a custom cell type, it can use the MISC()
     // field how it likes.  But if it is a node and needs to be GC-marked,
     // it has to tell the system with SERIES_INFO_MISC_NODE_NEEDS_MARK.

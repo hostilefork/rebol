@@ -236,6 +236,11 @@ void Virtual_Bind_Patchify(RELVAL *block, REBCTX *context, enum Reb_Kind kind)
     REBARR *patch = Alloc_Singular(
         NODE_FLAG_MANAGED
         | SERIES_FLAG_LINK_NODE_NEEDS_MARK
+        //
+        // MISC is a node, but it's used for linking patches to variants
+        // with different chains underneath them...and shouldn't keep that
+        // alternate version alive.
+        //
         | ARRAY_FLAG_IS_PATCH
     );
 
@@ -265,7 +270,19 @@ void Virtual_Bind_Patchify(RELVAL *block, REBCTX *context, enum Reb_Kind kind)
         CTX_LEN(context)
     );
 
-    LINK(patch).custom.node = VAL_SPECIFIER(block);
+    // The way it is designed, the list of patches terminates in either a
+    // nullptr or a context pointer that represents the specifying frame for
+    // the chain.  So we can simply point to the existing specifier...whether
+    // it is a patch, a frame context, or nullptr.
+    //
+    LINK_PATCH_NEXT_NODE(patch) = VAL_SPECIFIER(block);
+
+    // A circularly linked list of variations of this patch with different
+    // LINK_PATCH_NEXT_NODE() is maintained.  Since this is the moment of
+    // fresh patch creation, there are no variants.  Note that GC_Kill_Series
+    // will remove this patch from the list.
+    //
+    MISC(patch).variant = patch;
 
     // This leaves us with VAL_WORD_CACHE_NODE() and MISC() free.
     // The concept is to use these to find related chains to avoid creating

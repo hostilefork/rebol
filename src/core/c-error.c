@@ -765,7 +765,9 @@ REBCTX *Make_Error_Managed_Core(
     unstable const REBVAL *message;  // Stack values ("movable") are allowed
     if (cat_sym == SYM_0 and id_sym == SYM_0) {
         Init_Blank(id);
+        id->extra.trash = nullptr;
         Init_Blank(type);
+        type->extra.trash = nullptr;
         message = va_arg(*vaptr, unstable const REBVAL*);
     }
     else {

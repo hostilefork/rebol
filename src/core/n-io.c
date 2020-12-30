@@ -141,7 +141,7 @@ REBNATIVE(write_stdout)
         fflush(stdout);
     }
     else if (IS_CHAR(v)) {
-        printf("WRITE-STDOUT: char %d\n", VAL_CHAR(v));
+        printf("WRITE-STDOUT: char %lu\n", cast(unsigned long, VAL_CHAR(v)));
     }
     else {
         assert(IS_BINARY(v));

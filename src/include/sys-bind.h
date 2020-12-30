@@ -808,13 +808,13 @@ inline static REBVAL *Sink_Word_May_Fail(
 
 inline static REBSPC *Derive_Specifier(
     REBSPC *parent,
-    unstable const RELVAL* item
+    unstable const RELVAL* any_array
 );
 
 #ifdef CPLUSPLUS_11
     inline static REBSPC *Derive_Specifier(
         REBSPC *parent,
-        unstable const REBVAL* item
+        unstable const REBVAL* any_array
     ) = delete;
 #endif
 
@@ -1183,7 +1183,12 @@ inline static REBSPC *Derive_Specifier_Core(
     #define DEBUG_VIRTUAL_BINDING
 #endif
 #if !defined(DEBUG_VIRTUAL_BINDING)
-    #define Derive_Specifier Derive_Specifier_Core
+    inline static REBSPC *Derive_Specifier(
+        REBSPC *specifier,
+        unstable const RELVAL* any_array
+    ){
+        return Derive_Specifier_Core(specifier, any_array);
+    }
 #else
     inline static REBSPC *Derive_Specifier(
         REBSPC *specifier,

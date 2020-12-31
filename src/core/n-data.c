@@ -224,7 +224,7 @@ REBNATIVE(bind)
 //
 //  Virtual_Bind_Patchify: C
 //
-void Virtual_Bind_Patchify(RELVAL *block, REBCTX *context, enum Reb_Kind kind)
+void Virtual_Bind_Patchify(REBVAL *block, REBCTX *context, enum Reb_Kind kind)
 {
     // Should we walk the block to say "hey, you've been virtualized" on the
     // words?  The pre-walk could set a bit corresponding to what virtual
@@ -289,28 +289,8 @@ void Virtual_Bind_Patchify(RELVAL *block, REBCTX *context, enum Reb_Kind kind)
     // too many redundant ones.  Think through that.
 
     INIT_BINDING_MAY_MANAGE(block, NOD(patch));  // bound to the patch
-}
 
-
-//
-//  vbind: native [
-//
-//  {Virtual binding test, augmented specifiers}
-//
-//      return: [block!]
-//      block [block!]
-//      context [object!]
-//  ]
-//
-REBNATIVE(vbind)
-{
-    INCLUDE_PARAMS_OF_VBIND;
-
-    REBVAL *block = ARG(block);
-    REBVAL *context = ARG(context);
-
-    Virtual_Bind_Patchify(block, VAL_CONTEXT(context), REB_WORD);
-    RETURN (block);
+    Constify(block);
 }
 
 

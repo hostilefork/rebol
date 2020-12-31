@@ -104,3 +104,18 @@
     (110 = use [x] [x: 1000, use [y] compose [y: 100, (group)]])
     (1100 = use [x] compose/deep [x: 1000, use [y] [y: 100, do [(group)]]])
 ]
+
+
+(
+    data: array/initial 20 1
+    sum: 0
+    for-each x data [
+        code: collect [
+            for-each y data [
+                keep compose [sum: sum + do [(x) + (y) + z]]
+            ]
+        ]
+        for-each z data code
+    ]
+    sum = 24000
+)

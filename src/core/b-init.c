@@ -886,7 +886,7 @@ void Startup_Core(void)
 
     Startup_Symbols(VAL_ARRAY_KNOWN_MUTABLE(&boot->words));
 
-    // ID_OF_SYMBOL(), VAL_WORD_ID() and Canon(SYM_XXX) now available
+    // ID_OF_CANON(), VAL_WORD_ID() and Canon(SYM_XXX) now available
 
     PG_Boot_Phase = BOOT_LOADED;
 

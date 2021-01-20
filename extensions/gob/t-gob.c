@@ -313,9 +313,9 @@ static REBARR *Gob_Flags_To_Array(REBGOB *gob)
 //
 //  Set_Gob_Flag: C
 //
-static void Set_Gob_Flag(REBGOB *gob, const REBSYM *name)
+static void Set_Gob_Flag(REBGOB *gob, const REBCAN *canon)
 {
-    SYMID sym = ID_OF_SYMBOL(name);
+    SYMID sym = ID_OF_CANON(canon);
     if (sym == SYM_0) return; // !!! fail?
 
     REBINT i;
@@ -486,7 +486,7 @@ static bool Did_Set_GOB_Var(REBGOB *gob, const RELVAL *word, const REBVAL *val)
 
       case SYM_FLAGS:
         if (IS_WORD(val))
-            Set_Gob_Flag(gob, VAL_WORD_SYMBOL(val));
+            Set_Gob_Flag(gob, VAL_WORD_CANON(val));
         else if (IS_BLOCK(val)) {
             //clear only flags defined by words
             REBINT i;
@@ -497,7 +497,7 @@ static bool Did_Set_GOB_Var(REBGOB *gob, const RELVAL *word, const REBVAL *val)
             const RELVAL *tail = ARR_TAIL(VAL_ARRAY(val));
             for (; item != tail; ++item)
                 if (IS_WORD(item))
-                    Set_Gob_Flag(gob, VAL_WORD_SYMBOL(item));
+                    Set_Gob_Flag(gob, VAL_WORD_CANON(item));
         }
         break;
 

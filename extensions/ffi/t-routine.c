@@ -155,7 +155,7 @@ static void Schema_From_Block_May_Fail(
     if (sym == SYM_VOID) {
         assert(
             not param_out
-            or ID_OF_SYMBOL(VAL_TYPESET_STRING(unwrap(param_out))) == SYM_RETURN
+            or ID_OF_CANON(KEY_CANON(unwrap(param_out))) == SYM_RETURN
         );  // can only do void for return types
         Init_Blank(schema_out);
     }

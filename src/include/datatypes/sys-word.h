@@ -69,12 +69,6 @@ inline static void INIT_LINK_KEYSOURCE(REBARR *varlist, REBNOD *keysource) {
     mutable_LINK(KeySource, varlist) = keysource;
 }
 
-
-inline static OPT_SYMID VAL_WORD_ID(REBCEL(const*) v) {
-    assert(PG_Symbol_Canons);  // all syms are 0 prior to Init_Symbols()
-    return ID_OF_SYMBOL(VAL_WORD_SYMBOL(v));
-}
-
 inline static void INIT_VAL_WORD_PRIMARY_INDEX(RELVAL *v, REBLEN i) {
     assert(ANY_WORD_KIND(CELL_HEART(VAL_UNESCAPED(v))));
     assert(i < 1048576);  // 20 bit number for physical indices

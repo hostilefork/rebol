@@ -135,8 +135,8 @@ inline static bool Same_Nonzero_Symid(SYMID a, SYMID b) {
     return cast(REBLEN, a) == cast(REBLEN, b);
 }
 
-inline static OPT_SYMID ID_OF_SYMBOL(const REBSYM *s)
-  { return cast(SYMID, SECOND_UINT16(s->leader)); }
+inline static OPT_SYMID ID_OF_CANON(const REBCAN *canon)
+  { return cast(SYMID, SECOND_UINT16(canon->leader)); }
 
 inline static const REBCAN *Canon(SYMID symid) {
     assert(cast(REBLEN, symid) != 0);
@@ -154,7 +154,7 @@ inline static bool Are_Synonyms(const REBSYM *s1, const REBSYM *s2) {
     return false;  // stopped when circularly linked list loops back to self
 }
 
-inline static const REBCAN *SYM_CANON(const REBSYM *s) {
+inline static const REBCAN *Canon_Of_Symbol(const REBSYM *s) {
     if (GET_SERIES_INFO(s, SYMBOL_IS_CANON))
         return CAN(s);
 

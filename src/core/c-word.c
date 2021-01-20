@@ -431,7 +431,6 @@ const REBSYM *Intern_UTF8_Managed(const REBYTE *utf8, size_t size)
     // other property that synonyms have (like their order in the list)
     //
     assert(SECOND_UINT16(intern->leader) == 0);
-    SET_SECOND_UINT16(intern->leader, ID_OF_SYMBOL(intern));
 
     return intern;
   }
@@ -639,9 +638,9 @@ void Startup_Symbols(REBARR *words)
     // and try and use that meaningfully is too risky, so it is simply
     // prohibited to canonize SYM_0, and trash the REBSTR* in the [0] slot.
     //
-    SYMID sym = SYM_0;
+    SYMID id = SYM_0;
     TRASH_POINTER_IF_DEBUG(
-        *SER_AT(REBCAN*, PG_Symbol_Canons, cast(REBLEN, sym))
+        *SER_AT(REBCAN*, PG_Symbol_Canons, cast(REBLEN, id))
     );
 
     RELVAL *word = ARR_HEAD(words);
@@ -649,39 +648,30 @@ void Startup_Symbols(REBARR *words)
         assert(IS_WORD(word));  // real word, not fake (e.g. `/` as -slash-0-)
         REBCAN *canon = m_cast(REBCAN*, VAL_WORD_CANON(word));
 
-        sym = cast(SYMID, cast(REBLEN, sym) + 1);
-        *SER_AT(REBCAN*, PG_Symbol_Canons, cast(REBLEN, sym)) = canon;
+        id = cast(SYMID, cast(REBLEN, id) + 1);
+        *SER_AT(REBCAN*, PG_Symbol_Canons, cast(REBLEN, id)) = canon;
 
-        if (sym == SYM__SLASH_1_)
+        if (id == SYM__SLASH_1_)
             assert(canon == PG_Slash_1_Canon);  // make sure it lined up!
-        else if (sym == SYM__DOT_1_)
+        else if (id == SYM__DOT_1_)
             assert(canon == PG_Dot_1_Canon);
-        else if (sym == SYM_UNREADABLE)
+        else if (id == SYM_UNREADABLE)
             assert(canon == PG_Unreadable_Canon);
 
-        // More code was loaded than just the word list, and it might have
-        // included alternate-case forms of the %words.r words.  Walk any
-        // aliases and make sure they have the header bits too.
-
-        REBSYM *name = canon;
-        do {
-            // Symbol series store symbol number in the header's 2nd uint16_t.
-            // Could probably use less than 16 bits, but 8 is insufficient.
-            // (length %words.r > 256)
-            //
-            assert(SECOND_UINT16(name->leader) == 0);
-            SET_SECOND_UINT16(name->leader, sym);
-            assert(Same_Nonzero_Symid(ID_OF_SYMBOL(name), sym));
-
-            name = LINK(NextSynonym, name);
-        } while (name != canon); // circularly linked list, stop on a cycle
+        // Canon symbols store SYMID in the header's second uint16_t bits.
+        // Could probably use less than 16 bits, but 8 is insufficient.
+        // (length %words.r > 256)
+        //
+        assert(SECOND_UINT16(canon->leader) == 0);
+        SET_SECOND_UINT16(canon->leader, id);
+        assert(Same_Nonzero_Symid(ID_OF_CANON(canon), id));
     }
 
     // !!! Terminate the series...but is it necessary to do so?
     //
-    *SER_AT(REBCAN*, PG_Symbol_Canons, cast(REBLEN, sym)) = nullptr;
+    *SER_AT(REBCAN*, PG_Symbol_Canons, cast(REBLEN, id)) = nullptr;
 
-    SET_SERIES_USED(PG_Symbol_Canons, 1 + cast(REBLEN, sym));
+    SET_SERIES_USED(PG_Symbol_Canons, 1 + cast(REBLEN, id));
     assert(SER_USED(PG_Symbol_Canons) == 1 + ARR_LEN(words));
 
     // Do some sanity checks.  !!! Fairly critical, is debug-only appropriate?

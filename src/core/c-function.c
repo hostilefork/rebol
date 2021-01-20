@@ -303,7 +303,7 @@ void Push_Paramlist_Triads_May_Fail(
             mode = SPEC_MODE_NORMAL;
 
             canon = VAL_REFINEMENT_CANON(cell);
-            if (ID_OF_SYMBOL(canon) == SYM_LOCAL)  // /LOCAL
+            if (ID_OF_CANON(canon) == SYM_LOCAL)  // /LOCAL
                 if (ANY_WORD_KIND(KIND3Q_BYTE(item + 1)))  // END is 0
                     fail (Error_Legacy_Local_Raw(spec));  // -> <local>
 
@@ -392,7 +392,7 @@ void Push_Paramlist_Triads_May_Fail(
                 pclass = REB_P_LOCAL;
         }
 
-        if (ID_OF_SYMBOL(canon) == SYM_RETURN and pclass != REB_P_RETURN) {
+        if (ID_OF_CANON(canon) == SYM_RETURN and pclass != REB_P_RETURN) {
             //
             // Cancel definitional return if any non-SET-WORD! uses the name
             // RETURN when defining a FUNC.

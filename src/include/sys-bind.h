@@ -498,7 +498,12 @@ inline static const REBSYM *VAL_WORD_SYMBOL(REBCEL(const*) cell) {
 }
 
 #define VAL_WORD_CANON(cell) \
-    SYM_CANON(VAL_WORD_SYMBOL(cell))
+    Canon_Of_Symbol(VAL_WORD_SYMBOL(cell))
+
+inline static OPT_SYMID VAL_WORD_ID(REBCEL(const*) v) {
+    assert(PG_Symbol_Canons);  // all syms are 0 prior to Init_Symbols()
+    return ID_OF_CANON(VAL_WORD_CANON(v));
+}
 
 
 //=////////////////////////////////////////////////////////////////////////=//

@@ -245,9 +245,9 @@ void Set_Event_Vars(
 static REBVAL *Get_Event_Var(
     RELVAL *out,
     REBCEL(const*) v,
-    const REBSYM *symbol
+    const REBCAN *canon
 ){
-    switch (ID_OF_SYMBOL(symbol)) {
+    switch (ID_OF_CANON(canon)) {
       case SYM_TYPE: {
         if (VAL_EVENT_TYPE(v) == SYM_NONE)  // !!! Should this ever happen?
             return nullptr;
@@ -411,7 +411,7 @@ REB_R PD_Event(
     if (IS_WORD(picker)) {
         if (not setval) {
             return Get_Event_Var(
-                pvs->out, pvs->out, VAL_WORD_SYMBOL(picker)
+                pvs->out, pvs->out, VAL_WORD_CANON(picker)
             );
         }
         else {

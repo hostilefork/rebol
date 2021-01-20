@@ -67,11 +67,14 @@ inline static const REBSYM* VAL_VOID_LABEL(
     return cast(const REBSYM*, VAL_NODE1(v));
 }
 
+#define VAL_VOID_CANON(v) \
+    Canon_Of_Symbol(VAL_VOID_LABEL(v))
+
 inline static bool Is_Void_With_Sym(const RELVAL *v, SYMID sym) {
     assert(sym != SYM_0);
     if (not IS_VOID(v))
         return false;
-    return cast(REBLEN, sym) == cast(REBLEN, ID_OF_SYMBOL(VAL_VOID_LABEL(v)));
+    return cast(REBLEN, sym) == cast(REBLEN, ID_OF_CANON(VAL_VOID_CANON(v)));
 }
 
 

@@ -259,7 +259,7 @@ inline static void Init_Key(REBKEY *dest, const REBCAN *canon)
   { *dest = canon; }
 
 #define KEY_SYM(key) \
-    ID_OF_SYMBOL(KEY_CANON(key))
+    ID_OF_CANON(KEY_CANON(key))
 
 #define ACT_KEY(a,n)            CTX_KEY(ACT_EXEMPLAR(a), (n))
 #define ACT_PARAM(a,n)          cast_PAR(CTX_VAR(ACT_EXEMPLAR(a), (n)))

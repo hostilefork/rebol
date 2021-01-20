@@ -253,7 +253,7 @@ static void Queue_Mark_Node_Deep(void *p)
             REBKEY *tail = SER_TAIL(REBKEY, link);
             REBKEY *key = SER_HEAD(REBKEY, link);
             for (; key != tail; ++key)
-                m_cast(REBSYM*, KEY_SYMBOL(key))->leader.bits
+                m_cast(REBCAN*, KEY_CANON(key))->leader.bits
                     |= NODE_FLAG_MARKED;
         }
     }
@@ -615,7 +615,7 @@ static void Mark_Data_Stack(void)
 //
 static void Mark_Symbol_Series(void)
 {
-    REBSTR **canon = SER_HEAD(REBSTR*, PG_Symbol_Canons);
+    REBCAN **canon = SER_HEAD(REBCAN*, PG_Symbol_Canons);
     assert(IS_POINTER_TRASH_DEBUG(*canon)); // SYM_0 for all non-builtin words
     ++canon;
     for (; *canon != nullptr; ++canon)

@@ -336,15 +336,15 @@ REB_R PD_Action(
     // general path mechanic before reaching this dispatch.  So if it's not
     // a word/refinement or or one of those that evaluated it, then error.
     //
-    const REBSYM *symbol;
+    const REBCAN *canon;
     if (IS_WORD(picker))
-        symbol = VAL_WORD_SYMBOL(picker);
+        canon = VAL_WORD_CANON(picker);
     else if (IS_PATH(picker) and IS_REFINEMENT(picker))
-        symbol = VAL_REFINEMENT_SYMBOL(picker);
+        canon = VAL_REFINEMENT_CANON(picker);
     else
         return R_UNHANDLED;
 
-    Init_Word(DS_PUSH(), symbol);
+    Init_Word(DS_PUSH(), canon);
 
     return pvs->out; // leave ACTION! value in pvs->out, as-is
 }

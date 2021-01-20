@@ -419,8 +419,13 @@ STATIC_ASSERT(SERIES_INFO_7_IS_TRUE == NODE_FLAG_CELL);
 
 //=//// SERIES_INFO_26 ////////////////////////////////////////////////////=//
 //
+// This bit is being taken as an easy way of identifying a canon symbol form
+// (all lowercase).
+//
 #define SERIES_INFO_26 \
     FLAG_LEFT_BIT(26)
+
+#define SERIES_INFO_SYMBOL_IS_CANON SERIES_INFO_26
 
 
 //=//// SERIES_INFO_27 ////////////////////////////////////////////////////=//
@@ -810,6 +815,9 @@ union Reb_Series_Misc {
     struct Reb_Symbol : public Reb_String {};  // word-constrained strings
     typedef struct Reb_Symbol REBSYM;
 
+    struct Reb_Canon : public Reb_Symbol {};  // all-lowercase symbol
+    typedef struct Reb_Canon REBCAN;
+
     struct Reb_Array : public Reb_Series {};
     typedef struct Reb_Array REBARR;
 
@@ -820,6 +828,7 @@ union Reb_Series_Misc {
     typedef struct Reb_Series REBBIN;
     typedef struct Reb_Series REBSTR;
     typedef struct Reb_Series REBSYM;
+    typedef struct Reb_Series REBCAN;
     typedef struct Reb_Series REBARR;
     typedef struct Reb_Series REBBMK;
 #endif
@@ -829,7 +838,14 @@ union Reb_Series_Misc {
 // things we increment across aren't REBSER nodes, but pointers to REBSER
 // nodes for the strings... so a "key" is a pointer.
 //
-typedef const REBSYM *REBKEY;
+// Due to strong philosophical feelings that Redbol languages should be case
+// insensitive when it comes to binding, object keys must be canon symbols
+// (REBCAN), e.g. lowercase canonized.  Having case-insensitive lookup but
+// preserving case in keys would lead to inconsistent states.
+//
+// https://forum.rebol.info/t/1439
+//
+typedef const REBCAN *REBKEY;
 
 
 // It may become interesting to say that a specifier can be a pairing or

@@ -798,7 +798,7 @@ REBNATIVE(applique)
         if (Is_Void_With_Sym(var, SYM_UNSET))
             Init_Nulled(var);
 
-        Remove_Binder_Index(&binder, KEY_SYMBOL(key));
+        Remove_Binder_Index(&binder, KEY_CANON(key));
     }
     SHUTDOWN_BINDER(&binder); // must do before running code that might BIND
 

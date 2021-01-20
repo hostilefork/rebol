@@ -768,12 +768,7 @@ REBCTX *Resolve_Path(const REBVAL *path, REBLEN *index_out)
     picker = VAL_SEQUENCE_AT(temp, path, index);
 
     while (ANY_CONTEXT(var) and IS_WORD(picker)) {
-        const bool strict = false;
-        REBLEN i = Find_Symbol_In_Context(
-            var,
-            VAL_WORD_SYMBOL(picker),
-            strict
-        );
+        REBLEN i = Find_Canon_In_Context(var, VAL_WORD_CANON(picker));
         ++index;
         if (index == len) {
             *index_out = i;

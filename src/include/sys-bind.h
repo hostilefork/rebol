@@ -231,10 +231,10 @@ inline static void SHUTDOWN_BINDER(struct Reb_Binder *binder) {
 //
 inline static bool Try_Add_Binder_Index(
     struct Reb_Binder *binder,
-    const REBSYM *sym,
+    const REBCAN *canon,
     REBINT index
 ){
-    REBSTR *s = m_cast(REBSYM*, sym);
+    REBSER *s = m_cast(REBCAN*, canon);
     assert(index != 0);
     if (binder->high) {
         if (s->misc.bind_index.high != 0)
@@ -256,10 +256,10 @@ inline static bool Try_Add_Binder_Index(
 
 inline static void Add_Binder_Index(
     struct Reb_Binder *binder,
-    const REBSYM *s,
+    const REBCAN *canon,
     REBINT index
 ){
-    bool success = Try_Add_Binder_Index(binder, s, index);
+    bool success = Try_Add_Binder_Index(binder, canon, index);
     assert(success);
     UNUSED(success);
 }
@@ -267,20 +267,20 @@ inline static void Add_Binder_Index(
 
 inline static REBINT Get_Binder_Index_Else_0( // 0 if not present
     struct Reb_Binder *binder,
-    const REBSYM *s
+    const REBCAN *canon
 ){
     if (binder->high)
-        return s->misc.bind_index.high;
+        return canon->misc.bind_index.high;
     else
-        return s->misc.bind_index.low;
+        return canon->misc.bind_index.low;
 }
 
 
 inline static REBINT Remove_Binder_Index_Else_0( // return old value if there
     struct Reb_Binder *binder,
-    const REBSYM *str
+    const REBCAN *canon
 ){
-    REBSTR *s = m_cast(REBSYM*, str);
+    REBSER *s = m_cast(REBCAN*, canon);
     REBINT old_index;
     if (binder->high) {
         old_index = s->misc.bind_index.high;
@@ -305,9 +305,9 @@ inline static REBINT Remove_Binder_Index_Else_0( // return old value if there
 
 inline static void Remove_Binder_Index(
     struct Reb_Binder *binder,
-    const REBSYM *s
+    const REBCAN *canon
 ){
-    REBINT old_index = Remove_Binder_Index_Else_0(binder, s);
+    REBINT old_index = Remove_Binder_Index_Else_0(binder, canon);
     assert(old_index != 0);
     UNUSED(old_index);
 }
@@ -491,11 +491,14 @@ inline static const REBSYM *VAL_WORD_SYMBOL(REBCEL(const*) cell) {
     const RELVAL *v = CELL_TO_VAL(cell);
 
     if (GET_ARRAY_FLAG(binding, IS_DETAILS))  // relative
-        return KEY_SYMBOL(ACT_KEY(ACT(binding), VAL_WORD_INDEX(v)));
+        return KEY_CANON(ACT_KEY(ACT(binding), VAL_WORD_INDEX(v)));
 
     assert(GET_ARRAY_FLAG(binding, IS_VARLIST));  // specific
-    return KEY_SYMBOL(CTX_KEY(CTX(binding), VAL_WORD_INDEX(v)));
+    return KEY_CANON(CTX_KEY(CTX(binding), VAL_WORD_INDEX(v)));
 }
+
+#define VAL_WORD_CANON(cell) \
+    SYM_CANON(VAL_WORD_SYMBOL(cell))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -574,7 +577,7 @@ inline static option(REBCTX*) Get_Word_Context(
             goto virtual_miss;
 
       blockscope {
-        const REBSTR *spelling = VAL_WORD_SYMBOL(VAL_UNESCAPED(any_word));
+        const REBCAN *canon = VAL_WORD_CANON(VAL_UNESCAPED(any_word));
 
         // We have the primary binding's spelling to check against, so we
         // can recognize when the lossy index matches up.  It needs to match
@@ -603,7 +606,7 @@ inline static option(REBCTX*) Get_Word_Context(
 
             REBLEN index = mondex;
             for (; index <= cached_len; index += MONDEX_MOD) {
-                if (spelling != KEY_SYMBOL(CTX_KEY(overload, mondex)))
+                if (canon != KEY_CANON(CTX_KEY(overload, mondex)))
                     continue;
 
                 *index_out = mondex;
@@ -632,7 +635,7 @@ inline static option(REBCTX*) Get_Word_Context(
         //
         INIT_VAL_WORD_CACHE(any_word, specifier);  // we're updating it
 
-        const REBSTR *spelling = VAL_WORD_SYMBOL(VAL_UNESCAPED(any_word));
+        const REBCAN *canon = VAL_WORD_CANON(VAL_UNESCAPED(any_word));
 
         // !!! Virtual binding could use the bind table as a kind of next
         // level cache if it encounters a large enough object to make it
@@ -657,7 +660,7 @@ inline static option(REBCTX*) Get_Word_Context(
             REBLEN index = 1;
             const REBKEY *key = CTX_KEYS_HEAD(overload);
             for (; index <= cached_len; ++key, ++index) {
-                if (KEY_SYMBOL(key) != spelling)
+                if (KEY_CANON(key) != canon)
                     continue;
 
                 // !!! FOR-EACH uses the slots in an object to count how

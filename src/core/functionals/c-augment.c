@@ -106,7 +106,7 @@ REBNATIVE(augment_p)  // see extended definition AUGMENT in %base-defs.r
     const REBKEY *key = ACT_KEYS(&tail, augmentee);
     const REBPAR *param = ACT_PARAMS_HEAD(augmentee);
     for (; key != tail; ++key, ++param) {
-        Init_Word(DS_PUSH(), KEY_SYMBOL(key));
+        Init_Word(DS_PUSH(), KEY_CANON(key));
 
         Move_Value(DS_PUSH(), param);
         if (Is_Param_Hidden(param))  // !!! This should hide locals

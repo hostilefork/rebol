@@ -616,7 +616,7 @@ void MF_Varargs(REB_MOLD *mo, REBCEL(const*) v, bool form) {
         };
 
         DECLARE_LOCAL (param_word);
-        Init_Any_Word(param_word, kind, KEY_SYMBOL(key));
+        Init_Any_Word(param_word, kind, KEY_CANON(key));
         if (quoted)
             Quotify(param_word, 1);
         Mold_Value(mo, param_word);

@@ -138,12 +138,12 @@ void Dump_Stack(REBFRM *f, REBLEN level)
         if (IS_NULLED(arg))
             printf(
                 "    %s:\n",
-                STR_UTF8(KEY_SYMBOL(key))
+                STR_UTF8(KEY_CANON(key))
             );
         else
             printf(
                 "    %s: %p\n",
-                STR_UTF8(KEY_SYMBOL(key)),
+                STR_UTF8(KEY_CANON(key)),
                 cast(void*, arg)
             );
     }

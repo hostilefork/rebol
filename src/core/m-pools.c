@@ -1087,7 +1087,7 @@ void Decay_Series(REBSER *s)
 
     if (GET_SERIES_FLAG(s, IS_STRING)) {
         if (IS_STR_SYMBOL(STR(s)))
-            GC_Kill_Interning(STR(s));  // special handling can adjust canons
+            GC_Kill_Interning(SYM(s));  // special handling can adjust canons
         else
             Free_Bookmarks_Maybe_Null(STR(s));
     }

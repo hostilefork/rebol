@@ -577,7 +577,7 @@ REBCTX *Alloc_Context_From_Map(const REBMAP *map)
 
     for (; NOT_END(mval); mval += 2) {  // note mval must not be END
         if (ANY_WORD(mval) and not IS_NULLED(mval + 1)) {
-            REBVAL *var = Append_Context(c, nullptr, VAL_WORD_SYMBOL(mval));
+            REBVAL *var = Append_Context(c, nullptr, VAL_WORD_CANON(mval));
             Move_Value(var, &mval[1]);
         }
     }

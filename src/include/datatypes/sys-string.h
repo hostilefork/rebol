@@ -380,6 +380,11 @@ inline static bool IS_SER_STRING(const REBSER *s) {
 #define SYM(s) \
     m_cast(REBSYM*, x_cast(const REBSYM*, (s)))
 
+inline static const REBCAN *CAN(const REBNOD *n) {
+    assert(GET_SERIES_INFO(SER(n), SYMBOL_IS_CANON));
+    return x_cast(const REBCAN*, n);
+}
+
 
 //=//// STRING ALL-ASCII FLAG /////////////////////////////////////////////=//
 //

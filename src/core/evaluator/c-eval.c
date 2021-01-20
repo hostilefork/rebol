@@ -1113,7 +1113,7 @@ bool Eval_Maybe_Stale_Throws(REBFRM * const f)
                 continue;
             if (VAL_PARAM_CLASS(param) != REB_P_OUTPUT)
                 continue;
-            Init_Word(DS_PUSH(), KEY_SYMBOL(key));
+            Init_Word(DS_PUSH(), KEY_CANON(key));
         }
       }
 

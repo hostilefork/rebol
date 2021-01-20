@@ -234,13 +234,13 @@ void* Probe_Core_Debug(
             const REBKEY *key = SER_HEAD(REBKEY, s);
             Append_Ascii(mo->series, "<< ");
             for (; key != tail; ++key) {
-                Mold_Text_Series_At(mo, KEY_SYMBOL(key), 0);
+                Mold_Text_Series_At(mo, KEY_CANON(key), 0);
                 Append_Codepoint(mo->series, ' ');
             }
             Append_Ascii(mo->series, ">>");
         }
-        else if (s == PG_Symbols_By_Hash) {
-            printf("can't probe PG_Symbols_By_Hash (TBD: add probing)\n");
+        else if (s == PG_Canons_By_Hash) {
+            printf("can't probe PG_Canons_By_Hash (TBD: add probing)\n");
         }
         else if (s == GC_Guarded) {
             printf("can't probe GC_Guarded (TBD: add probing)\n");

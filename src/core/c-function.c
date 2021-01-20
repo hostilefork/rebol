@@ -42,7 +42,7 @@ static bool Params_Of_Hook(
 ){
     struct Params_Of_State *s = cast(struct Params_Of_State*, opaque);
 
-    Init_Word(DS_PUSH(), KEY_SYMBOL(key));
+    Init_Word(DS_PUSH(), KEY_CANON(key));
 
     if (not s->just_words) {
         if (
@@ -284,7 +284,7 @@ void Push_Paramlist_Triads_May_Fail(
         REBCEL(const*) cell = VAL_UNESCAPED(item);
         enum Reb_Kind kind = CELL_KIND(cell);
 
-        const REBSYM* symbol = nullptr;  // avoids compiler warning
+        const REBCAN* canon = nullptr;  // avoids compiler warning
         enum Reb_Param_Class pclass = REB_P_DETECT;  // error if not changed
 
         bool refinement = false;  // paths with blanks at head are refinements
@@ -302,8 +302,8 @@ void Push_Paramlist_Triads_May_Fail(
             //
             mode = SPEC_MODE_NORMAL;
 
-            symbol = VAL_REFINEMENT_SYMBOL(cell);
-            if (ID_OF_SYMBOL(symbol) == SYM_LOCAL)  // /LOCAL
+            canon = VAL_REFINEMENT_CANON(cell);
+            if (ID_OF_SYMBOL(canon) == SYM_LOCAL)  // /LOCAL
                 if (ANY_WORD_KIND(KIND3Q_BYTE(item + 1)))  // END is 0
                     fail (Error_Legacy_Local_Raw(spec));  // -> <local>
 
@@ -330,11 +330,11 @@ void Push_Paramlist_Triads_May_Fail(
             //
             if (IS_PREDICATE1_CELL(cell) and not quoted) {
                 pclass = REB_P_LOCAL;
-                symbol = VAL_PREDICATE1_SYMBOL(cell);
+                canon = VAL_PREDICATE1_CANON(cell);
             }
         }
         else if (ANY_WORD_KIND(kind)) {
-            symbol = VAL_WORD_SYMBOL(cell);
+            canon = VAL_WORD_CANON(cell);
 
             if (kind == REB_SET_WORD) {
                 //
@@ -392,7 +392,7 @@ void Push_Paramlist_Triads_May_Fail(
                 pclass = REB_P_LOCAL;
         }
 
-        if (ID_OF_SYMBOL(symbol) == SYM_RETURN and pclass != REB_P_RETURN) {
+        if (ID_OF_SYMBOL(canon) == SYM_RETURN and pclass != REB_P_RETURN) {
             //
             // Cancel definitional return if any non-SET-WORD! uses the name
             // RETURN when defining a FUNC.
@@ -415,7 +415,7 @@ void Push_Paramlist_Triads_May_Fail(
         //
         PUSH_SLOTS();
 
-        Init_Word(KEY_SLOT(DSP), symbol);
+        Init_Word(KEY_SLOT(DSP), canon);
         Init_Nulled(TYPES_SLOT(DSP));  // may or may not add later
         Init_Nulled(NOTES_SLOT(DSP));  // may or may not add later
 
@@ -460,10 +460,10 @@ void Push_Paramlist_Triads_May_Fail(
         // ...although `return:` is explicitly tolerated ATM for compatibility
         // (despite violating the "pure locals are NULL" premise)
         //
-        if (symbol == Canon(SYM_RETURN)) {
+        if (canon == Canon(SYM_RETURN)) {
             if (*definitional_return_dsp != 0) {
                 DECLARE_LOCAL(word);
-                Init_Word(word, symbol);
+                Init_Word(word, canon);
                 fail (Error_Dup_Vars_Raw(word));  // most dup checks are later
             }
             if (pclass == REB_P_RETURN)
@@ -586,7 +586,7 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
 
     if (definitional_return_dsp != 0) {
         assert(flags & MKF_RETURN);
-        Init_Key(key, VAL_WORD_SYMBOL(KEY_SLOT(definitional_return_dsp)));
+        Init_Key(key, VAL_WORD_CANON(KEY_SLOT(definitional_return_dsp)));
         ++key;
 
         Move_Value(param, PARAM_SLOT(definitional_return_dsp));
@@ -595,18 +595,18 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
 
     REBDSP dsp = dsp_orig + 8;
     for (; dsp <= DSP; dsp += 4) {
-        const REBSYM *symbol = VAL_WORD_SYMBOL(KEY_SLOT(dsp));
+        const REBCAN *canon = VAL_WORD_CANON(KEY_SLOT(dsp));
 
         STKVAL(*) slot = PARAM_SLOT(dsp);
         if (not Is_Param_Sealed(cast_PAR(slot))) {  // sealed reusable
-            if (not Try_Add_Binder_Index(&binder, symbol, 1020))
-                duplicate = symbol;
+            if (not Try_Add_Binder_Index(&binder, canon, 1020))
+                duplicate = canon;
         }
 
         if (dsp == definitional_return_dsp)
             continue;  // was added to the head of the list already
 
-        Init_Key(key, symbol);
+        Init_Key(key, canon);
 
         Move_Value(param, slot);
         if (GET_CELL_FLAG(slot, STACK_NOTE_LOCAL))
@@ -637,7 +637,7 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
     for (; key != tail; ++key, ++param) {
         if (Is_Param_Sealed(param))
             continue;
-        if (Remove_Binder_Index_Else_0(&binder, KEY_SYMBOL(key)) == 0)
+        if (Remove_Binder_Index_Else_0(&binder, KEY_CANON(key)) == 0)
             assert(duplicate);  // erroring on this is pending
     }
 

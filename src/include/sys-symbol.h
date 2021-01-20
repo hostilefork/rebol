@@ -42,10 +42,20 @@
 //
 // Note: String series using this don't have SERIES_FLAG_LINK_NODE_NEEDS_MARK.
 // One synonym need not keep another alive, because the process of freeing
-// string nodes unlinks them from the list.  (Hence the canon can change!)
+// string nodes unlinks them from the list.
 //
-#define LINK_Synonym_TYPE       const REBSYM*
-#define LINK_Synonym_CAST       SYM
+#define LINK_NextSynonym_TYPE       const REBSYM*
+#define LINK_NextSynonym_CAST       SYM
+
+// We don't want to GC canons unless all the synonyms are freed.  An easy way
+// to do this marking is to have the synonyms point to the canons...though
+// it is a bit wasteful since the canon can be reached through the non-marking
+// circularly linked list.  But since synonyms may or may not exist for a
+// canon, it's not clear how the space would be otherwise exploited, so having
+// it cover the tricky GC condition seems all right.
+//
+#define MISC_CanonOfSynonym_TYPE    const REBSYM*
+#define MISC_CanonOfSynonym_CAST    CAN
 
 
 #if defined(NDEBUG) || !defined(CPLUSPLUS_11)
@@ -128,10 +138,10 @@ inline static bool Same_Nonzero_Symid(SYMID a, SYMID b) {
 inline static OPT_SYMID ID_OF_SYMBOL(const REBSYM *s)
   { return cast(SYMID, SECOND_UINT16(s->leader)); }
 
-inline static const REBSYM *Canon(SYMID symid) {
+inline static const REBCAN *Canon(SYMID symid) {
     assert(cast(REBLEN, symid) != 0);
     assert(cast(REBLEN, symid) < SER_USED(PG_Symbol_Canons));  // null if boot
-    return *SER_AT(const REBSYM*, PG_Symbol_Canons, cast(REBLEN, symid));
+    return *SER_AT(const REBCAN*, PG_Symbol_Canons, cast(REBLEN, symid));
 }
 
 inline static bool Are_Synonyms(const REBSYM *s1, const REBSYM *s2) {
@@ -139,7 +149,14 @@ inline static bool Are_Synonyms(const REBSYM *s1, const REBSYM *s2) {
     do {
         if (temp == s2)
             return true;
-    } while ((temp = LINK(Synonym, temp)) != s1);
+    } while ((temp = LINK(NextSynonym, temp)) != s1);
 
     return false;  // stopped when circularly linked list loops back to self
+}
+
+inline static const REBCAN *SYM_CANON(const REBSYM *s) {
+    if (GET_SERIES_INFO(s, SYMBOL_IS_CANON))
+        return CAN(s);
+
+    return MISC(CanonOfSynonym, s);
 }

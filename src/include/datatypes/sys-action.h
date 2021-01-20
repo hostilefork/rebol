@@ -251,15 +251,15 @@ inline static REBPAR *ACT_PARAMS_HEAD(REBACT *a) {
 #define IDX_NATIVE_MAX (IDX_NATIVE_CONTEXT + 1)
 
 
-inline static const REBSYM *KEY_SYMBOL(const REBKEY *key)
+inline static const REBCAN *KEY_CANON(const REBKEY *key)
   { return *key; }
 
 
-inline static void Init_Key(REBKEY *dest, const REBSYM *symbol)
-  { *dest = symbol; }
+inline static void Init_Key(REBKEY *dest, const REBCAN *canon)
+  { *dest = canon; }
 
 #define KEY_SYM(key) \
-    ID_OF_SYMBOL(KEY_SYMBOL(key))
+    ID_OF_SYMBOL(KEY_CANON(key))
 
 #define ACT_KEY(a,n)            CTX_KEY(ACT_EXEMPLAR(a), (n))
 #define ACT_PARAM(a,n)          cast_PAR(CTX_VAR(ACT_EXEMPLAR(a), (n)))

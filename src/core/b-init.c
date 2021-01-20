@@ -687,7 +687,7 @@ REBVAL *Get_Sys_Function_Debug(REBLEN index, const char *name)
 {
     REBCTX *sys = VAL_CONTEXT(Sys_Context);
     const REBKEY *key = CTX_KEY(sys, index);
-    const char *key_utf8 = STR_UTF8(KEY_SYMBOL(key));
+    const char *key_utf8 = STR_UTF8(KEY_CANON(key));
     assert(strcmp(key_utf8, name) == 0);
     return CTX_VAR(sys, index);
 }

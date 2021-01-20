@@ -370,10 +370,12 @@ void Assert_Cell_Marked_Correctly(const RELVAL *v)
         if (IS_WORD_UNBOUND(v))
             assert(Is_Marked(spelling));
 
-        assert(  // GC can't run during binding, only time bind indices != 0
-            spelling->misc.bind_index.high == 0
-            and spelling->misc.bind_index.low == 0
-        );
+        if (GET_SERIES_INFO(spelling, SYMBOL_IS_CANON)) {
+            assert(  // GC can't run during binding, bind indices must be 0
+                spelling->misc.bind_index.high == 0
+                and spelling->misc.bind_index.low == 0
+            );
+        }
 
         if (IS_WORD_BOUND(v))
             assert(VAL_WORD_PRIMARY_INDEX_UNCHECKED(v) != 0);

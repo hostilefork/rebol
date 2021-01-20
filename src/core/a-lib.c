@@ -766,7 +766,7 @@ const void *RL_rebArgR(unsigned char quotes, const void *p, va_list *vaptr)
     const REBKEY *key = ACT_KEYS(&tail, act);
     REBVAL *arg = FRM_ARGS_HEAD(f);
     for (; key != tail; ++key, ++arg) {
-        if (Are_Synonyms(KEY_SYMBOL(key), symbol))
+        if (Are_Synonyms(KEY_CANON(key), symbol))
             return arg;
     }
 

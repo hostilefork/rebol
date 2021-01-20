@@ -30,14 +30,9 @@ static void Append_To_Context(REBVAL *context, REBVAL *arg)
     REBCTX *c = VAL_CONTEXT(context);
 
     if (ANY_WORD(arg)) {  // Add an unset word: `append context 'some-word`
-        const bool strict = true;
-        if (0 == Find_Symbol_In_Context(
-            context,
-            VAL_WORD_SYMBOL(arg),
-            strict
-        )){
+        if (0 == Find_Canon_In_Context(context, VAL_WORD_CANON(arg))) {
             Expand_Context(c, 1);
-            Append_Context(c, nullptr, VAL_WORD_SYMBOL(arg));
+            Append_Context(c, nullptr, VAL_WORD_CANON(arg));
         }
         return;
     }
@@ -78,14 +73,14 @@ static void Append_To_Context(REBVAL *context, REBVAL *arg)
             goto collect_end;
         }
 
-        const REBSYM *symbol = VAL_WORD_SYMBOL(word);
+        const REBCAN *canon = VAL_WORD_CANON(word);
 
         if (Try_Add_Binder_Index(
             &collector.binder,
-            symbol,
+            canon,
             Collector_Index_If_Pushed(&collector)
         )){
-            Init_Word(DS_PUSH(), VAL_WORD_SYMBOL(word));
+            Init_Word(DS_PUSH(), VAL_WORD_CANON(word));
         }
         if (IS_END(word + 1))  // catch malformed case with no value (#708)
             break;
@@ -98,14 +93,14 @@ static void Append_To_Context(REBVAL *context, REBVAL *arg)
 
     STKVAL(*) new_word = DS_AT(collector.dsp_orig) + first_new_index;
     for (; new_word != DS_TOP + 1; ++new_word)
-        Append_Context(c, nullptr, VAL_WORD_SYMBOL(new_word));
+        Append_Context(c, nullptr, VAL_WORD_CANON(new_word));
   }
 
   blockscope {  // Set new values to obj words
     const RELVAL *word = item;
     for (; NOT_END(word); word += 2) {
         REBLEN i = Get_Binder_Index_Else_0(
-            &collector.binder, VAL_WORD_SYMBOL(word)
+            &collector.binder, VAL_WORD_CANON(word)
         );
         assert(i != 0);
 
@@ -193,8 +188,8 @@ REBINT CT_Context(REBCEL(const*) a, REBCEL(const*) b, bool strict)
             goto no_advance;
         }
 
-        const REBSYM *symbol1 = KEY_SYMBOL(key1);
-        const REBSYM *symbol2 = KEY_SYMBOL(key2);
+        const REBSYM *symbol1 = KEY_CANON(key1);
+        const REBSYM *symbol2 = KEY_CANON(key2);
         REBINT spell_diff = Compare_Spellings(symbol1, symbol2, strict);
         if (spell_diff != 0)
             return spell_diff;
@@ -408,9 +403,7 @@ REB_R PD_Context(
     if (VAL_WORD_BINDING(picker) == CTX_VARLIST(c))
         n = VAL_WORD_INDEX(picker);
     else {
-        const bool strict = false;
-        n = Find_Symbol_In_Context(pvs->out, VAL_WORD_SYMBOL(picker), strict);
-
+        n = Find_Canon_In_Context(pvs->out, VAL_WORD_CANON(picker));
         if (n == 0)
             return R_UNHANDLED;
 
@@ -644,7 +637,7 @@ void MF_Context(REB_MOLD *mo, REBCEL(const*) v, bool form)
             if (honor_hidden and Is_Param_Hidden(param))
                 continue;
 
-            Append_Spelling(mo->series, KEY_SYMBOL(key));
+            Append_Spelling(mo->series, KEY_CANON(key));
             Append_Ascii(mo->series, ": ");
             Mold_Value(mo, var);
             Append_Codepoint(mo->series, LF);
@@ -681,7 +674,7 @@ void MF_Context(REB_MOLD *mo, REBCEL(const*) v, bool form)
 
         New_Indented_Line(mo);
 
-        const REBSTR *spelling = KEY_SYMBOL(key);
+        const REBSTR *spelling = KEY_CANON(key);
         Append_Utf8(s, STR_UTF8(spelling), STR_SIZE(spelling));
 
         Append_Ascii(s, ": ");
@@ -918,15 +911,14 @@ REBTYPE(Context)
         UNUSED(ARG(reverse));
         UNUSED(ARG(last));
 
+        if (REF(case))
+            fail ("Cannot FIND/SELECT case-sensitively from a context"); 
+
         REBVAL *pattern = ARG(pattern);
         if (not IS_WORD(pattern))
             return nullptr;
 
-        REBLEN n = Find_Symbol_In_Context(
-            context,
-            VAL_WORD_SYMBOL(pattern),
-            did REF(case)
-        );
+        REBLEN n = Find_Canon_In_Context(context, VAL_WORD_CANON(pattern));
         if (n == 0)
             return nullptr;
 

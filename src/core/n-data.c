@@ -358,9 +358,8 @@ REBNATIVE(in)
     // here in IN, but BIND's behavior on words may need revisiting.
     //
     if (ANY_WORD(v)) {
-        const REBSYM *symbol = VAL_WORD_SYMBOL(v);
-        const bool strict = true;
-        REBLEN index = Find_Symbol_In_Context(ARG(context), symbol, strict);
+        const REBCAN *canon = VAL_WORD_CANON(v);
+        REBLEN index = Find_Canon_In_Context(ARG(context), canon);
         if (index == 0)
             return nullptr;
         return Init_Any_Word_Bound(D_OUT, VAL_TYPE(v), ctx, index);
@@ -396,9 +395,8 @@ REBNATIVE(without)
     // here in IN, but BIND's behavior on words may need revisiting.
     //
     if (ANY_WORD(v)) {
-        const REBSYM *symbol = VAL_WORD_SYMBOL(v);
-        const bool strict = true;
-        REBLEN index = Find_Symbol_In_Context(ARG(context), symbol, strict);
+        const REBCAN *canon = VAL_WORD_CANON(v);
+        REBLEN index = Find_Canon_In_Context(ARG(context), canon);
         if (index == 0)
             return nullptr;
         return Init_Any_Word_Bound(D_OUT, VAL_TYPE(v), ctx, index);

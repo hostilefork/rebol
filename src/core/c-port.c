@@ -115,8 +115,7 @@ REB_R Do_Port_Action(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
     // Dispatch object function:
 
   blockscope {
-    const bool strict = false;
-    REBLEN n = Find_Symbol_In_Context(actor, VAL_WORD_SYMBOL(verb), strict);
+    REBLEN n = Find_Canon_In_Context(actor, VAL_WORD_CANON(verb));
 
     REBVAL *action = (n == 0) ? nullptr : CTX_VAR(VAL_CONTEXT(actor), n);
     if (not action or not IS_ACTION(action))

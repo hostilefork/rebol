@@ -638,11 +638,11 @@ REB_R PD_Array(
         //
         n = -1;
 
-        const REBSTR *symbol = VAL_WORD_SYMBOL(picker);
+        const REBSTR *canon = VAL_WORD_CANON(picker);
         const RELVAL *item = VAL_ARRAY_AT(pvs->out);
         REBLEN index = VAL_INDEX(pvs->out);
         for (; NOT_END(item); ++item, ++index) {
-            if (ANY_WORD(item) and symbol == VAL_WORD_SYMBOL(item)) {
+            if (ANY_WORD(item) and canon == VAL_WORD_CANON(item)) {
                 n = index + 1;
                 break;
             }

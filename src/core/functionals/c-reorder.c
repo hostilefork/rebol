@@ -124,7 +124,7 @@ REBNATIVE(reorder_p)  // see REORDER in %base-defs.r, for inheriting meta
     for (; key != tail; ++key, ++param, ++index) {
         if (Is_Param_Hidden(param))
             continue;
-        Add_Binder_Index(&binder, KEY_SYMBOL(key), index);
+        Add_Binder_Index(&binder, KEY_CANON(key), index);
     }
   }
 
@@ -147,7 +147,7 @@ REBNATIVE(reorder_p)  // see REORDER in %base-defs.r, for inheriting meta
     const RELVAL *item = VAL_ARRAY_TAIL(ARG(ordering));
     const RELVAL *at = VAL_ARRAY_AT(ARG(ordering));
     for (; at != item--; ) {
-        const REBSYM *symbol = VAL_WORD_SYMBOL(item);
+        const REBCAN *canon = VAL_WORD_CANON(item);
 
         // !!! As a bit of a weird demo of a potential future direction, we
         // don't just allow WORD!s but allow you to do things like pass the
@@ -155,10 +155,10 @@ REBNATIVE(reorder_p)  // see REORDER in %base-defs.r, for inheriting meta
         //
         bool ignore = false;
         if (ANY_WORD(item)) {  // on the record, we only just allow WORD!...
-            symbol = VAL_WORD_SYMBOL(item);
+            canon = VAL_WORD_CANON(item);
         }
         else if (IS_REFINEMENT(item)) {
-            symbol = VAL_REFINEMENT_SYMBOL(item);
+            canon = VAL_REFINEMENT_CANON(item);
             ignore = true;  // to use a refinement, don't /refine it
         }
         else if (IS_QUOTED(item)) {
@@ -169,14 +169,14 @@ REBNATIVE(reorder_p)  // see REORDER in %base-defs.r, for inheriting meta
                 error = Error_User("REORDER allows single quoted ANY-WORD!");
                 goto cleanup_binder;
             }
-            symbol = VAL_WORD_SYMBOL(VAL_UNESCAPED(item));
+            canon = VAL_WORD_CANON(VAL_UNESCAPED(item));
         }
         else {
             error = Error_User("Unknown REORDER element");
             goto cleanup_binder;
         }
 
-        REBLEN index = Remove_Binder_Index_Else_0(&binder, symbol);
+        REBLEN index = Remove_Binder_Index_Else_0(&binder, canon);
         if (index == 0) {
             error = Error_Bad_Parameter_Raw(rebUnrelativize(item));
             goto cleanup_binder;
@@ -206,18 +206,18 @@ REBNATIVE(reorder_p)  // see REORDER in %base-defs.r, for inheriting meta
         if (Is_Param_Hidden(param))
             continue;
 
-        const REBSYM *symbol = KEY_SYMBOL(key);
+        const REBCAN *canon = KEY_CANON(key);
 
         // If we saw the parameter, we removed its index from the binder.
         //
-        bool mentioned = (0 == Remove_Binder_Index_Else_0(&binder, symbol));
+        bool mentioned = (0 == Remove_Binder_Index_Else_0(&binder, canon));
 
         if (
             not error  // don't report an error here if one is pending
             and not mentioned
             and not TYPE_CHECK(param, REB_TS_REFINEMENT)  // okay to leave out
         ){
-            error = Error_No_Arg(label, KEY_SYMBOL(key));
+            error = Error_No_Arg(label, KEY_CANON(key));
         }
     }
   }

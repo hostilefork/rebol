@@ -46,10 +46,10 @@ PVAR const REBSYM *PG_Dot_1_Canon;  // Preallocated "fake" word for `.`
 PVAR const REBSYM *PG_Unreadable_Canon;  // Preallocated ~unreadable~ void
 
 PVAR REBSER *PG_Symbol_Canons; // Canon symbol pointers for words in %words.r
-PVAR REBSER *PG_Symbols_By_Hash; // Symbol REBSTR pointers indexed by hash
-PVAR REBLEN PG_Num_Symbol_Slots_In_Use; // Total symbol hash slots (+deleteds)
+PVAR REBSER *PG_Canons_By_Hash; // Lowercased REBSTR pointers indexed by hash
+PVAR REBLEN PG_Num_Canon_Slots_In_Use; // Total canon hash slots (+deleteds)
 #if !defined(NDEBUG)
-    PVAR REBLEN PG_Num_Symbol_Deleteds; // Deleted symbol hash slots "in use"
+    PVAR REBLEN PG_Num_Canon_Deleteds; // Deleted canon hash slots "in use"
 #endif
 PVAR const REBSYM *PG_Bar_Canon;  // fast canon value for testing for `|`
 

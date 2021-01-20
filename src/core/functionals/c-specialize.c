@@ -150,14 +150,14 @@ REBCTX *Make_Context_For_Action_Push_Partials(
 
         assert(NOT_CELL_FLAG(param, VAR_MARKED_HIDDEN));
 
-        const REBSYM *symbol = KEY_SYMBOL(key);  // added to binding
+        const REBCAN *canon = KEY_CANON(key);  // added to binding
         if (not TYPE_CHECK(param, REB_TS_REFINEMENT)) {  // nothing to push
 
           continue_unspecialized:
 
             Init_Void(arg, SYM_UNSET);  // *not* VAR_MARKED_HIDDEN
             if (binder)
-                Add_Binder_Index(unwrap(binder), symbol, index);
+                Add_Binder_Index(unwrap(binder), canon, index);
 
             continue;
         }
@@ -176,7 +176,7 @@ REBCTX *Make_Context_For_Action_Push_Partials(
         REBDSP dsp = highest_ordered_dsp;
         for (; dsp != lowest_ordered_dsp; --dsp) {
             STKVAL(*) ordered = DS_AT(dsp);
-            if (VAL_WORD_SYMBOL(ordered) != symbol)
+            if (VAL_WORD_CANON(ordered) != canon)
                 continue;  // just continuing this loop
 
             assert(not IS_WORD_BOUND(ordered));  // we bind only one
@@ -297,7 +297,7 @@ bool Specialize_Action_Throws(
             if (Is_Param_Hidden(param))
                 continue;  // maybe refinement from stack, now specialized out
 
-            Remove_Binder_Index(&binder, KEY_SYMBOL(key));
+            Remove_Binder_Index(&binder, KEY_CANON(key));
         }
         SHUTDOWN_BINDER(&binder);
 
@@ -559,7 +559,7 @@ void For_Each_Unspecialized_Param(
             for (; NOT_END(partial); ++partial) {
                 if (Are_Synonyms(
                     VAL_WORD_SYMBOL(partial),
-                    KEY_SYMBOL(key)
+                    KEY_CANON(key)
                 )){
                     goto skip_in_first_pass;
                 }
@@ -625,7 +625,7 @@ void For_Each_Unspecialized_Param(
             for (; NOT_END(partial); ++partial) {
                 if (Are_Synonyms(
                     VAL_WORD_SYMBOL(partial),
-                    KEY_SYMBOL(key)
+                    KEY_CANON(key)
                 )){
                     goto continue_unspecialized_loop;
                 }

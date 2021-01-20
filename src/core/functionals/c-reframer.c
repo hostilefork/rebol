@@ -312,10 +312,10 @@ REBNATIVE(reframer_p)
     const REBPAR *param;
     
     if (REF(parameter)) {
-        const REBSYM *symbol = VAL_WORD_SYMBOL(ARG(parameter));
-        param_index = Get_Binder_Index_Else_0(&binder, symbol);
+        const REBCAN *canon = VAL_WORD_CANON(ARG(parameter));
+        param_index = Get_Binder_Index_Else_0(&binder, canon);
         if (param_index == 0) {
-            error = Error_No_Arg(label, symbol);
+            error = Error_No_Arg(label, canon);
             goto cleanup_binder;
         }
         key = CTX_KEY(exemplar, param_index);
@@ -337,7 +337,7 @@ REBNATIVE(reframer_p)
             Init_Blank(label_word);
 
         DECLARE_LOCAL (param_word);
-        Init_Word(param_word, KEY_SYMBOL(key));
+        Init_Word(param_word, KEY_CANON(key));
 
         error = Error_Expect_Arg_Raw(
             label_word,
@@ -356,8 +356,8 @@ REBNATIVE(reframer_p)
         if (Is_Param_Hidden(param))
             continue;
 
-        const REBSYM *symbol = KEY_SYMBOL(key);
-        REBLEN index = Remove_Binder_Index_Else_0(&binder, symbol);
+        const REBCAN *canon = KEY_CANON(key);
+        REBLEN index = Remove_Binder_Index_Else_0(&binder, canon);
         assert(index != 0);
         UNUSED(index);
     }

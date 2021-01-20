@@ -415,7 +415,7 @@ const REBVAL *Find_Error_For_Sym(enum Reb_Symbol_Id id_sym)
 
         REBLEN n = 1;
         for (; n != CTX_LEN(category) + 1; ++n) {
-            if (Are_Synonyms(KEY_SYMBOL(CTX_KEY(category, n)), id_canon)) {
+            if (Are_Synonyms(KEY_CANON(CTX_KEY(category, n)), id_canon)) {
                 REBVAL *message = CTX_VAR(category, n);
                 assert(IS_BLOCK(message) or IS_TEXT(message));
                 return message;
@@ -624,9 +624,9 @@ REB_R MAKE_Error(
         REBCTX *categories = VAL_CONTEXT(Get_System(SYS_CATALOG, CAT_ERRORS));
 
         // Find correct category for TYPE: (if any)
-        REBVAL *category = Select_Symbol_In_Context(
+        REBVAL *category = Select_Canon_In_Context(
             CTX_ARCHETYPE(categories),
-            VAL_WORD_SYMBOL(&vars->type)
+            VAL_WORD_CANON(&vars->type)
         );
 
         if (category) {
@@ -634,9 +634,9 @@ REB_R MAKE_Error(
 
             // Find correct message for ID: (if any)
 
-            REBVAL *message = Select_Symbol_In_Context(
+            REBVAL *message = Select_Canon_In_Context(
                 category,
-                VAL_WORD_SYMBOL(&vars->id)
+                VAL_WORD_CANON(&vars->id)
             );
 
             if (message) {
@@ -799,8 +799,8 @@ REBCTX *Make_Error_Managed_Core(
     //
     for (; NOT_END(msg_item); ++msg_item) {
         if (IS_GET_WORD(msg_item)) {
-            const REBSYM *symbol = VAL_WORD_SYMBOL(msg_item);
-            REBVAL *var = Append_Context(error, nullptr, symbol);
+            const REBCAN *canon = VAL_WORD_CANON(msg_item);
+            REBVAL *var = Append_Context(error, nullptr, canon);
 
             const void *p = va_arg(*vaptr, const void*);
 
@@ -1081,7 +1081,7 @@ REBCTX *Error_Invalid_Arg(REBFRM *f, const REBPAR *param)
         Init_Word(label, unwrap(f->label));
 
     DECLARE_LOCAL (param_name);
-    Init_Word(param_name, KEY_SYMBOL(ACT_KEY(FRM_PHASE(f), index)));
+    Init_Word(param_name, KEY_CANON(ACT_KEY(FRM_PHASE(f), index)));
 
     REBVAL *arg = FRM_ARG(f, index);
     if (IS_NULLED(arg))
@@ -1183,7 +1183,7 @@ REBCTX *Error_Out_Of_Range(const REBVAL *arg)
 REBCTX *Error_Protected_Key(const REBKEY *key)
 {
     DECLARE_LOCAL (key_name);
-    Init_Word(key_name, KEY_SYMBOL(key));
+    Init_Word(key_name, KEY_CANON(key));
 
     return Error_Protected_Word_Raw(key_name);
 }
@@ -1226,7 +1226,7 @@ REBCTX *Error_Arg_Type(
     enum Reb_Kind actual
 ){
     DECLARE_LOCAL (param_word);
-    Init_Word(param_word, KEY_SYMBOL(key));
+    Init_Word(param_word, KEY_CANON(key));
 
     DECLARE_LOCAL (label);
     Get_Frame_Label_Or_Blank(label, f);

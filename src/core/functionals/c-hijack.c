@@ -119,7 +119,7 @@ bool Redo_Action_Throws_Maybe_Stale(REBVAL *out, REBFRM *f, REBACT *run)
             if (IS_NULLED(f->arg))  // don't add to PATH!
                 continue;
 
-            Init_Word(DS_PUSH(), KEY_SYMBOL(f->key));
+            Init_Word(DS_PUSH(), KEY_CANON(f->key));
 
             if (Is_Typeset_Empty(f->param)) {
                 assert(Is_Blackhole(f->arg));  // used but argless refinement

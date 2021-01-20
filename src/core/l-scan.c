@@ -2376,8 +2376,8 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
         REBCTX *context = unwrap(ss->feed->context);
         REBCTX *lib = try_unwrap(ss->feed->lib);
 
-        const REBSYM *symbol = VAL_WORD_SYMBOL(DS_TOP);
-        REBINT n = Get_Binder_Index_Else_0(binder, symbol);
+        const REBCAN *canon = VAL_WORD_CANON(DS_TOP);
+        REBINT n = Get_Binder_Index_Else_0(binder, canon);
         if (n > 0) {
             //
             // Exists in user context at the given positive index.
@@ -2395,10 +2395,10 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
                 Append_Context(context, DS_TOP, nullptr),
                 CTX_VAR(lib, -n)  // -n is positive
             );
-            REBINT check = Remove_Binder_Index_Else_0(binder, symbol);
+            REBINT check = Remove_Binder_Index_Else_0(binder, canon);
             assert(check == n);  // n is negative
             UNUSED(check);
-            Add_Binder_Index(binder, symbol, VAL_WORD_INDEX(DS_TOP));
+            Add_Binder_Index(binder, canon, VAL_WORD_INDEX(DS_TOP));
         }
         else {
             // Doesn't exist in either lib or user, create a new binding
@@ -2407,7 +2407,7 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
             //
             Expand_Context(context, 1);
             Append_Context(context, DS_TOP, nullptr);
-            Add_Binder_Index(binder, symbol, VAL_WORD_INDEX(DS_TOP));
+            Add_Binder_Index(binder, canon, VAL_WORD_INDEX(DS_TOP));
         }
     }
 

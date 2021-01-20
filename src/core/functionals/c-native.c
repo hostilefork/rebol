@@ -267,7 +267,7 @@ REBARR *Startup_Natives(const REBVAL *boot_natives)
 
         REBVAL *catalog_item = Move_Value(Alloc_Tail_Array(catalog), name);
         mutable_KIND3Q_BYTE(catalog_item) = REB_WORD;
-        mutable_HEART_BYTE(catalog_item) = REB_WORD;
+        mutable_HEART3X_BYTE(catalog_item) = REB_WORD;
 
         if (VAL_WORD_ID(name) == SYM_GENERIC)
             generic_word = name;

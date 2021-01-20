@@ -1366,10 +1366,8 @@ void Assert_Array_Core(const REBARR *a)
             panic (a);
         }
         if (KIND3Q_BYTE_UNCHECKED(item) % REB_64 >= REB_MAX) {
-            if (HEART_BYTE(item) != REB_TYPESET) {  // allow for REB_P classes
-                printf("Invalid KIND3Q_BYTE at index %d\n", cast(int, i));
-                panic (a);
-            }
+            printf("Invalid KIND3Q_BYTE at index %d\n", cast(int, i));
+            panic (a);
         }
     }
 

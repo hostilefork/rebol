@@ -95,7 +95,7 @@ inline static REBVAL *Init_Vector(
         REB_V_SIGN_INTEGRAL_WIDE,
         CELL_MASK_NONE
     );
-    mutable_HEART_BYTE(siw) = REB_LOGIC;  // fools Is_Bindable()
+    mutable_HEART3X_BYTE(siw) = REB_LOGIC;  // fools Is_Bindable()
     assert(bitsize == 8 or bitsize == 16 or bitsize == 32 or bitsize == 64);
     PAYLOAD(Any, siw).first.flag = sign;
     PAYLOAD(Any, siw).second.flag = integral;

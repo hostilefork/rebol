@@ -102,30 +102,30 @@ inline static REBVAL *Init_Nulled_Core(RELVAL *out) {
 // risky, and should be avoided by code that doesn't need to do it.
 //
 // In order to avoid taking a relatively precious CELL_FLAG for this purpose,
-// the isotope indication is done by making the HEART_BYTE() of the cell
+// the isotope indication is done by making the HEART3X_BYTE() of the cell
 // REB_BLANK, while keeping the surface byte REB_NULL.
 
 inline static REBVAL *Init_Heavy_Nulled(RELVAL *out) {
     RESET_CELL(out, REB_NULL, CELL_MASK_NONE);
-    mutable_HEART_BYTE(out) = REB_BLANK;
+    mutable_HEART3X_BYTE(out) = REB_BLANK;
     return cast(REBVAL*, out);
 }
 
 inline static bool Is_Light_Nulled(const RELVAL *v)
-  { return IS_NULLED(v) and HEART_BYTE(v) == REB_NULL; }
+  { return IS_NULLED(v) and HEART3X_BYTE(v) == REB_NULL; }
 
 inline static bool Is_Heavy_Nulled(const RELVAL *v)
-  { return IS_NULLED(v) and HEART_BYTE(v) == REB_BLANK; }
+  { return IS_NULLED(v) and HEART3X_BYTE(v) == REB_BLANK; }
 
 inline static RELVAL *Decay_If_Nulled(RELVAL *v) {
     if (IS_NULLED(v))  // cheaper to overwrite whether already REB_NULL or not
-        mutable_HEART_BYTE(v) = REB_NULL;
+        mutable_HEART3X_BYTE(v) = REB_NULL;
     return v;
 }
 
 inline static RELVAL *Isotopify_If_Nulled(RELVAL *v) {
     if (IS_NULLED(v))  // cheaper to overwrite whether already REB_NULL or not
-        mutable_HEART_BYTE(v) = REB_BLANK;
+        mutable_HEART3X_BYTE(v) = REB_BLANK;
     return v;
 }
 

@@ -68,14 +68,14 @@
 // ->extra field of the contained cell...so it comes off as "specified" in
 // those cases.
 //
-// Also note that the HEART_BYTE() is what is being tested--e.g. the type
+// Also note that the HEART3X_BYTE() is what is being tested--e.g. the type
 // that the cell payload and extra actually are *for*.
 
 #define IS_BINDABLE_KIND(k) \
     ((k) >= REB_OBJECT)
 
 #define Is_Bindable(v) \
-    IS_BINDABLE_KIND(HEART_BYTE(v))  // checked elsewhere
+    IS_BINDABLE_KIND(HEART3X_BYTE(v))  // checked elsewhere
 
 
 //=//// INERTNESS ////////////////////////////////////////////////////////=//

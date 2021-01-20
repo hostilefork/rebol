@@ -1283,7 +1283,7 @@ void Assert_Pointer_Detection_Working(void)
     freed_cell->header.bits =
         NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
         | FLAG_KIND3Q_BYTE(REB_T_TRASH)
-        | FLAG_HEART_BYTE(REB_T_TRASH);
+        | FLAG_HEART3X_BYTE(REB_T_TRASH);
     assert(Detect_Rebol_Pointer(freed_cell) == DETECTED_AS_FREED_CELL);
   #endif
 

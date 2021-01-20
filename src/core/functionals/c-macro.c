@@ -211,8 +211,8 @@ bool Cache_Predicate_Throws(
     if (VAL_SEQUENCE_LEN(predicate) != 2)
         fail ("GROUP! handling for predicates limited to TUPLE! of length 2");
 
-    assert(HEART_BYTE(predicate) == REB_GET_GROUP);
-    mutable_HEART_BYTE(predicate) = REB_GROUP;
+    assert(HEART3X_BYTE(predicate) == REB_GET_GROUP);
+    mutable_HEART3X_BYTE(predicate) = REB_GROUP;
     mutable_KIND3Q_BYTE(predicate) = REB_GROUP;
 
     if (Eval_Value_Throws(out, predicate, VAL_SPECIFIER(predicate)))

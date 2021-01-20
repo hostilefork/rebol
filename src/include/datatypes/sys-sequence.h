@@ -68,7 +68,7 @@
 //   numeric sequences like IP addresses or colors into single cells.
 //
 // * Which compressed implementation form that an ANY-PATH! or ANY-TUPLE! is
-//   using is indicated by the HEART_BYTE().  This says which actual cell
+//   using is indicated by the HEART3X_BYTE().  This says which actual cell
 //   format is in effect:
 //
 //   - REB_BYTES has raw bytes in the payload
@@ -82,7 +82,7 @@
 //   - REB_GET_BLOCK and REB_SYM_BLOCK for /[a] .[a] and [a]/ [a].
 //   - REB_GET_GROUP and REB_SYM_GROUP for /(a) .(a) and (a)/ (a).
 //
-// Beyond that, how creative one gets to using the HEART_BYTE() depends on
+// Beyond that, how creative one gets to using the HEART3X_BYTE() depends on
 // how much complication you want to bear in code like binding.
 //
 // !!! This should probably use a plain form for the `/x` so that `/1` and
@@ -152,7 +152,7 @@ inline static REBVAL *Init_Any_Sequence_1(RELVAL *out, enum Reb_Kind kind) {
         Init_Word(out, PG_Dot_1_Canon);
     }
     mutable_KIND3Q_BYTE(out) = kind;
-    assert(HEART_BYTE(out) == REB_WORD);  // leave as-is
+    assert(HEART3X_BYTE(out) == REB_WORD);  // leave as-is
     return cast(REBVAL*, out);
 }
 
@@ -165,7 +165,7 @@ inline static REBVAL *Init_Any_Sequence_1(RELVAL *out, enum Reb_Kind kind) {
 // In order to make this not cost more than a REFINEMENT! ANY-WORD! did in
 // R3-Alpha, the underlying representation of `/foo` in the cell is the same
 // as an ANY-WORD!.  The KIND3Q_BYTE() returned by VAL_TYPE() will reflect
-// the any sequence, while HEART_BYTE() reveals its word-oriented storage.
+// the any sequence, while HEART3X_BYTE() reveals its word-oriented storage.
 
 inline static REBVAL *Try_Leading_Blank_Pathify(
     REBVAL *v,
@@ -180,12 +180,12 @@ inline static REBVAL *Try_Leading_Blank_Pathify(
         return nullptr;  // leave element in v to indicate "the bad element"
 
     // See notes at top of file regarding optimizing `/a`, `(a).`, `/[a]`,
-    // into a single cell by using special values for the HEART_BYTE().
+    // into a single cell by using special values for the HEART3X_BYTE().
     //
     enum Reb_Kind inner = VAL_TYPE(v);
     if (inner == REB_WORD or inner == REB_GROUP or inner == REB_BLOCK) {
-        assert(HEART_BYTE(v) == inner);
-        mutable_HEART_BYTE(v) = GETIFY_ANY_PLAIN_KIND(inner);  // "refinement"
+        assert(HEART3X_BYTE(v) == inner);
+        mutable_HEART3X_BYTE(v) = GETIFY_ANY_PLAIN_KIND(inner);  // "refinement"
         mutable_KIND3Q_BYTE(v) = kind;  // give it the veneer of a sequence
         return v;
     }
@@ -311,7 +311,7 @@ inline static REBVAL *Try_Init_Any_Sequence_Pairlike_Core(
     }
 
     // See notes at top of file regarding optimizing `/a`, `(a).`, `/[a]`,
-    // into a single cell by using special values for the HEART_BYTE().
+    // into a single cell by using special values for the HEART3X_BYTE().
     //
     enum Reb_Kind inner = VAL_TYPE(v1);
     if (
@@ -320,7 +320,7 @@ inline static REBVAL *Try_Init_Any_Sequence_Pairlike_Core(
     ){
         Derelativize(out, v1, specifier);
         mutable_KIND3Q_BYTE(out) = kind;
-        mutable_HEART_BYTE(out) = SYMIFY_ANY_PLAIN_KIND(inner);
+        mutable_HEART3X_BYTE(out) = SYMIFY_ANY_PLAIN_KIND(inner);
         return cast(REBVAL*, out);
     }
 
@@ -536,7 +536,7 @@ inline static const RELVAL *VAL_SEQUENCE_AT(
         if (sequence != store)
             Blit_Relative(store, CELL_TO_VAL(sequence));
         mutable_KIND3Q_BYTE(store)
-            = mutable_HEART_BYTE(store) = PLAINIFY_ANY_GET_KIND(heart);
+            = mutable_HEART3X_BYTE(store) = PLAINIFY_ANY_GET_KIND(heart);
         return store; }
 
       case REB_SYM_WORD:  // `a/` or `a.`
@@ -552,7 +552,7 @@ inline static const RELVAL *VAL_SEQUENCE_AT(
         if (sequence != store)
             Blit_Relative(store, CELL_TO_VAL(sequence));
         mutable_KIND3Q_BYTE(store)
-            = mutable_HEART_BYTE(store) = PLAINIFY_ANY_SYM_KIND(heart);
+            = mutable_HEART3X_BYTE(store) = PLAINIFY_ANY_SYM_KIND(heart);
         return store; }
 
       case REB_BLOCK: {
@@ -673,7 +673,7 @@ inline static bool IS_REFINEMENT_CELL(REBCEL(const*) v) {
 
 inline static bool IS_REFINEMENT(const RELVAL *v) {
     assert(ANY_PATH(v));
-    return HEART_BYTE(v) == REB_GET_WORD;
+    return HEART3X_BYTE(v) == REB_GET_WORD;
 }
 
 inline static bool IS_PREDICATE1_CELL(REBCEL(const*) cell)

@@ -178,7 +178,7 @@ inline static void Prep_Array(
             prep = TRACK_CELL_IF_DEBUG(prep + 1);
             prep->header.bits =
                 FLAG_KIND3Q_BYTE(REB_T_TRASH)
-                | FLAG_HEART_BYTE(REB_T_TRASH); // unreadable
+                | FLAG_HEART3X_BYTE(REB_T_TRASH); // unreadable
         }
       #endif
 

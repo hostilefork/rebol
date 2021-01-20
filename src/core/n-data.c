@@ -1230,7 +1230,7 @@ bool Try_As_String(
       any_string:
         Move_Value(out, v);
         mutable_KIND3Q_BYTE(out)
-            = mutable_HEART_BYTE(out)
+            = mutable_HEART3X_BYTE(out)
             = new_kind;
         Trust_Const(Quotify(out, quotes));
     }
@@ -1277,7 +1277,7 @@ REBNATIVE(as)
       case REB_BLOCK:
       case REB_GROUP:
         if (ANY_SEQUENCE(v)) {  // internals vary based on optimization
-            switch (HEART_BYTE(v)) {
+            switch (HEART3X_BYTE(v)) {
               case REB_ISSUE:
                 fail ("Array Conversions of byte-oriented sequences TBD");
 
@@ -1294,7 +1294,7 @@ REBNATIVE(as)
                 Init_Blank(ARR_HEAD(a));
                 Blit_Relative(ARR_AT(a, 1), v);
                 mutable_KIND3Q_BYTE(ARR_AT(a, 1)) = REB_WORD;
-                mutable_HEART_BYTE(ARR_AT(a, 1)) = REB_WORD;
+                mutable_HEART3X_BYTE(ARR_AT(a, 1)) = REB_WORD;
                 SET_SERIES_LEN(a, 2);
                 Init_Block(v, a);
                 break; }
@@ -1303,7 +1303,7 @@ REBNATIVE(as)
                 REBARR *a = Make_Array_Core(2, NODE_FLAG_MANAGED);
                 Blit_Relative(ARR_HEAD(a), v);
                 mutable_KIND3Q_BYTE(ARR_HEAD(a)) = REB_WORD;
-                mutable_HEART_BYTE(ARR_HEAD(a)) = REB_WORD;
+                mutable_HEART3X_BYTE(ARR_HEAD(a)) = REB_WORD;
                 Init_Blank(ARR_AT(a, 1));
                 SET_SERIES_LEN(a, 2);
                 Init_Block(v, a);
@@ -1617,7 +1617,7 @@ REBNATIVE(as)
     //
     Move_Value(D_OUT, v);
     mutable_KIND3Q_BYTE(D_OUT)
-        = mutable_HEART_BYTE(D_OUT)
+        = mutable_HEART3X_BYTE(D_OUT)
         = new_kind;
     return Trust_Const(D_OUT);
 }

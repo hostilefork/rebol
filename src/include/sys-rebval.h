@@ -261,9 +261,9 @@
 // the KIND is REB_PATH but the HEART is REB_BLOCK...indicating that the
 // path is using the underlying implementation of a block.
 
-#define FLAG_HEART_BYTE(b)         FLAG_FOURTH_BYTE(b)
-#define HEART_BYTE(v)              FOURTH_BYTE((v)->header)
-#define mutable_HEART_BYTE(v)      mutable_FOURTH_BYTE((v)->header)
+#define FLAG_HEART3X_BYTE(b)            FLAG_FOURTH_BYTE(b)
+#define HEART3X_BYTE(v)                 FOURTH_BYTE((v)->header)
+#define mutable_HEART3X_BYTE(v)         mutable_FOURTH_BYTE((v)->header)
 
 
 // Endlike headers have the second byte clear (to pass the IS_END() test).

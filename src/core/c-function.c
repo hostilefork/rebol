@@ -1203,7 +1203,7 @@ bool Get_If_Word_Or_Path_Throws(
         IS_PATH(v) or IS_GET_PATH(v)
         or IS_TUPLE(v) or IS_GET_TUPLE(v)
     ){
-        if (ANY_WORD_KIND(HEART_BYTE(v)))  // e.g. `/`
+        if (ANY_WORD_KIND(HEART3X_BYTE(v)))  // e.g. `/`
             goto get_as_word;  // faster than calling Eval_Path_Throws_Core?
 
         if (Eval_Path_Throws_Core(

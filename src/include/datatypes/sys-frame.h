@@ -692,7 +692,7 @@ inline static void Push_Action(
             | CELL_FLAG_PROTECTED  // payload/binding tweaked, but not by user
             | CELL_MASK_CONTEXT
             | FLAG_KIND3Q_BYTE(REB_FRAME)
-            | FLAG_HEART_BYTE(REB_FRAME);
+            | FLAG_HEART3X_BYTE(REB_FRAME);
     INIT_VAL_CONTEXT_VARLIST(f->rootvar, f->varlist);
 
   sufficient_allocation:
@@ -717,7 +717,7 @@ inline static void Push_Action(
         USED(TRACK_CELL_IF_DEBUG(prep));
         prep->header.bits =
             FLAG_KIND3Q_BYTE(REB_T_TRASH)
-            | FLAG_HEART_BYTE(REB_T_TRASH); // unreadable
+            | FLAG_HEART3X_BYTE(REB_T_TRASH); // unreadable
     }
   #endif
 

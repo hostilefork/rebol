@@ -47,7 +47,7 @@ void Assert_Cell_Marked_Correctly(const RELVAL *v)
 {
     if (KIND3Q_BYTE_UNCHECKED(v) == REB_QUOTED) {
         assert(GET_CELL_FLAG(v, FIRST_IS_NODE));
-        assert(HEART_BYTE(v) == REB_QUOTED);
+        assert(HEART3X_BYTE(v) == REB_QUOTED);
         assert(Is_Marked(VAL_NODE1(v)));
         assert(VAL_QUOTED_DEPTH(v) >= 3);
         REBCEL(const*) cell = VAL_UNESCAPED(v);

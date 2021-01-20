@@ -366,14 +366,14 @@ REBTYPE(Sequence)
         //
       case SYM_COPY: {
         if (
-            HEART_BYTE(sequence) == REB_WORD
-            or HEART_BYTE(sequence) == REB_ISSUE
+            HEART3X_BYTE(sequence) == REB_WORD
+            or HEART3X_BYTE(sequence) == REB_ISSUE
         ){
             assert(VAL_WORD_ID(sequence) == SYM__SLASH_1_);
             return Move_Value(frame_->out, sequence);
         }
 
-        assert(HEART_BYTE(sequence) == REB_BLOCK);
+        assert(HEART3X_BYTE(sequence) == REB_BLOCK);
 
         enum Reb_Kind kind = VAL_TYPE(sequence);
         mutable_KIND3Q_BYTE(sequence) = REB_BLOCK;

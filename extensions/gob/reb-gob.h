@@ -154,7 +154,7 @@ inline static REBVAL *Init_XYF(
     REBD32 y   // there's no standard: https://stackoverflow.com/a/18705626/
 ){
     RESET_CELL(out, REB_G_XYF, CELL_MASK_NONE);
-    mutable_HEART_BYTE(out) = REB_LOGIC;  // fools Is_Bindable()
+    mutable_HEART3X_BYTE(out) = REB_LOGIC;  // fools Is_Bindable()
     VAL_XYF_X(out) = x;
     VAL_XYF_Y(out) = y;
     return cast(REBVAL*, out);

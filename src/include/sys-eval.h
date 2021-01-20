@@ -219,7 +219,7 @@ inline static bool Did_Init_Inert_Optimize_Complete(
     if (KIND3Q_BYTE_UNCHECKED(feed->value) != REB_PATH)
         return true;  // paths do enfix processing if '/'
 
-    if (HEART_BYTE(feed->value) == REB_WORD) {
+    if (HEART3X_BYTE(feed->value) == REB_WORD) {
         if (VAL_WORD_SYMBOL(feed->value) == PG_Slash_1_Canon) {
             *flags |=
                 FLAG_STATE_BYTE(ST_EVALUATOR_LOOKING_AHEAD)

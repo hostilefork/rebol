@@ -297,7 +297,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
     // form.  So if '''a fits in a WORD! (despite being a QUOTED!), we want
     // to mark the cell as if it were a plain word.  Use the CELL_KIND.
     //
-    enum Reb_Kind heart = cast(enum Reb_Kind, HEART_BYTE(v));
+    enum Reb_Kind heart = cast(enum Reb_Kind, HEART3X_BYTE(v));
 
   #if !defined(NDEBUG)  // see Queue_Mark_Node_Deep() for notes on recursion
     assert(not in_mark);

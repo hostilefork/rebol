@@ -657,7 +657,7 @@ inline static REBCTX *Steal_Context_Vars(REBCTX *c, REBNOD *keysource) {
     single->header.bits =
         NODE_FLAG_NODE | NODE_FLAG_CELL
             | FLAG_KIND3Q_BYTE(REB_FRAME)
-            | FLAG_HEART_BYTE(REB_FRAME)
+            | FLAG_HEART3X_BYTE(REB_FRAME)
             | CELL_MASK_CONTEXT;
     INIT_VAL_CONTEXT_VARLIST(single, ARR(stub));
     INIT_VAL_FRAME_BINDING(single, VAL_FRAME_BINDING(rootvar));

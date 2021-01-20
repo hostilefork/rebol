@@ -102,7 +102,7 @@ REBVAL *Try_Init_Any_Sequence_At_Arraylike_Core(
 
     Init_Any_Series_At_Core(out, REB_BLOCK, a, index, specifier);
     mutable_KIND3Q_BYTE(out) = kind;
-    assert(HEART_BYTE(out) == REB_BLOCK);
+    assert(HEART3X_BYTE(out) == REB_BLOCK);
 
     return cast(REBVAL*, out);
 }

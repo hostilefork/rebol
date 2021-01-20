@@ -277,7 +277,7 @@ inline static void INIT_VAL_NODE2(RELVAL *v, const REBNOD *node) {
     cast(enum Reb_Kind, KIND3Q_BYTE_UNCHECKED(cell) % REB_64)
 
 #define CELL_HEART_UNCHECKED(cell) \
-    cast(enum Reb_Kind, HEART_BYTE(cell))
+    cast(enum Reb_Kind, HEART3X_BYTE(cell) % REB_64)
 
 
 #if defined(NDEBUG) or !defined(CPLUSPLUS_11)
@@ -285,12 +285,12 @@ inline static void INIT_VAL_NODE2(RELVAL *v, const REBNOD *node) {
     #define CELL_HEART CELL_HEART_UNCHECKED
 #else
     inline static enum Reb_Kind CELL_KIND(REBCEL(const*) cell) {
-        assert(HEART_BYTE(cell) != REB_QUOTED);
+        assert(HEART3X_BYTE(cell) != REB_QUOTED);
         return CELL_KIND_UNCHECKED(cell);
     }
 
     inline static enum Reb_Kind CELL_HEART(REBCEL(const*) cell) {
-        assert(HEART_BYTE(cell) != REB_QUOTED);
+        assert(HEART3X_BYTE(cell) != REB_QUOTED);
         return CELL_HEART_UNCHECKED(cell);
     }
 
@@ -418,7 +418,7 @@ inline static REBVAL *RESET_VAL_HEADER(
 ){
     ASSERT_CELL_WRITABLE_EVIL_MACRO(v);
     v->header.bits &= CELL_MASK_PERSIST;
-    v->header.bits |= FLAG_KIND3Q_BYTE(k) | FLAG_HEART_BYTE(k) | extra;
+    v->header.bits |= FLAG_KIND3Q_BYTE(k) | FLAG_HEART3X_BYTE(k) | extra;
     return cast(REBVAL*, v);
 }
 
@@ -463,7 +463,7 @@ inline static REBVAL *RESET_CUSTOM_CELL(
 #define CELL_MASK_PREP_END \
     (CELL_MASK_PREP \
         | FLAG_KIND3Q_BYTE(REB_0) \
-        | FLAG_HEART_BYTE(REB_0))  // a more explicit CELL_MASK_PREP
+        | FLAG_HEART3X_BYTE(REB_0))  // a more explicit CELL_MASK_PREP
 
 inline static RELVAL *Prep_Cell_Core(RELVAL *c) {
     ALIGN_CHECK_CELL_EVIL_MACRO(c);
@@ -494,7 +494,7 @@ inline static RELVAL *Prep_Cell_Core(RELVAL *c) {
         v->header.bits &= CELL_MASK_PERSIST;
         v->header.bits |=
             FLAG_KIND3Q_BYTE(REB_T_TRASH)
-                | FLAG_HEART_BYTE(REB_T_TRASH);
+                | FLAG_HEART3X_BYTE(REB_T_TRASH);
         return cast(REBVAL*, v);
     }
 
@@ -543,7 +543,7 @@ inline static RELVAL *Prep_Cell_Core(RELVAL *c) {
         // an END to its contents.  Hence you cannot count on the heart
         // byte being anything in an END cell.  Set to trash in debug.
         //
-        mutable_HEART_BYTE(v) = REB_T_TRASH;
+        mutable_HEART3X_BYTE(v) = REB_T_TRASH;
         return cast(REBVAL*, v);
     }
 

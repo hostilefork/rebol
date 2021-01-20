@@ -170,14 +170,14 @@
 // flag bits of the node.  This could have a runtime check in debug build
 // with a C++ variation that only takes mutable pointers.
 //
-inline static void INIT_VAL_NODE1(RELVAL *v, const REBNOD *node) {
+inline static void INIT_VAL_NODE1(RELVAL *v, option(const REBNOD*) node) {
     assert(v->header.bits & CELL_FLAG_FIRST_IS_NODE);
-    PAYLOAD(Any, v).first.node = node;
+    PAYLOAD(Any, v).first.node = try_unwrap(node);
 }
 
-inline static void INIT_VAL_NODE2(RELVAL *v, const REBNOD *node) {
+inline static void INIT_VAL_NODE2(RELVAL *v, option(const REBNOD*) node) {
     assert(v->header.bits & CELL_FLAG_SECOND_IS_NODE);
-    PAYLOAD(Any, v).second.node = node;
+    PAYLOAD(Any, v).second.node = try_unwrap(node);
 }
 
 #define VAL_NODE1(v) \

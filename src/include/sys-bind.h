@@ -451,6 +451,29 @@ inline static REBVAL* Unrelativize(RELVAL* out, const RELVAL* v) {
 #define rebUnrelativize(v) \
     Unrelativize(Alloc_Value(), (v))
 
+inline static void Bind_Any_Word(RELVAL *v, REBNOD *act_or_ctx, REBLEN index) {
+    INIT_VAL_WORD_BINDING(v, SER(act_or_ctx));
+    INIT_VAL_WORD_PRIMARY_INDEX(v, index);
+}
+
+inline static REBVAL *Init_Any_Word_Bound_Core(
+    RELVAL *out,
+    enum Reb_Kind type,
+    const REBSYM *symbol,
+    REBCTX *context,  // spelling determined by context and index
+    REBLEN index
+){
+    Init_Any_Word_Untracked(out, type, symbol);
+    Bind_Any_Word(out, context, index);
+
+    return cast(REBVAL*, out);
+}
+
+#define Init_Any_Word_Bound(out,type,symbol,context,index) \
+    Init_Any_Word_Bound_Core( \
+        TRACK_CELL_IF_DEBUG(out), (type), (symbol), (context), (index))
+
+
 inline static void Unbind_Any_Word(RELVAL *v) {
     const REBSTR *spelling = VAL_WORD_SYMBOL(VAL_UNESCAPED(v));
     INIT_VAL_WORD_BINDING(v, spelling);
@@ -504,6 +527,9 @@ inline static OPT_SYMID VAL_WORD_ID(REBCEL(const*) v) {
     assert(PG_Symbol_Canons);  // all syms are 0 prior to Init_Symbols()
     return ID_OF_CANON(VAL_WORD_CANON(v));
 }
+
+#define VAL_WORD_STORED_CANON(cell) \
+    CAN(VAL_WORD_SYMBOL(cell))  // !!! This may become more optimizable
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -966,13 +992,12 @@ inline static REBVAL *Derelativize(
     return cast(REBVAL*, out);
 }
 
-
-// In the C++ build, defining this overload that takes a REBVAL* instead of
-// a RELVAL*, and then not defining it...will tell you that you do not need
-// to use Derelativize.  Juse Move_Value() if your source is a REBVAL!
-//
 #ifdef CPLUSPLUS_11
-    REBVAL *Derelativize(RELVAL *dest, const REBVAL *v, REBSPC *specifier);
+    REBVAL *Derelativize(
+        RELVAL *dest,
+        const REBVAL *v,  // use Move_Value() if source is already REBVAL*
+        REBSPC *specifier
+    ) = delete;
 #endif
 
 

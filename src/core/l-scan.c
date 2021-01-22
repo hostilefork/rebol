@@ -2382,8 +2382,7 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
             //
             // Exists in user context at the given positive index.
             //
-            INIT_VAL_WORD_BINDING(DS_TOP, CTX_VARLIST(context));
-            INIT_VAL_WORD_PRIMARY_INDEX(DS_TOP, n);
+            Bind_Any_Word(DS_TOP, context, n);
         }
         else if (n < 0) {
             //

@@ -70,8 +70,7 @@ void Bind_Values_Inner_Loop(
                 // We're overwriting any previous binding, which may have
                 // been relative.
 
-                INIT_VAL_WORD_BINDING(v, CTX_VARLIST(context));
-                INIT_VAL_WORD_PRIMARY_INDEX(v, n);
+                Bind_Any_Word(v, context, n);
             }
             else if (type_bit & add_midstream_types) {
                 //
@@ -209,8 +208,8 @@ REBLEN Try_Bind_Word(const RELVAL *context, REBVAL *word)
 {
     REBLEN n = Find_Canon_In_Context(context, VAL_WORD_CANON(word));
     if (n != 0) {
-        INIT_VAL_WORD_BINDING(word, CTX_VARLIST(VAL_CONTEXT(context)));
-        INIT_VAL_WORD_PRIMARY_INDEX(word, n);  // ^-- may have been relative
+        Bind_Any_Word(word, VAL_CONTEXT(context), n);
+                            // ^-- "may have been relative" (old comment ?)
     }
     return n;
 }
@@ -396,8 +395,7 @@ static void Clonify_And_Bind_Relative(
             // Word' symbol is in frame.  Relatively bind it.  Note that the
             // action bound to can be "incomplete" (LETs still gathering)
             //
-            INIT_VAL_WORD_BINDING(v, ACT_DETAILS(relative));
-            INIT_VAL_WORD_PRIMARY_INDEX(v, n);
+            Bind_Any_Word(v, relative, n);
         }
     }
     else if (ANY_ARRAY_OR_PATH_KIND(heart)) {
@@ -580,13 +578,15 @@ void Rebind_Values_Deep(
             INIT_VAL_WORD_BINDING(v, CTX_VARLIST(to));
 
             if (binder) {
-                INIT_VAL_WORD_PRIMARY_INDEX(
-                    v,
-                    Get_Binder_Index_Else_0(
-                        unwrap(binder),
-                        VAL_WORD_CANON(v)
-                    )
+                REBLEN updated = Get_Binder_Index_Else_0(
+                    unwrap(binder),
+                    VAL_WORD_CANON(v)
                 );
+                Bind_Any_Word(v, to, updated);
+            }
+            else {
+                REBLEN index = VAL_WORD_PRIMARY_INDEX_UNCHECKED(v);
+                Bind_Any_Word(v, to, index);
             }
         }
         else if (IS_ACTION(v)) {

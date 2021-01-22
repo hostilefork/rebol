@@ -190,8 +190,7 @@ REBVAL *Append_Context(
         assert(not canon);
 
         REBLEN len = CTX_LEN(context); // length we just bumped
-        INIT_VAL_WORD_BINDING(unwrap(any_word), CTX_VARLIST(context));
-        INIT_VAL_WORD_PRIMARY_INDEX(unwrap(any_word), len);
+        Bind_Any_Word(unwrap(any_word), context, len);
     }
 
     return value;  // location we just added (void cell)
@@ -714,6 +713,7 @@ REBARR *Context_To_Array(const RELVAL *context, REBINT mode)
             Init_Any_Word_Bound(
                 DS_PUSH(),
                 (mode & 2) ? REB_SET_WORD : REB_WORD,
+                KEY_CANON(key),
                 VAL_CONTEXT(context),
                 n
             );

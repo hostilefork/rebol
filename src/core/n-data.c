@@ -246,7 +246,8 @@ REBSPC *Specifier_Chained_With_Context(
     // data that is embedded into words...making caching worthless.  So
     // it is chosen to match the "at that moment" behavior of mutable BIND.)
     //
-    if (CTX_LEN(ctx) == 0)
+    REBLEN ctx_len = CTX_LEN(ctx);
+    if (ctx_len == 0)
         return specifier;
 
     REBARR *patch = Alloc_Singular(
@@ -280,7 +281,8 @@ REBSPC *Specifier_Chained_With_Context(
     //   because the standard error object starts life as an object.  (This
     //   mechanism needs revisiting, but it's just another reason.)
     //
-    Init_Any_Word_Bound(ARR_SINGLE(patch), kind, ctx, CTX_LEN(ctx));
+    const REBCAN *canon = KEY_CANON(CTX_KEY(ctx, ctx_len));
+    Init_Any_Word_Bound(ARR_SINGLE(patch), kind, canon, ctx, ctx_len);
 
     // The way it is designed, the list of patches terminates in either a
     // nullptr or a context pointer that represents the specifying frame for
@@ -358,11 +360,12 @@ REBNATIVE(in)
     // here in IN, but BIND's behavior on words may need revisiting.
     //
     if (ANY_WORD(v)) {
-        const REBCAN *canon = VAL_WORD_CANON(v);
+        const REBSYM *symbol = VAL_WORD_SYMBOL(v);
+        const REBCAN *canon = Canon_Of_Symbol(symbol);
         REBLEN index = Find_Canon_In_Context(ARG(context), canon);
         if (index == 0)
             return nullptr;
-        return Init_Any_Word_Bound(D_OUT, VAL_TYPE(v), ctx, index);
+        return Init_Any_Word_Bound(D_OUT, VAL_TYPE(v), symbol, ctx, index);
     }
 
     assert(ANY_ARRAY(v));
@@ -395,11 +398,12 @@ REBNATIVE(without)
     // here in IN, but BIND's behavior on words may need revisiting.
     //
     if (ANY_WORD(v)) {
-        const REBCAN *canon = VAL_WORD_CANON(v);
+        const REBSYM *symbol = VAL_WORD_SYMBOL(v);
+        const REBCAN *canon = Canon_Of_Symbol(symbol);
         REBLEN index = Find_Canon_In_Context(ARG(context), canon);
         if (index == 0)
             return nullptr;
-        return Init_Any_Word_Bound(D_OUT, VAL_TYPE(v), ctx, index);
+        return Init_Any_Word_Bound(D_OUT, VAL_TYPE(v), symbol, ctx, index);
     }
 
     assert(ANY_ARRAY(v));

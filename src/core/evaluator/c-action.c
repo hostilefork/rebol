@@ -293,8 +293,7 @@ bool Process_Action_Maybe_Stale_Throws(REBFRM * const f)
                     continue;  // for efficiency, path pushed canonized words
 
                 REBLEN offset = f->arg - FRM_ARGS_HEAD(f);
-                INIT_VAL_WORD_BINDING(ordered, f->varlist);
-                INIT_VAL_WORD_PRIMARY_INDEX(ordered, offset + 1);
+                Bind_Any_Word(ordered, f->varlist, offset + 1);
 
                 if (Is_Typeset_Empty(f->param)) {
                     //

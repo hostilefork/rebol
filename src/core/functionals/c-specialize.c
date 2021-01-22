@@ -180,8 +180,7 @@ REBCTX *Make_Context_For_Action_Push_Partials(
                 continue;  // just continuing this loop
 
             assert(not IS_WORD_BOUND(ordered));  // we bind only one
-            INIT_VAL_WORD_BINDING(ordered, varlist);
-            INIT_VAL_WORD_PRIMARY_INDEX(ordered, index);
+            Bind_Any_Word(ordered, varlist, index);
 
             if (not Is_Typeset_Empty(param))  // needs argument
                 goto continue_unspecialized;
@@ -430,6 +429,7 @@ bool Specialize_Action_Throws(
                 Init_Any_Word_Bound(
                     Alloc_Tail_Array(partials),
                     REB_WORD,
+                    VAL_WORD_STORED_CANON(ordered),
                     exemplar,
                     VAL_WORD_INDEX(ordered)
                 );

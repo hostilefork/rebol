@@ -446,8 +446,10 @@ static REB_R Loop_Each_Core(struct Loop_Each_State *les) {
                 REBCTX *c = VAL_CONTEXT(les->data);
 
                 REBVAR *val;
+                const REBKEY *key;
                 REBLEN bind_index;
                 while (true) {  // find next non-hidden key (if any)
+                    key = CTX_KEY(c, les->data_idx);
                     val = CTX_VAR(c, les->data_idx);
                     bind_index = les->data_idx;
                     if (++les->data_idx == les->data_len)
@@ -462,6 +464,7 @@ static REB_R Loop_Each_Core(struct Loop_Each_State *les) {
                     Init_Any_Word_Bound(  // key is typeset, user wants word
                         var,
                         REB_WORD,
+                        KEY_CANON(key),
                         VAL_CONTEXT(les->data),
                         bind_index
                     );

@@ -349,7 +349,7 @@ void Assert_Cell_Marked_Correctly(const RELVAL *v)
       case REB_SYM_WORD: {
         assert(GET_CELL_FLAG(v, FIRST_IS_NODE));
 
-        REBSPC *cache = VAL_WORD_CACHE(v);
+        REBSPC *cache = VAL_WORD_CACHE(cast(REBCEL(const*), v));
         if (cache) {
             assert(
                 GET_ARRAY_FLAG(cache, IS_PATCH)

@@ -720,20 +720,30 @@ inline static REBVAL *SPECIFIC(const_if_c RELVAL *v) {
 #define UNSPECIFIED nullptr
 
 
-#define VAL_WORD_CACHE(v) \
-    cast(REBSPC*, VAL_NODE1(v))
+inline static REBSPC *VAL_WORD_CACHE(REBCEL(const*) v) {
+    assert(ANY_WORD_KIND(HEART3X_BYTE(v)));  // not REB_QUOTED, must unescape
+    return cast(REBSPC*, VAL_NODE1(v));
+}
 
-inline static void INIT_VAL_WORD_CACHE(const RELVAL *v, REBSPC *specifier)
-  { INIT_VAL_NODE1(m_cast(RELVAL*, v), specifier); }
+inline static void INIT_VAL_WORD_CACHE(REBCEL(const*) v, REBSPC *specifier) {
+    assert(ANY_WORD_KIND(HEART3X_BYTE(v)));  // not REB_QUOTED, must unescape
+    INIT_VAL_NODE1(m_cast(RELVAL*, cast(const RELVAL*, v)), specifier);
+}
+
+#ifdef CPLUSPLUS_11
+    inline static REBSPC *VAL_WORD_CACHE(const RELVAL *v) = delete;
+    inline static void INIT_VAL_WORD_CACHE(
+        const RELVAL *v,
+        REBSPC *specifier
+    ) = delete;
+#endif
 
 #define MONDEX_MOD 4095  // modulus for the cached index modulus ("mondex")
 #define VAL_WORD_INDEXES_U32(v)         PAYLOAD(Any, (v)).second.u32
 
 
-inline static void Move_Value_Header(
-    RELVAL *out,
-    const RELVAL *v
-){
+inline static void Move_Value_Header(RELVAL *out, REBCEL(const*) v)
+{
     assert(out != v);  // usually a sign of a mistake; not worth supporting
     assert(KIND3Q_BYTE_UNCHECKED(v) != REB_0_END);  // faster than NOT_END()
 

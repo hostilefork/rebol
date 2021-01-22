@@ -585,7 +585,7 @@ void Rebind_Values_Deep(
                 Bind_Any_Word(v, to, updated);
             }
             else {
-                REBLEN index = VAL_WORD_PRIMARY_INDEX_UNCHECKED(v);
+                REBLEN index = VAL_WORD_PRIMARY_INDEX(v);
                 Bind_Any_Word(v, to, index);
             }
         }

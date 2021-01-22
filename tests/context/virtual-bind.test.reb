@@ -186,3 +186,13 @@
         ]
     ]
 )
+
+; Virtual binding needs to work on high quote levels too
+(
+    x: 304
+    xbox: ['''''''''x]
+    did all [
+        1020 = get dequote use [x] compose [x: 1020, first (xbox)]
+        304 = get dequote first xbox
+    ]
+)

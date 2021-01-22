@@ -209,14 +209,14 @@ inline static RELVAL *Unquotify_In_Situ(RELVAL *v, REBLEN unquotes)
 
 inline static void Collapse_Quoted_Internal(RELVAL *v)
 {
-    REBVAL *unquoted = VAL_QUOTED_PAYLOAD_CELL(v);
+    REBCEL(const*) unquoted = VAL_QUOTED_PAYLOAD_CELL(v);
     assert(
-        KIND3Q_BYTE(unquoted) != REB_0
-        and KIND3Q_BYTE(unquoted) != REB_QUOTED
-        and KIND3Q_BYTE(unquoted) < REB_MAX
+        KIND3Q_BYTE_UNCHECKED(unquoted) != REB_0
+        and KIND3Q_BYTE_UNCHECKED(unquoted) != REB_QUOTED
+        and KIND3Q_BYTE_UNCHECKED(unquoted) < REB_MAX
     );
     Move_Value_Header(v, unquoted);
-    if (ANY_WORD_KIND(CELL_HEART(cast(REBCEL(const*), unquoted)))) {
+    if (ANY_WORD_KIND(CELL_HEART(unquoted))) {
         //
         // `v` needs to retain the primary binding index (which was
         // kept in its QUOTED! form), but sync with the virtual binding
@@ -225,7 +225,7 @@ inline static void Collapse_Quoted_Internal(RELVAL *v)
         VAL_WORD_INDEXES_U32(v) &= 0x000FFFFF;  // wipe out quote depth
         VAL_WORD_INDEXES_U32(v) |=
             (VAL_WORD_INDEXES_U32(unquoted) & 0xFFF00000);
-        INIT_VAL_WORD_CACHE(v, VAL_WORD_CACHE(unquoted));
+        INIT_VAL_WORD_CACHE(cast(REBCEL(const*), v), VAL_WORD_CACHE(unquoted));
     }
     else {
         v->payload = unquoted->payload;

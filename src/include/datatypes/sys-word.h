@@ -69,6 +69,11 @@ inline static void INIT_LINK_KEYSOURCE(REBARR *varlist, REBNOD *keysource) {
     mutable_LINK(KeySource, varlist) = keysource;
 }
 
+inline static REBLEN VAL_WORD_PRIMARY_INDEX(RELVAL *v) {
+    assert(ANY_WORD_KIND(CELL_KIND(VAL_UNESCAPED(v))));
+    return VAL_WORD_PRIMARY_INDEX_UNCHECKED(v);
+}
+
 inline static void INIT_VAL_WORD_PRIMARY_INDEX(RELVAL *v, REBLEN i) {
     assert(ANY_WORD_KIND(CELL_HEART(VAL_UNESCAPED(v))));
     assert(i < 1048576);  // 20 bit number for physical indices
@@ -77,14 +82,21 @@ inline static void INIT_VAL_WORD_PRIMARY_INDEX(RELVAL *v, REBLEN i) {
 }
 
 inline static void INIT_VAL_WORD_VIRTUAL_MONDEX(
-    const RELVAL *v,  // mutation allowed on cached property
+    REBCEL(const*) v,  // mutation allowed on cached property
     REBLEN mondex  // index mod 4095 (hence invented name "mondex")
 ){
-    assert(ANY_WORD_KIND(CELL_HEART(VAL_UNESCAPED(v))));
+    assert(ANY_WORD_KIND(HEART3X_BYTE(v)));
     assert(mondex <= MONDEX_MOD);  // 12 bit number for virtual indices
-    VAL_WORD_INDEXES_U32(m_cast(RELVAL*, v)) &= 0x000FFFFF;
-    VAL_WORD_INDEXES_U32(m_cast(RELVAL*, v)) |= mondex << 20;
+    VAL_WORD_INDEXES_U32(m_cast(RELVAL*, cast(const RELVAL*, v))) &= 0x000FFFFF;
+    VAL_WORD_INDEXES_U32(m_cast(RELVAL*, cast(const RELVAL*, v))) |= mondex << 20;
 }
+
+#ifdef CPLUSPLUS_11
+    inline static void INIT_VAL_WORD_VIRTUAL_MONDEX(
+        const RELVAL *v,  // virtual binding only in unescaped forms
+        REBLEN mondex
+    ) = delete;
+#endif
 
 inline static REBVAL *Init_Any_Word_Untracked(
     RELVAL *out,
@@ -94,7 +106,7 @@ inline static REBVAL *Init_Any_Word_Untracked(
     RESET_VAL_HEADER(out, kind, CELL_FLAG_FIRST_IS_NODE);
     mutable_BINDING(out) = sym;
     VAL_WORD_INDEXES_U32(out) = 0;
-    INIT_VAL_WORD_CACHE(out, SPECIFIED);
+    INIT_VAL_WORD_CACHE(cast(REBCEL(const*), out), SPECIFIED);
 
     return cast(REBVAL*, out);
 }

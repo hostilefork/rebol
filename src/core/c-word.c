@@ -315,7 +315,8 @@ const REBSYM *Intern_UTF8_Managed(const REBYTE *utf8, size_t size)
     // be skipped to try again) the search uses a comparison that is
     // case-insensitive...but reports if synonyms via > 0 results.
     //
-    REBSYM *synonym = nullptr;
+    REBSYM *prev_synonym = nullptr;
+    uint16_t intern_order;
     REBSYM **deleted_slot = nullptr;
     REBSYM* canon;
     while ((canon = canons_by_hash[slot])) {
@@ -323,6 +324,8 @@ const REBSYM *Intern_UTF8_Managed(const REBYTE *utf8, size_t size)
             deleted_slot = &canons_by_hash[slot];
             goto next_candidate_slot;
         }
+
+        assert(GET_SERIES_INFO(canon, SYMBOL_IS_CANON));
 
       blockscope {
         REBINT cmp = Compare_UTF8(STR_HEAD(canon), utf8, size);
@@ -336,15 +339,36 @@ const REBSYM *Intern_UTF8_Managed(const REBYTE *utf8, size_t size)
         // lowercase).  Search the stored circularly linked list to see if
         // this is a spelling variation that we've seen before.
         //
-        synonym = canon;
-        while (LINK(NextSynonym, synonym) != canon) {
-            if (0 == Compare_UTF8(STR_HEAD(canon), STR_HEAD(synonym), size))
-                return synonym;  // already interned, return the symbol
+        if (LINK(NextSynonym, canon) == canon) {
+            intern_order = 1;
+            prev_synonym = canon;
+            goto new_synonym_symbol;
         }
 
-        // `synonym` is the tail of the synonyms list, ready to insert a
-        // new symbol after it (position must be kept as the order of synonyms
-        // is important).
+        REBSYM *last = canon;
+        intern_order = 0;
+        do {
+            REBSYM *synonym = LINK(NextSynonym, last);
+            if (0 == Compare_UTF8(STR_HEAD(synonym), utf8, size))
+                return synonym;  // already interned, return the symbol
+
+            if (not prev_synonym) {
+                uint16_t synonym_order = SECOND_UINT16(synonym->leader);
+                ++intern_order;
+                assert(intern_order <= synonym_order);
+                if (intern_order < synonym_order)  // reclaim the lower number
+                    prev_synonym = synonym;
+            }
+
+            last = synonym;
+        } while (LINK(NextSynonym, last) != canon);
+
+        // If we didn't find a lower index in the ordering to reclaim for
+        // this synonym insertion, then put it at the tail of the synonyms
+        // list (e.g. the canon in circular linkage will be its NextSynonym)
+        //
+        if (prev_synonym == nullptr)
+            prev_synonym = last;
 
         goto new_synonym_symbol;
       }
@@ -384,14 +408,13 @@ const REBSYM *Intern_UTF8_Managed(const REBYTE *utf8, size_t size)
         return canon;
 
     // But if the canon was not all lowercase, we have to do a synonym
-    // insertion.  Point to the canon itself as the tail of the synonyms.
+    // insertion.  Insert the new symbol before the canon itself.
     //
-    synonym = canon;
+    prev_synonym = canon;
+    intern_order = 1;
   }
 
   new_synonym_symbol: {  // `synonym` should hold current last synonym in list
-
-    assert(LINK(NextSynonym, synonym) == canon);  // cued for circular insert
 
     REBSYM *intern = SYM(Make_Series_Core(
         size + 1,  // if small, fits in a REBSER node (w/no data allocation)
@@ -415,8 +438,8 @@ const REBSYM *Intern_UTF8_Managed(const REBYTE *utf8, size_t size)
     // This is a synonym for an existing canon.  Link it into the synonyms
     // circularly linked list, and direct link the canon form.
     //
-    mutable_LINK(NextSynonym, intern) = canon;
-    mutable_LINK(NextSynonym, synonym) = SYM(intern);
+    mutable_LINK(NextSynonym, intern) = LINK(NextSynonym, prev_synonym);
+    mutable_LINK(NextSynonym, prev_synonym) = SYM(intern);
 
     // We want to make sure canons aren't GC'd so long as a synonym for them
     // exists, so keeping a pointer to the canon in the synonym plus the
@@ -424,13 +447,25 @@ const REBSYM *Intern_UTF8_Managed(const REBYTE *utf8, size_t size)
     //
     mutable_MISC(CanonOfSynonym, intern) = canon;
 
-    // If the canon form had a SYM_XXX for quick comparison of %words.r
-    // words in C switch statements, the synonym inherits that number.
+    // The general case of a WORD! cell does not have enough bits to store
+    // binding, virtual binding, and a unique spelling variation for the
+    // word.  We'd have to increase the cell size...which would have broad
+    // impacts on the system.
     //
-    // !!! This may or may not be necessary...and may be better to encode some
-    // other property that synonyms have (like their order in the list)
+    // What's done instead is that non-canon symbols store the index of the
+    // synonym in the linked list, and sneak that information into the header.
+    // 32-bit systems don't have enough space to store a full index...so
+    // the trick only works for the first 3 synonyms, and if a word uses a
+    // variation besides that the cell must expand (similar to QUOTED!)
     //
+    // !!! It would be nice if this index could be folded in to somewhere
+    // that it was 0 in the canon form so a separate bit flag test for the
+    // canon status wasn't needed.
+    //
+    assert(NOT_SERIES_INFO(intern, SYMBOL_IS_CANON));
     assert(SECOND_UINT16(intern->leader) == 0);
+    assert(intern_order != 0);
+    SET_SECOND_UINT16(intern->leader, intern_order);
 
     return intern;
   }

@@ -155,7 +155,7 @@ REBNATIVE(_and_)  // see TO-C-NAME
     }
 
     if (IS_GROUP(right) or IS_GET_GROUP(right))  // don't double execute
-        mutable_KIND3Q_BYTE(right) = mutable_HEART3X_BYTE(right) = REB_SYM_BLOCK;
+        Update_Kind_Heart(right, REB_SYM_BLOCK, REB_SYM_BLOCK);
 
     if (Do_Branch_With_Throws(D_OUT, right, left))
         return R_THROWN;
@@ -194,7 +194,7 @@ REBNATIVE(_or_)  // see TO-C-NAME
     }
 
     if (IS_GROUP(right) or IS_GET_GROUP(right))  // don't double execute
-        mutable_KIND3Q_BYTE(right) = mutable_HEART3X_BYTE(right) = REB_SYM_BLOCK;
+        Update_Kind_Heart(right, REB_SYM_BLOCK, REB_SYM_BLOCK);
 
     if (Do_Branch_With_Throws(D_OUT, right, left))
         return R_THROWN;
@@ -226,7 +226,7 @@ REBNATIVE(_xor_)  // see TO-C-NAME
             fail (Error_Unintended_Literal_Raw(left));
 
     if (IS_GROUP(right) or IS_GET_GROUP(right))  // don't double execute
-        mutable_KIND3Q_BYTE(right) = mutable_HEART3X_BYTE(right) = REB_SYM_BLOCK;
+        Update_Kind_Heart(right, REB_SYM_BLOCK, REB_SYM_BLOCK);
 
     if (Do_Branch_With_Throws(D_OUT, right, left))
         return R_THROWN;

@@ -448,7 +448,7 @@ void Mold_Or_Form_Value(REB_MOLD *mo, const RELVAL *v, bool form)
     for (i = 0; i < depth; ++i)
         Append_Ascii(mo->series, "'");
 
-    Mold_Or_Form_Cell(mo, VAL_UNESCAPED(v), form);
+    Mold_Or_Form_Cell(mo, IS_QUOTED(v) ? VAL_UNESCAPED(v) : v, form);
 }
 
 

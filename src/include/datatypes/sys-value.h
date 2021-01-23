@@ -285,12 +285,12 @@ inline static void INIT_VAL_NODE2(RELVAL *v, option(const REBNOD*) node) {
     #define CELL_HEART CELL_HEART_UNCHECKED
 #else
     inline static enum Reb_Kind CELL_KIND(REBCEL(const*) cell) {
-        assert(HEART3X_BYTE(cell) != REB_QUOTED);
+        assert(KIND3Q_BYTE_UNCHECKED(cell) != REB_QUOTED);
         return CELL_KIND_UNCHECKED(cell);
     }
 
     inline static enum Reb_Kind CELL_HEART(REBCEL(const*) cell) {
-        assert(HEART3X_BYTE(cell) != REB_QUOTED);
+        assert(KIND3Q_BYTE_UNCHECKED(cell) != REB_QUOTED);
         return CELL_HEART_UNCHECKED(cell);
     }
 
@@ -739,6 +739,7 @@ inline static void INIT_VAL_WORD_CACHE(REBCEL(const*) v, REBSPC *specifier) {
 #endif
 
 #define MONDEX_MOD 4095  // modulus for the cached index modulus ("mondex")
+#define MONDEX_SHIFT 20  // how many bits to shift left for mondex
 #define VAL_WORD_INDEXES_U32(v)         PAYLOAD(Any, (v)).second.u32
 
 

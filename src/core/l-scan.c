@@ -2572,11 +2572,7 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
 
         // Can only store file and line information if it has an array
         //
-        if (
-            GET_CELL_FLAG(DS_TOP, FIRST_IS_NODE)
-            and VAL_NODE1(DS_TOP) != nullptr  // null legal in node slots ATM
-            and IS_SER_ARRAY(SER(VAL_NODE1(DS_TOP)))
-        ){
+        if (ANY_ARRAY(DS_TOP)) {
             REBARR *a = ARR(VAL_NODE1(DS_TOP));
             a->misc.line = ss->line;
             mutable_LINK(Filename, a) = ss->file;
@@ -2639,10 +2635,7 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
         if (not IS_ANY_SIGIL_KIND(kind))
             fail (Error_Syntax(ss, token));
 
-        mutable_KIND3Q_BYTE(DS_TOP) = SETIFY_ANY_PLAIN_KIND(kind);
-        if (kind != REB_PATH and kind != REB_TUPLE)  // keep "heart" as is
-            mutable_HEART3X_BYTE(DS_TOP) = SETIFY_ANY_PLAIN_KIND(kind);
-
+        Setify(DS_TOP);
         ss->begin = ++ss->end;  // !!! ?
     }
     else if (prefix_pending != TOKEN_END) {
@@ -2652,15 +2645,11 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
 
         switch (prefix_pending) {
           case TOKEN_COLON:
-            mutable_KIND3Q_BYTE(DS_TOP) = GETIFY_ANY_PLAIN_KIND(kind);
-            if (kind != REB_PATH and kind != REB_TUPLE)  // keep "heart" as is
-                mutable_HEART3X_BYTE(DS_TOP) = GETIFY_ANY_PLAIN_KIND(kind);
+            Getify(DS_TOP);
             break;
 
           case TOKEN_AT:
-            mutable_KIND3Q_BYTE(DS_TOP) = SYMIFY_ANY_PLAIN_KIND(kind);
-            if (kind != REB_PATH and kind != REB_TUPLE)  // keep "heart" as is
-                mutable_HEART3X_BYTE(DS_TOP) = SYMIFY_ANY_PLAIN_KIND(kind);
+            Symify(DS_TOP);
             break;
 
           default:

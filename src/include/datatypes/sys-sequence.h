@@ -151,7 +151,7 @@ inline static REBVAL *Init_Any_Sequence_1(RELVAL *out, enum Reb_Kind kind) {
         assert(ANY_TUPLE_KIND(kind));
         Init_Word(out, PG_Dot_1_Canon);
     }
-    mutable_KIND3Q_BYTE(out) = kind;
+    Update_Kind_Heart(out, kind, REB_0);
     assert(HEART3X_BYTE(out) == REB_WORD);  // leave as-is
     return cast(REBVAL*, out);
 }
@@ -184,9 +184,12 @@ inline static REBVAL *Try_Leading_Blank_Pathify(
     //
     enum Reb_Kind inner = VAL_TYPE(v);
     if (inner == REB_WORD or inner == REB_GROUP or inner == REB_BLOCK) {
-        assert(HEART3X_BYTE(v) == inner);
-        mutable_HEART3X_BYTE(v) = GETIFY_ANY_PLAIN_KIND(inner);  // "refinement"
-        mutable_KIND3Q_BYTE(v) = kind;  // give it the veneer of a sequence
+        assert((HEART3X_BYTE(v) % REB_64) == inner);
+        Update_Kind_Heart(  // give it the veneer of a sequence
+            v,
+            kind,
+            GETIFY_ANY_PLAIN_KIND(HEART3X_BYTE(v) % REB_64)
+        );
         return v;
     }
 
@@ -319,8 +322,7 @@ inline static REBVAL *Try_Init_Any_Sequence_Pairlike_Core(
         and (inner == REB_WORD or inner == REB_BLOCK or inner == REB_GROUP)
     ){
         Derelativize(out, v1, specifier);
-        mutable_KIND3Q_BYTE(out) = kind;
-        mutable_HEART3X_BYTE(out) = SYMIFY_ANY_PLAIN_KIND(inner);
+        Update_Kind_Heart(out, kind, SYMIFY_ANY_PLAIN_KIND(inner));
         return cast(REBVAL*, out);
     }
 
@@ -535,8 +537,9 @@ inline static const RELVAL *VAL_SEQUENCE_AT(
         //
         if (sequence != store)
             Blit_Relative(store, CELL_TO_VAL(sequence));
-        mutable_KIND3Q_BYTE(store)
-            = mutable_HEART3X_BYTE(store) = PLAINIFY_ANY_GET_KIND(heart);
+
+        enum Reb_Kind plain = PLAINIFY_ANY_GET_KIND(heart);
+        Update_Kind_Heart(store, plain, plain);
         return store; }
 
       case REB_SYM_WORD:  // `a/` or `a.`
@@ -551,8 +554,9 @@ inline static const RELVAL *VAL_SEQUENCE_AT(
         //
         if (sequence != store)
             Blit_Relative(store, CELL_TO_VAL(sequence));
-        mutable_KIND3Q_BYTE(store)
-            = mutable_HEART3X_BYTE(store) = PLAINIFY_ANY_SYM_KIND(heart);
+
+        enum Reb_Kind plain = PLAINIFY_ANY_SYM_KIND(heart);
+        Update_Kind_Heart(store, plain, plain);
         return store; }
 
       case REB_BLOCK: {
@@ -673,7 +677,7 @@ inline static bool IS_REFINEMENT_CELL(REBCEL(const*) v) {
 
 inline static bool IS_REFINEMENT(const RELVAL *v) {
     assert(ANY_PATH(v));
-    return HEART3X_BYTE(v) == REB_GET_WORD;
+    return IS_REFINEMENT_CELL(cast(REBCEL(const*), v));
 }
 
 inline static bool IS_PREDICATE1_CELL(REBCEL(const*) cell)

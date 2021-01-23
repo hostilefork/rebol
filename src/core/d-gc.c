@@ -45,11 +45,10 @@
 //
 void Assert_Cell_Marked_Correctly(const RELVAL *v)
 {
-    if (KIND3Q_BYTE_UNCHECKED(v) == REB_QUOTED) {
+    if (Is_Escaped_Value(v)) {
         assert(GET_CELL_FLAG(v, FIRST_IS_NODE));
-        assert(HEART3X_BYTE(v) == REB_QUOTED);
         assert(Is_Marked(VAL_NODE1(v)));
-        assert(VAL_QUOTED_DEPTH(v) >= 3);
+
         REBCEL(const*) cell = VAL_UNESCAPED(v);
         if (ANY_WORD_KIND(CELL_KIND(cell)))
             assert(GET_SERIES_FLAG(BINDING(cell), IS_STRING));  // unbound

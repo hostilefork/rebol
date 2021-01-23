@@ -6,7 +6,7 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Copyright 2018 Ren-C Open Source Contributors
+// Copyright 2018-2021 Ren-C Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
@@ -65,23 +65,63 @@
 
 inline static void Unbind_Any_Word(RELVAL *v);  // forward define
 
+// The values that are "escaped", e.g. which have VAL_NODE1() pointing to a
+// unbound REBCEL(const*), start at 192.  This includes not just REB_QUOTED
+// but also things like (REB_WORD + REB_64 * 3), which signal that more than
+// 3 spelling variations were needed...so it has to use the unbound form.
+//
+#define REB_192_ESCAPED 192
+
 #define VAL_WORD_PRIMARY_INDEX_UNCHECKED(v) \
     (VAL_WORD_INDEXES_U32(v) & 0x000FFFFF)
 
 #define VAL_WORD_VIRTUAL_MONDEX_UNCHECKED(v) \
     ((VAL_WORD_INDEXES_U32(v) & 0xFFF00000) >> 20)
 
+inline static bool Is_Escaped_Value(const RELVAL *v)
+{
+    if (HEART3X_BYTE(v) < REB_192_ESCAPED)
+        return false;
 
+    if (HEART3X_BYTE(v) == REB_192_ESCAPED) {
+        assert(VAL_WORD_VIRTUAL_MONDEX_UNCHECKED(v) > 3);  // depth
+
+        // If a quoted has its heart byte as the base case escape, that means
+        // it should *not* be a funny-spelled word (if it's a word), because
+        // those words have their own escaping going on.
+        //
+        REBCEL(const*) unescaped = VAL(VAL_NODE1(v));
+        if (ANY_WORD_KIND(CELL_KIND(unescaped))) {
+            const REBSYM *symbol = SYM(BINDING(unescaped));
+            assert(GET_SERIES_INFO(symbol, SYMBOL_IS_CANON));
+            UNUSED(symbol);
+        }
+        UNUSED(unescaped);
+    }
+    else {  // a funny spelled word, that may or may not be a REB_QUOTED
+
+        if (IS_QUOTED(v))
+            assert(VAL_WORD_VIRTUAL_MONDEX_UNCHECKED(v) > 0);  // depth
+        else {
+            assert(ANY_WORD(v) or ANY_SEQUENCE(v));  // sequence w/word heart
+            REBCEL(const*) unescaped = VAL(VAL_NODE1(v));
+            const REBSYM *symbol = SYM(BINDING(unescaped));
+            assert(NOT_SERIES_INFO(symbol, SYMBOL_IS_CANON));
+            UNUSED(unescaped);
+            UNUSED(symbol);
+        }
+    }
+
+    return true;
+}
 
 inline static REBLEN VAL_QUOTED_PAYLOAD_DEPTH(const RELVAL *v) {
-    assert(IS_QUOTED(v));
-    REBLEN depth = VAL_WORD_VIRTUAL_MONDEX_UNCHECKED(v);
-    assert(depth > 3);  // else quote fits entirely in cell
-    return depth;
+    assert(Is_Escaped_Value(v));
+    return VAL_WORD_VIRTUAL_MONDEX_UNCHECKED(v);
 }
 
 inline static REBVAL* VAL_QUOTED_PAYLOAD_CELL(const RELVAL *v) {
-    assert(VAL_QUOTED_PAYLOAD_DEPTH(v) > 3);  // else quote fits in one cell
+    assert(Is_Escaped_Value(v));
     return VAL(VAL_NODE1(v));
 }
 
@@ -104,9 +144,19 @@ inline static RELVAL *Quotify_Core(
     RELVAL *v,
     REBLEN depth
 ){
-    if (KIND3Q_BYTE_UNCHECKED(v) == REB_QUOTED) {  // reuse payload
+    if (depth == 0)
+        return v;  // make below code easier by assuming result always quotes
+
+    if (Is_Escaped_Value(v)) {  // reuse payload
         assert(VAL_QUOTED_PAYLOAD_DEPTH(v) + depth <= MONDEX_MOD);  // limited
-        VAL_WORD_INDEXES_U32(v) += (depth << 20);
+        VAL_WORD_INDEXES_U32(v) += (depth << MONDEX_SHIFT);
+
+        // The pre-existing kind was either a word with a weird spelling
+        // (hence it needed to escape) or something quoted > 3 times, or both.
+        // Unconditionally force it to be a REB_QUOTED.
+        //
+        mutable_KIND3Q_BYTE(v) = REB_QUOTED;
+
         return v;
     }
 
@@ -140,9 +190,18 @@ inline static RELVAL *Quotify_Core(
  
         Manage_Pairing(unquoted);
 
-        RESET_VAL_HEADER(v, REB_QUOTED, CELL_FLAG_FIRST_IS_NODE);
-        INIT_VAL_NODE1(v, unquoted);
-        VAL_WORD_INDEXES_U32(v) = depth << 20;  // see VAL_QUOTED_DEPTH()
+        // We don't use RESET_VAL_HEADER() here because while the kind byte
+        // shows REB_QUOTED (the lower end of the quoted range of kinds),
+        // the heart byte needs to be higher to cluster with the high variant
+        // spellings in the hearts needing escaping.
+        //
+        v->header.bits &= CELL_MASK_PERSIST;
+        v->header.bits |= FLAG_KIND3Q_BYTE(REB_QUOTED)
+                            | FLAG_HEART3X_BYTE(REB_192_ESCAPED)
+                            | CELL_FLAG_FIRST_IS_NODE;
+
+        INIT_VAL_NODE1(v, unquoted);  // v-- See VAL_QUOTED_DEPTH()
+        VAL_WORD_INDEXES_U32(v) = depth << MONDEX_SHIFT;
 
         if (ANY_WORD_KIND(CELL_HEART(cast(REBCEL(const*), unquoted)))) {
             //
@@ -209,12 +268,15 @@ inline static RELVAL *Unquotify_In_Situ(RELVAL *v, REBLEN unquotes)
 
 inline static void Collapse_Quoted_Internal(RELVAL *v)
 {
+    assert(HEART3X_BYTE(v) == REB_192_ESCAPED);
+
     REBCEL(const*) unquoted = VAL_QUOTED_PAYLOAD_CELL(v);
     assert(
         KIND3Q_BYTE_UNCHECKED(unquoted) != REB_0
         and KIND3Q_BYTE_UNCHECKED(unquoted) != REB_QUOTED
         and KIND3Q_BYTE_UNCHECKED(unquoted) < REB_MAX
     );
+
     Move_Value_Header(v, unquoted);
     if (ANY_WORD_KIND(CELL_HEART(unquoted))) {
         //
@@ -235,7 +297,7 @@ inline static void Collapse_Quoted_Internal(RELVAL *v)
 }
 
 
-// Turns 'X into X, or '''''[1 + 2] into '''(1 + 2), etc.
+// Turns 'X into X, or '''''[1 + 2] into '''[1 + 2], etc.
 //
 // Works on escape levels that fit in the cell (<= 3) as well as those that
 // require a second cell to point at in a REB_QUOTED payload.
@@ -247,14 +309,24 @@ inline static RELVAL *Unquotify_Core(RELVAL *v, REBLEN unquotes) {
     if (KIND3Q_BYTE(v) != REB_QUOTED)
         return Unquotify_In_Situ(v, unquotes);
 
+    assert(Is_Escaped_Value(v));
+
     REBLEN depth = VAL_QUOTED_PAYLOAD_DEPTH(v);
-    assert(depth > 3 and depth >= unquotes);
+    assert(depth >= unquotes);
     depth -= unquotes;
 
-    if (depth > 3) // still can't do in-situ escaping within a single cell
-        VAL_WORD_INDEXES_U32(v) -= (unquotes << 20);
+    if (
+        depth > 3  // still can't do in-situ escaping within a single cell
+        or HEART3X_BYTE(v) > REB_192_ESCAPED  // weird words stay escaped
+    ){
+        if (depth == 0)
+            mutable_KIND3Q_BYTE(v)
+                = KIND3Q_BYTE_UNCHECKED(VAL_QUOTED_PAYLOAD_CELL(v));
+
+        VAL_WORD_INDEXES_U32(v) -= (unquotes << MONDEX_SHIFT);
+    }
     else {
-        Collapse_Quoted_Internal(v);
+        Collapse_Quoted_Internal(v);  // sets depth to 0
         mutable_KIND3Q_BYTE(v) += (REB_64 * depth);
     }
     return v;
@@ -272,7 +344,7 @@ inline static RELVAL *Unquotify_Core(RELVAL *v, REBLEN unquotes) {
 
 
 inline static REBCEL(const*) VAL_UNESCAPED(const RELVAL *v) {
-    if (HEART3X_BYTE(v) != REB_QUOTED)
+    if (HEART3X_BYTE(v) < REB_192_ESCAPED)
         return v;  // Note: kind byte may be > 64
 
     // The reason this routine returns `const` is because you can't modify
@@ -292,7 +364,15 @@ inline static REBLEN Dequotify(RELVAL *v) {
     }
 
     REBLEN depth = VAL_QUOTED_PAYLOAD_DEPTH(v);
-    Collapse_Quoted_Internal(v);
+    if (HEART3X_BYTE(v) == REB_192_ESCAPED)
+        Collapse_Quoted_Internal(v);
+    else {
+        // Will still be escaped if weird word, zero out the quote depth
+        //
+        mutable_KIND3Q_BYTE(v)
+            = KIND3Q_BYTE_UNCHECKED(VAL_QUOTED_PAYLOAD_CELL(v));
+        VAL_WORD_INDEXES_U32(v) &= 0x000FFFFF;
+    }
     return depth;
 }
 
@@ -311,4 +391,58 @@ inline static bool IS_QUOTED_PATH(const RELVAL *v) {
     return IS_QUOTED(v)
         and VAL_QUOTED_DEPTH(v) == 1
         and CELL_KIND(VAL_UNESCAPED(v)) == REB_PATH;
+}
+
+// Binding aside, the cell bits in the unescaped cell should match the bits
+// of the escaped cell.  In the case of a REB_QUOTED, the escaped cell is the
+// only place to find the KIND and HEART information.  But with a "weird word"
+// that information has to be in sync...if the outer says it's a REB_PATH
+// kind, then the VAL_UNESCAPED() cell must also convey that.
+//
+// Hence anything that does tweaking of the bits must consier the shared case,
+// and unshare the cell before tweaking.  This gives rare mutable acces to
+// the content.
+//
+inline static RELVAL *Unshare_Unescaped(RELVAL *v) {
+    if (not Is_Escaped_Value(v))
+        return nullptr;  // one less call if you're not sure
+
+    REBVAL *paired = Alloc_Pairing();
+    Move_Value(paired, VAL(VAL_NODE1(v)));
+    Init_Unreadable_Void(PAIRING_KEY(paired));
+    Manage_Pairing(paired);
+    INIT_VAL_NODE1(v, paired);
+    assert(KIND3Q_BYTE_UNCHECKED(paired) < REB_QUOTED);
+    assert(HEART3X_BYTE(paired) < REB_QUOTED);
+    return paired;
+}
+
+
+// This combines the unsharing logic along with doing the tweak of the bytes
+// in both the shared and unshared cell.
+//
+inline static void Update_Kind_Heart(RELVAL *v, REBYTE kind, REBYTE heart)
+{
+    assert(kind < REB_QUOTED);
+    assert(heart < REB_QUOTED);
+
+    RELVAL *unescaped = Unshare_Unescaped(v);
+
+    if (kind != 0) {
+        if (KIND3Q_BYTE_UNCHECKED(v) != REB_QUOTED) {
+            mutable_KIND3Q_BYTE(v) &= 0xC0;
+            mutable_KIND3Q_BYTE(v) |= kind;
+        }
+        if (unescaped)
+            mutable_KIND3Q_BYTE(unescaped) = kind;
+    }
+
+    if (heart != 0) {
+        if (HEART3X_BYTE(v) != REB_192_ESCAPED) {
+            mutable_HEART3X_BYTE(v) &= 0xC0;
+            mutable_HEART3X_BYTE(v) |= heart;
+        }
+        if (unescaped)
+            mutable_HEART3X_BYTE(unescaped) = heart;
+    }
 }

@@ -476,35 +476,57 @@ int64_t Mul_Max(enum Reb_Kind type, int64_t n, int64_t m, int64_t maxi)
 
 
 //
-//  Setify: C
+//  Xify: C
 //
-// Turn a value into its SET-XXX! equivalent, if possible.  This tries to
-// "be smart" so even a TEXT! can be turned into a SET-WORD! (just an
-// unbound one).
+// Turn a value into its SET-XXX! equivalent, if possible.
 //
-REBVAL *Setify(REBVAL *out) {  // called on stack values; can't call evaluator
-    REBLEN quotes = Dequotify(out);
+// Note: An original version of this used the libRebol API to experimentally
+// transform string types as well, so that "foo" would Setify as `foo:`.
+// That was a questionable thing to do in the firt place, but it further
+// had problems because this routine is called on stack values...so using
+// the evaluator would destabilize `out` and create usage problems.
+//
+REBVAL *Xify(REBVAL *out, int_fast8_t delta) {
+    RELVAL *unescaped = Unshare_Unescaped(out);
+    REBYTE kind;
+    if (unescaped)  // fiddling bits in new copy of shared data
+        kind = KIND3Q_BYTE_UNCHECKED(unescaped);
+    else
+        kind = KIND3Q_BYTE_UNCHECKED(out) % REB_64;
 
-    enum Reb_Kind kind = VAL_TYPE(out);
+    // The non-escaped form can hold quoting bits and spelling variation
+    // bits that we do not want to disrupt.  But the escaped form should
+    // not have those.
+
     if (ANY_WORD_KIND(kind)) {
-        mutable_KIND3Q_BYTE(out) = mutable_HEART3X_BYTE(out) = REB_SET_WORD;
+        Update_Kind_Heart(out, REB_WORD + delta, REB_WORD + delta);
     }
     else if (ANY_PATH_KIND(kind)) {  // Don't change "heart"!
-        mutable_KIND3Q_BYTE(out) = REB_SET_PATH;
+        Update_Kind_Heart(out, REB_PATH + delta, REB_0);
     }
     else if (ANY_TUPLE_KIND(kind)) {  // Don't change "heart"!
-        mutable_KIND3Q_BYTE(out) = REB_SET_TUPLE;
+        Update_Kind_Heart(out, REB_TUPLE + delta, REB_0);
     }
     else if (ANY_BLOCK_KIND(kind)) {
-        mutable_KIND3Q_BYTE(out) = mutable_HEART3X_BYTE(out) = REB_SET_BLOCK;
+        Update_Kind_Heart(out, REB_BLOCK + delta, REB_BLOCK + delta);
     }
     else if (ANY_GROUP_KIND(kind)) {
-        mutable_KIND3Q_BYTE(out) = mutable_HEART3X_BYTE(out) = REB_SET_GROUP;
+        Update_Kind_Heart(out, REB_GROUP + delta, REB_GROUP + delta);
     }
     else
         fail ("Cannot SETIFY a NULL");
 
-    return Quotify(out, quotes);
+    return out;
+}
+
+
+//
+//  Setify: C
+//
+// Turn a value into its SET-XXX! equivalent, if possible.
+//
+REBVAL *Setify(REBVAL *out) {  // called on stack values; can't call evaluator
+    return Xify(out, 5);
 }
 
 
@@ -531,28 +553,7 @@ REBNATIVE(setify)
 // Like Setify() but Makes GET-XXX! instead of SET-XXX!.
 //
 REBVAL *Getify(REBVAL *out) {  // called on stack values; can't call evaluator
-    REBLEN quotes = Dequotify(out);
-
-    enum Reb_Kind kind = VAL_TYPE(out);
-    if (ANY_BLOCK_KIND(kind)) {
-        mutable_KIND3Q_BYTE(out) = mutable_HEART3X_BYTE(out) = REB_GET_BLOCK;
-    }
-    else if (ANY_GROUP_KIND(kind)) {
-        mutable_KIND3Q_BYTE(out) = mutable_HEART3X_BYTE(out) = REB_GET_GROUP;
-    }
-    else if (ANY_PATH_KIND(kind)) {  // Don't change "heart"
-        mutable_KIND3Q_BYTE(out) = REB_GET_PATH;
-    }
-    else if (ANY_TUPLE_KIND(kind)) {    // Don't change "heart"
-        mutable_KIND3Q_BYTE(out) = REB_GET_TUPLE;
-    }
-    else if (ANY_WORD_KIND(kind)) {
-        mutable_KIND3Q_BYTE(out) = mutable_HEART3X_BYTE(out) = REB_GET_WORD;
-    }
-    else
-        fail ("Cannot GETIFY");
-
-    return Quotify(out, quotes);
+    return Xify(out, 10);
 }
 
 
@@ -576,33 +577,10 @@ REBNATIVE(getify)
 //
 //  Symify: C
 //
-// Turn a value into its SYM-XXX! equivalent, if possible.  This tries to
-// "be smart" so even a TEXT! can be turned into a SYM-WORD! (just an
-// unbound one).
+// Turn a value into its SYM-XXX! equivalent, if possible.
 //
 REBVAL *Symify(REBVAL *out) {  // called on stack values; can't call evaluator
-    REBLEN quotes = Dequotify(out);
-
-    enum Reb_Kind kind = VAL_TYPE(out);
-    if (ANY_WORD_KIND(kind)) {
-        mutable_KIND3Q_BYTE(out) = mutable_HEART3X_BYTE(out) = REB_SYM_WORD;
-    }
-    else if (ANY_PATH_KIND(kind)) {  // Don't change "heart"!
-        mutable_KIND3Q_BYTE(out) = REB_SYM_PATH;
-    }
-    else if (ANY_TUPLE_KIND(kind)) {    // Don't change "heart"
-        mutable_KIND3Q_BYTE(out) = REB_SYM_TUPLE;
-    }
-    else if (ANY_BLOCK_KIND(kind)) {
-        mutable_KIND3Q_BYTE(out) = mutable_HEART3X_BYTE(out) = REB_SYM_BLOCK;
-    }
-    else if (ANY_GROUP_KIND(kind)) {
-        mutable_KIND3Q_BYTE(out) = mutable_HEART3X_BYTE(out) = REB_SYM_GROUP;
-    }
-    else
-        fail ("Cannot SYMIFY");
-
-    return Quotify(out, quotes);
+    return Xify(out, -5);
 }
 
 
@@ -629,26 +607,5 @@ REBNATIVE(symify)
 // Turn a value into its "plain" equivalent.  This works for all values.
 //
 REBVAL *Plainify(REBVAL *out) {
-    REBLEN quotes = Dequotify(out);
-
-    enum Reb_Kind kind = VAL_TYPE(out);
-    if (ANY_WORD_KIND(kind)) {
-        mutable_KIND3Q_BYTE(out) = mutable_HEART3X_BYTE(out) = REB_WORD;
-    }
-    else if (ANY_PATH_KIND(kind)) {  // Don't change "heart"!
-        mutable_KIND3Q_BYTE(out) = REB_PATH;
-    }
-    else if (ANY_TUPLE_KIND(kind)) {  // Don't change "heart"!
-        mutable_KIND3Q_BYTE(out) = REB_TUPLE;
-    }
-    else if (ANY_BLOCK_KIND(kind)) {
-        mutable_KIND3Q_BYTE(out) = mutable_HEART3X_BYTE(out) = REB_BLOCK;
-    }
-    else if (ANY_GROUP_KIND(kind)) {
-        mutable_KIND3Q_BYTE(out) = mutable_HEART3X_BYTE(out) = REB_GROUP;
-    }
-    else if (kind == REB_NULL)
-        fail ("Cannot PLAINIFY a NULL");
-
-    return Quotify(out, quotes);
+    return Xify(out, 0);
 }

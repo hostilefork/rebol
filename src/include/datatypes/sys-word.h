@@ -101,12 +101,34 @@ inline static void INIT_VAL_WORD_VIRTUAL_MONDEX(
 inline static REBVAL *Init_Any_Word_Untracked(
     RELVAL *out,
     enum Reb_Kind kind,
-    const REBSYM *sym
+    const REBSYM *symbol
 ){
     RESET_VAL_HEADER(out, kind, CELL_FLAG_FIRST_IS_NODE);
-    mutable_BINDING(out) = sym;
+    mutable_BINDING(out) = symbol;
     VAL_WORD_INDEXES_U32(out) = 0;
     INIT_VAL_WORD_CACHE(cast(REBCEL(const*), out), SPECIFIED);
+
+    // For each word there is a lowercase spelling, and up to two alternate
+    // case variations that are encoded in the heart byte (TBD).  But if you
+    // use a third spelling, that gives the cell a heart byte that counts in
+    // the "escaped" range...while still encoding the cell is an ANY-WORD!.
+    //
+    // !!! The two alternate spellings concept is pending, but close.
+    //
+    // !!! Technically, the escaping is not necessary unless the word is
+    // bound.  However, bouncing things from expanded to unexpanded makes
+    // the code more complicated...and requires dereferencing the symbol
+    // often.  This allows the heart byte to be set once and cue the necessary
+    // behaviors from then on.
+    //
+    if (NOT_SERIES_INFO(symbol, SYMBOL_IS_CANON)) {
+        Quotify_Core(out, 4);  // !!! trigger expansion, reuse code for now
+        mutable_KIND3Q_BYTE(out) = kind;
+        mutable_HEART3X_BYTE(out) = kind + (REB_64 * 3);  // signal escaping
+        assert(VAL_WORD_VIRTUAL_MONDEX_UNCHECKED(out) == 4);  // quote level
+        VAL_WORD_INDEXES_U32(out) &= 0x000FFFFF;  // zero out quote level
+        assert(VAL_WORD_VIRTUAL_MONDEX_UNCHECKED(out) == 0);  // non quoted
+    }
 
     return cast(REBVAL*, out);
 }

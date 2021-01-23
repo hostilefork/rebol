@@ -369,6 +369,8 @@ inline static enum Reb_Pointer_Detect Detect_Rebol_Pointer(const void *p)
                 return DETECTED_AS_END;  // managed, marked if `case 11`
             return DETECTED_AS_SERIES;  // series that just has no [1] flags
         }
+        if (bp[0] & NODE_BYTEMASK_0x01_CELL)
+            return DETECTED_AS_CELL;  // managed (so pairing)
         return DETECTED_AS_SERIES;  // managed, marked if `case 11`
 
     // v-- bit sequences starting with `11` are *usually* legal multi-byte

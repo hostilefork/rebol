@@ -367,8 +367,10 @@ const REBSYM *Intern_UTF8_Managed(const REBYTE *utf8, size_t size)
         // this synonym insertion, then put it at the tail of the synonyms
         // list (e.g. the canon in circular linkage will be its NextSynonym)
         //
-        if (prev_synonym == nullptr)
+        if (prev_synonym == nullptr) {
             prev_synonym = last;
+            ++intern_order;
+        }
 
         goto new_synonym_symbol;
       }

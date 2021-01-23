@@ -46,20 +46,28 @@ static void update(REBREQ *signal, REBINT len, REBVAL *arg)
     for (i = 0; i < len; i ++) {
         REBCTX *obj = Alloc_Context(REB_OBJECT, 8);
         REBVAL *val = Append_Context(
-            obj, nullptr, Intern_UTF8_Managed(signal_no, strsize(signal_no))
+            obj,
+            nullptr,
+            CAN(Intern_UTF8_Managed(signal_no, strsize(signal_no)))
         );
         Init_Integer(val, sig[i].si_signo);
 
         val = Append_Context(
-            obj, nullptr, Intern_UTF8_Managed(code, strsize(code))
+            obj,
+            nullptr,
+            CAN(Intern_UTF8_Managed(code, strsize(code)))
         );
         Init_Integer(val, sig[i].si_code);
         val = Append_Context(
-            obj, nullptr, Intern_UTF8_Managed(source_pid, strsize(source_pid))
+            obj,
+            nullptr,
+            CAN(Intern_UTF8_Managed(source_pid, strsize(source_pid)))
         );
         Init_Integer(val, sig[i].si_pid);
         val = Append_Context(
-            obj, nullptr, Intern_UTF8_Managed(source_uid, strsize(source_uid))
+            obj,
+            nullptr,
+            CAN(Intern_UTF8_Managed(source_uid, strsize(source_uid)))
         );
         Init_Integer(val, sig[i].si_uid);
 

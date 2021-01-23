@@ -45,7 +45,7 @@
     // NOTE: There is no guarantee of evaluation order of function arguments
     // in C.  So if there's code like:
     //
-    //    #define Init_Logic(out,flag) \
+    //    #define Init_Logic(out,flag) /* [backslash in comment => warning] */
     //        Init_Logic_Core(TRACK_CELL_IF_DEBUG(out), (flag))
     //
     // The tracking information may be put in the cell *before* or *after*

@@ -255,6 +255,9 @@ void Protect_Context(REBCTX *c, REBFLGS flags)
 static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
 {
     if (ANY_WORD(word) and IS_WORD_BOUND(word)) {
+        if (VAL_WORD_INDEX(word) == INDEX_ATTACHED)
+            fail ("Cannot protect inherited word");  // !!! Is this right?
+
         Protect_Key(VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word), flags);
         if (flags & PROT_DEEP) {
             //

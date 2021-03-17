@@ -133,7 +133,6 @@ enum {
 
 
 struct Reb_Binder {
-    bool high;
   #if !defined(NDEBUG)
     REBLEN count;
   #endif
@@ -152,8 +151,6 @@ struct Reb_Binder {
 
 
 inline static void INIT_BINDER(struct Reb_Binder *binder) {
-    binder->high = true; // !!! what about `did (SPORADICALLY(2))` to test?
-
   #if !defined(NDEBUG)
     binder->count = 0;
 
@@ -186,16 +183,19 @@ inline static bool Try_Add_Binder_Index(
 ){
     REBSTR *s = m_cast(REBSYM*, sym);
     assert(index != 0);
-    if (binder->high) {
-        if (s->misc.bind_index.high != 0)
-            return false;
-        s->misc.bind_index.high = index;
-    }
-    else {
-        if (s->misc.bind_index.low != 0)
-            return false;
-        s->misc.bind_index.low = index;
-    }
+    REBSER *old_hitch = MISC(Hitch, s);
+    if (old_hitch != s and NOT_SERIES_FLAG(old_hitch, MANAGED))
+        return false;  // already has a mapping
+
+    // Not actually managed...but GC doesn't run while binders are active,
+    // and we don't want to pay for putting this in the manual tracking list.
+    //
+    REBARR *new_hitch = Alloc_Singular(NODE_FLAG_MANAGED | FLAG_FLAVOR(HITCH));
+    CLEAR_SERIES_FLAG(new_hitch, MANAGED);
+    Init_Integer(ARR_SINGLE(new_hitch), index);
+    node_MISC(Hitch, new_hitch) = old_hitch;
+
+    mutable_MISC(Hitch, s) = new_hitch;
 
   #if !defined(NDEBUG)
     ++binder->count;
@@ -219,10 +219,14 @@ inline static REBINT Get_Binder_Index_Else_0( // 0 if not present
     struct Reb_Binder *binder,
     const REBSYM *s
 ){
-    if (binder->high)
-        return s->misc.bind_index.high;
-    else
-        return s->misc.bind_index.low;
+    UNUSED(binder);
+    REBSER *hitch = MISC(Hitch, s);
+
+    // Only unmanaged hitches are used for binding.
+    //
+    if (hitch == s or GET_SERIES_FLAG(hitch, MANAGED))
+        return 0;
+    return VAL_INT32(ARR_SINGLE(ARR(hitch)));
 }
 
 
@@ -231,25 +235,21 @@ inline static REBINT Remove_Binder_Index_Else_0( // return old value if there
     const REBSYM *str
 ){
     REBSTR *s = m_cast(REBSYM*, str);
-    REBINT old_index;
-    if (binder->high) {
-        old_index = s->misc.bind_index.high;
-        if (old_index == 0)
-            return 0;
-        s->misc.bind_index.high = 0;
-    }
-    else {
-        old_index = s->misc.bind_index.low;
-        if (old_index == 0)
-            return 0;
-        s->misc.bind_index.low = 0;
-    }
+    if (MISC(Hitch, s) == s or GET_SERIES_FLAG(MISC(Hitch, s), MANAGED))
+        return 0;
+
+    REBARR *hitch = ARR(MISC(Hitch, s));
+
+    REBINT index = VAL_INT32(ARR_SINGLE(hitch));
+    mutable_MISC(Hitch, s) = ARR(node_MISC(Hitch, hitch));
+    SET_SERIES_FLAG(hitch, MANAGED);  // we didn't manuals track it
+    GC_Kill_Series(hitch);
 
   #if !defined(NDEBUG)
     assert(binder->count > 0);
     --binder->count;
   #endif
-    return old_index;
+    return index;
 }
 
 

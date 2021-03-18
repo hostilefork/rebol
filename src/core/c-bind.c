@@ -1303,9 +1303,10 @@ void Bind_Nonspecifically(RELVAL *head, const RELVAL *tail, REBCTX *context)
 
 //
 //  intern: native [
-//      {Temporary: Just binds everything nonspecifically to user context}
+//      {Temporary: Overwrite all bindings nonspecifically }
 //
 //      data [block! any-word!]
+//      where [module!]
 //  ]
 //
 REBNATIVE(intern)
@@ -1316,9 +1317,9 @@ REBNATIVE(intern)
 
     const RELVAL *tail;
     RELVAL *head = VAL_ARRAY_AT_MUTABLE_HACK(&tail, ARG(data));
-    Bind_Nonspecifically(head, tail, VAL_CONTEXT(User_Context));
+    Bind_Nonspecifically(head, tail, VAL_CONTEXT(ARG(where)));
 
-    rebElide("bind/set/only", ARG(data), User_Context);
+    rebElide("bind/set/only", ARG(data), ARG(where));
 
     RETURN (ARG(data));
 }

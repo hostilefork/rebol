@@ -1,6 +1,8 @@
 REBOL [
     System: "Ren-C Interpreter and Run-time Environment"
     Title: "OS Shell Interaction Dialect"
+    Type: 'Module
+    Name: 'Shell-Dialect
     Rights: {
         Copyright 2015-2020 hostilefork.com
         Copyright 2020 Ren-C Open Source Contributors
@@ -217,3 +219,5 @@ $: func [
 
     shell/(if inspect [/inspect])/(if pipe [/pipe]) code
 ]
+
+export [shell %% $]

@@ -2,6 +2,15 @@ Rebol [
     Title: {UPARSE: Usermode Implementation of PARSE in Ren-C}
     License: {LGPL 3.0}
 
+    Type: 'Module
+    Name: 'Usermode-PARSE
+
+    Exports: [
+        combinator
+        uparse default-combinators
+        uparse2 redbol-combinators
+    ]
+
     Description: {
         Rebol's PARSE is a tool for performing RegEx-style tasks using an
         English-like dialect.  It permits breaking down complex expressions

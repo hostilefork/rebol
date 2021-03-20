@@ -145,6 +145,18 @@ event       "user interface event"  ; %extensions/event/README.md
             ?           ?       ?       ?       []
 
 
+
+; ============================================================================
+; BEGIN BINDABLE TYPES - SEE Is_Bindable() - Reb_Value.extra USED FOR BINDING
+; ============================================================================
+
+; Note: While strings were not historically bindable, Ren-C allows them to be
+; bound.  One fairly critical reason is that if they were not, then there
+; would be no cue to something like DO for where variables would be loaded.
+; e.g. `do "x: 10"` doesn't know what X it would be talking about, but also
+; `do %tools.r` wouldn't know where to assign any variables from tools.  This
+; is a new concept and very much a work-in-progress.
+
 ; <BINARY>
 ;
 ;     (...we continue along in order with more ANY-SERIES! types...)
@@ -177,11 +189,6 @@ issue       "immutable codepoint or codepoint sequence"
             issue       *       *       *       []  ; !!! sequence of INTEGER?
 
 ; </ANY-STRING>
-
-
-; ============================================================================
-; BEGIN BINDABLE TYPES - SEE Is_Bindable() - Reb_Value.extra USED FOR BINDING
-; ============================================================================
 
 
 ; <ANY-CONTEXT>

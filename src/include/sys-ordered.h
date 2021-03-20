@@ -78,7 +78,7 @@
 // that the cell payload and extra actually are *for*.
 
 #define IS_BINDABLE_KIND(k) \
-    ((k) >= REB_OBJECT)
+    ((k) >= REB_BINARY)
 
 #define Is_Bindable(v) \
     IS_BINDABLE_KIND(HEART_BYTE(v))  // checked elsewhere

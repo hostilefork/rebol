@@ -347,7 +347,7 @@ REBNATIVE(use)
 bool Did_Get_Binding_Of(REBVAL *out, const REBVAL *v)
 {
     switch (VAL_TYPE(v)) {
-    case REB_ACTION: {
+      case REB_ACTION: {
         REBCTX *binding = VAL_ACTION_BINDING(v); // e.g. METHOD, RETURNs
         if (not binding)
             return false;
@@ -355,10 +355,10 @@ bool Did_Get_Binding_Of(REBVAL *out, const REBVAL *v)
         Init_Frame(out, binding, ANONYMOUS);  // !!! Review ANONYMOUS
         break; }
 
-    case REB_WORD:
-    case REB_SET_WORD:
-    case REB_GET_WORD:
-    case REB_META_WORD: {
+      case REB_WORD:
+      case REB_SET_WORD:
+      case REB_GET_WORD:
+      case REB_META_WORD: {
         if (IS_WORD_UNBOUND(v))
             return false;
 
@@ -375,7 +375,20 @@ bool Did_Get_Binding_Of(REBVAL *out, const REBVAL *v)
         Copy_Cell(out, CTX_ARCHETYPE(c));
         break; }
 
-    default:
+      case REB_BINARY:
+      case REB_TEXT:
+      case REB_FILE:
+      case REB_URL:
+      case REB_EMAIL:
+      case REB_ISSUE:
+      case REB_TAG: {
+        if (BINDING(v) == nullptr)
+            return false;
+        REBCTX *c = CTX(BINDING(v));  // can't be relative
+        Copy_Cell(out, CTX_ARCHETYPE(c));
+        break; }
+
+      default:
         //
         // Will OBJECT!s or FRAME!s have "contexts"?  Or if they are passed
         // in should they be passed trough as "the context"?  For now, keep

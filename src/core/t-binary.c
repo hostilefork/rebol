@@ -408,13 +408,27 @@ REBTYPE(Binary)
 
     SYMID sym = VAL_WORD_ID(verb);
     switch (sym) {
+      case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+        UNUSED(ARG(value));
+
+        switch (VAL_WORD_ID(ARG(property))) {
+          case SYM_BINDING: {
+            if (Did_Get_Binding_Of(D_OUT, v))
+                return D_OUT;
+            return nullptr; }
+
+          default:
+            break;
+        }
+        return Series_Common_Action_Maybe_Unhandled(frame_, verb); }
+
       case SYM_UNIQUE:
       case SYM_INTERSECT:
       case SYM_UNION:
       case SYM_DIFFERENCE:
       case SYM_EXCLUDE:
         //
-      case SYM_REFLECT:
       case SYM_SKIP:
       case SYM_AT:
       case SYM_REMOVE:

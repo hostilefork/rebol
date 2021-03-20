@@ -813,10 +813,20 @@ REBTYPE(String)
         INCLUDE_PARAMS_OF_REFLECT;
         UNUSED(ARG(value));  // accounted for by `v`
 
-        if (VAL_WORD_ID(ARG(property)) == SYM_SIZE) {
+        SYMID symid = VAL_WORD_ID(ARG(property));
+        switch (symid) {
+          case SYM_SIZE: {
             REBSIZ size;
             VAL_UTF8_SIZE_AT(&size, v);
-            return Init_Integer(D_OUT, size);
+            return Init_Integer(D_OUT, size); }
+
+          case SYM_BINDING: {
+            if (Did_Get_Binding_Of(D_OUT, v))
+                return D_OUT;
+            return nullptr; }
+
+          default:
+            break;
         }
         return Series_Common_Action_Maybe_Unhandled(frame_, verb); }
 

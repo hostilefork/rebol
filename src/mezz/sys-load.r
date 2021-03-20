@@ -400,8 +400,10 @@ load-module: func [
 
     ; See if a module by that name is already loaded, and return it if so
 
-    let mod: select/skip system/modules name 2 then [
-        return mod
+    let old: select/skip system/modules name 2
+    if old [
+        ; !!! Temporarily avoid re-use, helpful for debugging
+        ; return old
     ]
 
     if not data [return null]  ; If source was a WORD!, can't fallback on load
@@ -426,12 +428,15 @@ load-module: func [
         ]
     ]
 
+    let mod
     catch/quit [
         mod: module/into hdr code into
     ]
 
-    if name [
-        append system/modules reduce [name, ensure module! mod]
+    if not old [  ; !!! temporary: don't re-run every time
+        if name [
+            append system/modules reduce [name, ensure module! mod]
+        ]
     ]
 
     return mod

@@ -15,6 +15,9 @@ Rebol [
 
 do %test-parsing.r
 
+do-recover: '~exported-below~
+vector: _
+
 make object! compose [
     log-file: _
 
@@ -30,6 +33,10 @@ make object! compose [
     successes: _
 
     allowed-flags: _
+
+    test-block: _
+
+    error: _
 
     process-vector: func [
         return: <none>
@@ -171,7 +178,7 @@ make object! compose [
                                 next-position: _  ; !!! for SET-WORD! gather
                                 [value next-position]: transcode position
                             )
-                            :next-position
+                            seek next-position
                                 |
                             ; dialect failure?
                             some whitespace
@@ -238,7 +245,7 @@ make object! compose [
                 process-tests test-sources :process-vector
             ]
         ] then [
-            summary: spaced [
+            let summary: spaced [
                 "system/version:" system/version LF
                 "code-checksum:" code-checksum LF
                 "test-checksum:" test-checksum LF

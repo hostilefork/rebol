@@ -20,6 +20,12 @@ do %../tools/text-lines.reb
 whitespace: charset [#"^A" - #" " "^(7F)^(A0)"]
 digit: charset {0123456789}
 
+test-source-rule: '~export~
+load-testfile: '~export~
+collect-tests: '~export~
+collect-logs: '~export~
+
+success-rule: '~local~
 
 read-binary: :read
 
@@ -122,6 +128,7 @@ make object! [
         any-wsp: [while [wsp emit-token]]
 
         single-value: parsing-at x [
+            let next-position
             trap [
                 value: _  ; !!! for collecting with SET-WORD!, evolving
                 next-position: _  ; !!! ...same
@@ -235,7 +242,7 @@ make object! [
                 [
                     position: "%"
                     (next-position: transcode/next (the value:) position)
-                    :next-position
+                    seek next-position
                         |
                     ; dialect failure?
                     some whitespace

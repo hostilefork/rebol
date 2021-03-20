@@ -367,6 +367,7 @@ REB_R File_Actor(REBFRM *frame_, REBVAL *port, const REBVAL *verb)
         if (req->flags & RRF_OPEN)
             opened = false; // was already open
         else {
+            rebElide("print [{Opening:}", path, "]");
             REBLEN nargs = AM_OPEN_READ;
             if (REF(seek))
                 nargs |= AM_OPEN_SEEK;

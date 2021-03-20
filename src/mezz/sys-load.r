@@ -392,7 +392,10 @@ load-module: func [
     let file: match [file! url!] source  ; used for file/line info during scan
 
     let name: match word! source else [
-        data: match [binary! text!] source else [read source]
+        data: match [binary! text!] source else [
+            print ["READING MODULE:" source]
+            read source
+        ]
 
         [hdr code line]: load-header/file/required data file
         name: noquote hdr/name

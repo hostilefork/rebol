@@ -1,6 +1,8 @@
 Rebol [
     Title: "Test parsing"
     File: %test-parsing.r
+    Type: 'Module
+    Name: 'Test-Parsing
     Copyright: [2012 "Saphirion AG"]
     License: {
         Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,9 +15,9 @@ Rebol [
     Purpose: "Test framework"
 ]
 
-do %line-numberq.r
-do %../tools/parsing-tools.reb
-do %../tools/text-lines.reb
+import %line-numberq.r
+import %../tools/parsing-tools.reb
+import %../tools/text-lines.reb
 
 whitespace: charset [#"^A" - #" " "^(7F)^(A0)"]
 digit: charset {0123456789}
@@ -27,17 +29,15 @@ collect-logs: '~export~
 
 success-rule: '~local~
 
-read-binary: :read
-
-make object! [
-
     position: _
     success: _
 
     ; TEST-SOURCE-RULE matches the internal text of a test, even if that text
     ; is invalid rebol syntax.
 
-    set 'test-source-rule [
+    success-rule: _
+
+    test-source-rule: [
         while [
             position: here
 
@@ -72,7 +72,7 @@ make object! [
         ]
     ]
 
-    set 'load-testfile function [
+    load-testfile: function [
         {Read the test source, preprocessing if necessary.}
         test-file [file!]
     ][
@@ -83,7 +83,7 @@ make object! [
         test-source
     ]
 
-    set 'collect-tests function [
+    collect-tests: function [
         return: <none>
         collected-tests [block!]
             {collect the tests here (modified)}
@@ -140,7 +140,7 @@ make object! [
         ]
 
         single-test: [
-            copy vector ["(" test-source-rule ")"] (
+            let vector: across ["(" test-source-rule ")"] (
                 type: in types 'tst
                 append/only collected-tests flags
                 append collected-tests vector
@@ -226,7 +226,7 @@ make object! [
         ]
     ]
 
-    set 'collect-logs function [
+    collect-logs: function [
         collected-logs [block!]
             {collect the logged results here (modified)}
         log-file [file!]
@@ -287,4 +287,5 @@ make object! [
             end
         ]
     ]
-]
+
+export [collect-tests collect-logs]

@@ -1,6 +1,8 @@
 Rebol [
     Title: "Test-framework"
     File: %test-framework.r
+    Type: 'Module
+    Name: 'Test-Framework
     Copyright: [2012 "Saphirion AG"]
     License: {
         Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,12 +15,8 @@ Rebol [
     Purpose: "Test framework"
 ]
 
-do %test-parsing.r
+import %test-parsing.r
 
-do-recover: '~exported-below~
-vector: _
-
-make object! compose [
     log-file: _
 
     log: func [report [block!]] [
@@ -125,7 +123,7 @@ make object! compose [
         ]
     ]
 
-    set 'do-recover func [
+    do-recover: func [
         {Executes tests in the FILE and recovers from crash}
         file [file!] {test file}
         flags [block!] {which flags to accept}
@@ -137,7 +135,7 @@ make object! compose [
         allowed-flags: flags
 
         ; calculate test checksum
-        test-checksum: checksum/method (read-binary file) 'sha1
+        test-checksum: checksum 'sha1 (read file)
 
         log-file: log-file-prefix
 
@@ -270,4 +268,6 @@ make object! compose [
             reduce [log-file "testing already complete"]
         ]
     ]
-]
+
+
+export [do-recover]

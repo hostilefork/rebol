@@ -58,6 +58,18 @@ unless: func [] [
     fail/where "Don't use UNLESS in Bootstrap, definition in flux"
 ]
 
+; IMPORT allows you to run on plain scripts.  This adds support for a simple
+; form of the EXPORT tool for compatibility with new modules.
+;
+export: default [func [
+    "Low level export of values (e.g. functions) to lib."
+    words [block!] "Block of words (already defined in local context)"
+][
+    for-each word words [
+        append lib reduce [word get word]
+    ]
+]]
+
 ; MAKE-FILE is included in modern Ren-C binaries, but older Ren-C doesn't have
 ; it.  The script is in the %scripts/ directory, but it's a module written
 ; to new (post-bootstrap executable) baseline.  However, %bootstrap-shim.r

@@ -13,7 +13,7 @@ Rebol [
     Purpose: "Core tests"
 ]
 
-do %test-framework.r
+import %test-framework.r
 
 ; Example runner for the REBOL/Core tests which chooses
 ; appropriate flags depending on the interpreter version.
@@ -28,10 +28,10 @@ do-core-tests: function [return: <none>] [
     ; calculate interpreter checksum
     case [
         #"/" = first try match file! system/options/boot [
-            check: checksum 'sha1 read-binary system/options/boot
+            check: checksum 'sha1 read system/options/boot
         ]
         text? system/script/args [
-            check: checksum 'sha1 read-binary local-to-file system/script/args
+            check: checksum 'sha1 read local-to-file system/script/args
         ]
     ] else [
         ; use system/build
@@ -46,6 +46,8 @@ do-core-tests: function [return: <none>] [
 
     print "Testing ..."
     result: do-recover %core-tests.r flags check log-file-prefix
+    let log-file
+    let summary
     set [log-file summary] result
 
     print ["Done, see the log file:" log-file]

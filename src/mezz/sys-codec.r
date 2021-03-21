@@ -132,6 +132,3 @@ encoding-of: function [
     ]
     blank
 ]
-
-
-export [decode encode encoding-of]

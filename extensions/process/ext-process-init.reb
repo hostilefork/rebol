@@ -145,4 +145,4 @@ browse*: func [
 
 hijack :browse :browse*
 
-sys/export [call call*]
+export [call call*]

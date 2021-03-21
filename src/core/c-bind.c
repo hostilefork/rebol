@@ -1302,16 +1302,16 @@ void Bind_Nonspecifically(RELVAL *head, const RELVAL *tail, REBCTX *context)
 
 
 //
-//  intern: native [
-//      {Temporary: Overwrite all bindings nonspecifically }
+//  intern*: native [
+//      {Overwrite all bindings of a block deeply}
 //
-//      data [block! any-word!]
 //      where [module!]
+//      data [block! any-word!]
 //  ]
 //
-REBNATIVE(intern)
+REBNATIVE(intern_p)
 {
-    INCLUDE_PARAMS_OF_INTERN;
+    INCLUDE_PARAMS_OF_INTERN_P;
 
     assert(IS_BLOCK(ARG(data)));
 

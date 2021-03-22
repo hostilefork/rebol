@@ -408,6 +408,8 @@ inline static void Unbind_Any_Word(RELVAL *v) {
 inline static REBCTX *VAL_WORD_CONTEXT(const REBVAL *v) {
     assert(IS_WORD_BOUND(v));
     REBARR *binding = VAL_WORD_BINDING(v);
+    if (SER_FLAVOR(binding) == FLAVOR_PATCH)
+        binding = CTX_VARLIST(LINK(PatchContext, binding));
     assert(
         GET_SERIES_FLAG(binding, MANAGED) or
         FRM(LINK(KeySource, binding))->key
@@ -605,8 +607,17 @@ inline static option(REBSER*) Get_Word_Container(
                 if (LINK(PatchContext, patch) != binding)
                     continue;
 
-                *index_out = cast(REBLEN, VAL_INT32(ARR_SINGLE(ARR(patch))));
-                return CTX_VARLIST(LINK(PatchContext, patch));
+                // Since this is now resolving to the context, update the
+                // cache inside the word itself.  Don't do this for inherited
+                // variables, since if we hardened the reference to the
+                // inherited variable we'd not see an override if it came
+                // into existence in the actual context.
+                //
+                INIT_VAL_WORD_BINDING(m_cast(RELVAL*, any_word), patch);
+                INIT_VAL_WORD_PRIMARY_INDEX(m_cast(RELVAL*, any_word), 1);
+
+                *index_out = 1;
+                return patch;
             }
 
             // !!! Temporary trick used to see if the tests would run.
@@ -631,8 +642,13 @@ inline static option(REBSER*) Get_Word_Container(
                 if (LINK(PatchContext, patch) != VAL_CONTEXT(Lib_Context))
                     continue;
 
-                *index_out = cast(REBLEN, VAL_INT32(ARR_SINGLE(ARR(patch))));
-                return CTX_VARLIST(LINK(PatchContext, patch));
+                // We return it, but don't cache it in the cell.  Note that
+                // Derelativize() or other operations should not cache either
+                // as it would commit to the inherited version, never seeing
+                // derived overrides.
+                //
+                *index_out = 1;
+                return patch;
             }
 
             return nullptr;

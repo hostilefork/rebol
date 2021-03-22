@@ -299,6 +299,20 @@ inline static REBVAR *CTX_VAR(REBCTX *c, REBLEN n) {  // 1-based, no RELVAL*
     return cast(REBVAR*, cast(REBSER*, c)->content.dynamic.data) + n;
 }
 
+inline static REBVAR *MOD_VAR(REBCTX *c, const REBSTR *key, bool strict) {
+    const REBSTR *synonym = key;
+    do {
+        REBSER *patch = MISC(Hitch, key);
+        for (; patch != key; patch = SER(node_MISC(Hitch, patch))) {
+            if (LINK(PatchContext, patch) == c)
+                return cast(REBVAR*, ARR_SINGLE(ARR(patch)));
+        }
+        if (strict)
+            return nullptr;
+    } while (synonym != key);
+    return nullptr;
+}
+
 // CTX_VARS_HEAD() and CTX_KEYS_HEAD() allow CTX_LEN() to be 0, while
 // CTX_VAR() does not.  Also, CTX_KEYS_HEAD() gives back a mutable slot.
 

@@ -47,12 +47,14 @@ static void Append_To_Context(REBVAL *context, REBVAL *arg)
     const RELVAL *tail;
     const RELVAL *item = VAL_ARRAY_AT(&tail, arg);
 
+    struct Reb_Collector collector;
+    //
     // Can't actually fail() during a collect, so make sure any errors are
     // set and then jump to a Collect_End()
     //
     REBCTX *error = nullptr;
 
-    struct Reb_Collector collector;
+  if (not IS_MODULE(context)) {
     Collect_Start(&collector, COLLECT_ANY_WORD);
 
   blockscope {  // Start out binding table with words already in context
@@ -100,20 +102,28 @@ static void Append_To_Context(REBVAL *context, REBVAL *arg)
     for (; new_word != DS_TOP + 1; ++new_word)
         Append_Context(c, nullptr, VAL_WORD_SYMBOL(new_word));
   }
+  }  // end the non-module part
 
   blockscope {  // Set new values to obj words
     const RELVAL *word = item;
     for (; word != tail; word += 2) {
-        REBLEN i = Get_Binder_Index_Else_0(
-            &collector.binder, VAL_WORD_SYMBOL(word)
-        );
-        assert(i != 0);
-
-        const REBKEY *key = CTX_KEY(c, i);
-        REBVAR *var = CTX_VAR(c, i);
+        const REBSYM *symbol = VAL_WORD_SYMBOL(word);
+        REBVAR *var;
+        if (IS_MODULE(context)) {
+            bool strict = true;
+            var = MOD_VAR(c, symbol, strict);
+            if (not var)
+                var = Append_Context(c, nullptr, symbol);
+        }
+        else {
+            REBLEN i = Get_Binder_Index_Else_0(&collector.binder, symbol);
+            assert(i != 0);
+            assert(*CTX_KEY(c, i) == symbol);
+            var = CTX_VAR(c, i);
+        }
 
         if (GET_CELL_FLAG(var, PROTECTED)) {
-            error = Error_Protected_Key(key);
+            error = Error_Protected_Key(&symbol);
             goto collect_end;
         }
 
@@ -132,7 +142,8 @@ static void Append_To_Context(REBVAL *context, REBVAL *arg)
   }
 
   collect_end:
-    Collect_End(&collector);
+    if (not IS_MODULE(context))
+        Collect_End(&collector);
 
     if (error)
         fail (error);
@@ -401,22 +412,31 @@ REB_R PD_Context(
     if (not IS_WORD(picker))
         return R_UNHANDLED;
 
+    const bool strict = false;
+
     // See if the binding of the word is already to the context (so there's
     // no need to go hunting).  'x
     //
-    REBLEN n;
-    if (
-        BINDING(picker) == c
-        and VAL_WORD_PRIMARY_INDEX_UNCHECKED(picker) != INDEX_ATTACHED
-    ){
-        n = VAL_WORD_INDEX(picker);
+    REBVAL *var;
+    if (IS_MODULE(pvs->out)) {
+        var = MOD_VAR(c, VAL_WORD_SYMBOL(picker), strict);
+        if (var == nullptr)
+            return R_UNHANDLED;
+    }
+    else if (BINDING(picker) == c) {
+        var = CTX_VAR(c, VAL_WORD_INDEX(picker));
     }
     else {
-        const bool strict = false;
-        n = Find_Symbol_In_Context(pvs->out, VAL_WORD_SYMBOL(picker), strict);
+        REBLEN n = Find_Symbol_In_Context(
+            pvs->out,
+            VAL_WORD_SYMBOL(picker),
+            strict
+        );
 
         if (n == 0)
             return R_UNHANDLED;
+
+        var = CTX_VAR(c, n);
 
         // !!! As an experiment, try caching the binding index in the word.
         // This "corrupts" it, but if we say paths effectively own their
@@ -428,7 +448,6 @@ REB_R PD_Context(
         INIT_VAL_WORD_PRIMARY_INDEX(m_cast(RELVAL*, picker), n);
     }
 
-    REBVAL *var = CTX_VAR(c, n);
     if (setval) {
         ENSURE_MUTABLE(pvs->out);
 

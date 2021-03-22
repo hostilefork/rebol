@@ -641,6 +641,10 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
 
     Init_Void(D_OUT);  // if body never runs (MAP-EACH gives [])
 
+    if (IS_MODULE(ARG(data))) {
+        fail ("MODULE! enumeration is temporarily not permitted.");
+    }
+
     if (ANY_SEQUENCE(ARG(data))) {
         //
         // !!! Temporarily turn any sequences into a BLOCK!, rather than

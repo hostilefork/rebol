@@ -616,24 +616,6 @@ void Startup_Task(void)
 
 
 
-#if !defined(NDEBUG)
-//
-//  Get_Sys_Function_Debug: C
-//
-// See remarks on Get_Sys_Function.  (Double-check the heuristic for getting
-// SYS context ID numbers in the context without using LOAD.)
-//
-REBVAL *Get_Sys_Function_Debug(REBLEN index, const char *name)
-{
-    REBCTX *sys = VAL_CONTEXT(Sys_Context);
-    const REBKEY *key = CTX_KEY(sys, index);
-    const char *key_utf8 = STR_UTF8(KEY_SYMBOL(key));
-    assert(strcmp(key_utf8, name) == 0);
-    return CTX_VAR(sys, index);
-}
-#endif
-
-
 // By this point, the Lib_Context contains basic definitions for things
 // like true, false, the natives, and the generics.
 //
@@ -867,11 +849,11 @@ void Startup_Core(void)
 
 //=//// CREATE SYSTEM MODULES //////////////////////////////////////////////=//
 
-    REBCTX *lib = Alloc_Context_Core(REB_MODULE, 600, NODE_FLAG_MANAGED);
+    REBCTX *lib = Alloc_Context_Core(REB_MODULE, 1, NODE_FLAG_MANAGED);
     Lib_Context = Alloc_Value();
     Init_Any_Context(Lib_Context, REB_MODULE, lib);
 
-    REBCTX *sys = Alloc_Context_Core(REB_MODULE, 50, NODE_FLAG_MANAGED);
+    REBCTX *sys = Alloc_Context_Core(REB_MODULE, 1, NODE_FLAG_MANAGED);
     Sys_Context = Alloc_Value();
     Init_Any_Context(Sys_Context, REB_MODULE, sys);
 

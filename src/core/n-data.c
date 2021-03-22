@@ -253,7 +253,19 @@ REBNATIVE(in)
         REBLEN index = Find_Symbol_In_Context(ARG(context), symbol, strict);
         if (index == 0)
             return nullptr;
-        return Init_Any_Word_Bound(D_OUT, VAL_TYPE(v), ctx, index);
+
+        // !!! Init_Any_Word_Bound() doesn't take a symbol, because it was
+        // still based on the idea that you could get the symbol from the
+        // index.  However, that experiment was reverted...and INDEX_ATTACHED
+        // doesn't work that way.  Review.
+        //
+        RESET_VAL_HEADER(D_OUT, VAL_TYPE(v), CELL_FLAG_FIRST_IS_NODE);
+        mutable_BINDING(D_OUT) = VAL_CONTEXT(ARG(context));
+        VAL_WORD_INDEXES_U32(D_OUT) = index;
+        INIT_VAL_WORD_SYMBOL(D_OUT, symbol);
+
+        /* return Init_Any_Word_Bound(D_OUT, VAL_TYPE(v), ctx, index); */
+        return D_OUT;
     }
 
     assert(ANY_ARRAY(v));
@@ -818,6 +830,7 @@ REBNATIVE(opt)
 //
 //  {Copy context by setting values in the target from those in the source.}
 //
+//      return: []
 //      target [module!] "(modified)"
 //      source [module!]
 //      exports "Which words to export from the source"
@@ -841,23 +854,22 @@ REBNATIVE(resolve)
 
         bool strict = true;
 
-        REBLEN s_index = Find_Symbol_In_Context(ARG(source), symbol, strict);
-        if (s_index == 0)
+        REBVAL *src_var = MOD_VAR(source, symbol, strict);
+        if (src_var == nullptr)
             fail (rebUnrelativize(v));  // fail if unset value, also?
 
-        REBLEN t_index = Find_Symbol_In_Context(ARG(target), symbol, strict);
-        if (t_index != 0) {
+        REBVAL *target_var = MOD_VAR(target, symbol, strict);
+        if (target_var != nullptr) {
             // Fail if found?
         }
         else {
-            Append_Context(target, nullptr, symbol);
-            t_index = CTX_LEN(target);
+            target_var = Append_Context(target, nullptr, symbol);
         }
 
-        Copy_Cell(CTX_VAR(target, t_index), CTX_VAR(source, s_index));
+        Copy_Cell(target_var, src_var);
     }
 
-    RETURN (ARG(target));
+    return Init_Unset(D_OUT);
 }
 
 

@@ -123,7 +123,7 @@ module: func [
     ; from LIB, they cannot write to lib.  This process does not create any
     ; new storage space for variables.
     ;
-    intern* mod body
+    body: intern* mod body
 
     ; Historically, modules had a rule of only creating storage space for the
     ; top-level SET-WORD!s in the body.  You might argue that is too much (and

@@ -45,7 +45,19 @@
 REBNATIVE(test_librebol)
 {
     INCLUDE_PARAMS_OF_TEST_LIBREBOL;
-    UNUSED(ARG(value));
+
+    // Natives keep track of the specifier to use where they should run code.
+    // Since this is a built-in native, it uses the Lib_Context...but an
+    // extension would fill in its module.
+    //
+    // However, the actual specifier used is the frame of the native.  This
+    // can still find the native (and hence binding resolution can get to
+    // the module/lib definitions).  But it gives the added ability to look
+    // up the parameters of the function in the code.
+    //
+    REBVAL *value = rebValue(":value");
+    rebElide("assert [", rebQ(value), "=", rebQ(ARG(value)), "]");
+    rebRelease(value);
 
   #if !defined(INCLUDE_TEST_LIBREBOL_NATIVE)
     return Init_Text(  // text! vs. failing to distinguish from test failure

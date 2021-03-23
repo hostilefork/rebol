@@ -101,6 +101,7 @@ REBNATIVE(generic)
     REBARR *paramlist = Make_Paramlist_Managed_May_Fail(
         &meta,
         spec,
+        SPECIFIED,
         &flags  // return type checked only in debug build
     );
     assert(not (flags & MKF_HAS_OPAQUE_RETURN));
@@ -109,7 +110,7 @@ REBNATIVE(generic)
     REBACT *generic = Make_Action(
         paramlist,
         &Generic_Dispatcher,  // return type is only checked in debug build
-        IDX_NATIVE_MAX  // details array capacity
+        1 + IDX_DETAILS_2_SPECIFIER  // details array capacity
     );
 
     assert(ACT_META(generic) == nullptr);
@@ -139,9 +140,14 @@ REBNATIVE(generic)
     SET_ACTION_FLAG(generic, IS_NATIVE);
 
     REBARR *details = ACT_DETAILS(generic);
-    Init_Word(ARR_AT(details, IDX_NATIVE_BODY), VAL_WORD_SYMBOL(ARG(verb)));
-    Copy_Cell(ARR_AT(details, IDX_NATIVE_CONTEXT), Lib_Context);
-
+    Init_Word(ARR_AT(details, IDX_DETAILS_1_BODY), VAL_WORD_SYMBOL(ARG(verb)));
+    Init_Any_Array_At_Core(
+        ARR_AT(details, IDX_DETAILS_2_SPECIFIER),
+        REB_BLOCK,
+        EMPTY_ARRAY,
+        0,
+        CTX_VARLIST(VAL_CONTEXT(Lib_Context))
+    );
     REBVAL *verb_var = Sink_Word_May_Fail(ARG(verb), SPECIFIED);
     Init_Action(verb_var, generic, VAL_WORD_SYMBOL(ARG(verb)), UNBOUND);
 

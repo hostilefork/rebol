@@ -124,7 +124,8 @@ enum Reb_Spec_Mode {
 // be broken out in a particularly elegant way, but it's a start.
 //
 void Push_Paramlist_Triads_May_Fail(
-    const REBVAL *spec,
+    const RELVAL *spec,
+    REBSPC *specifier,
     REBFLGS *flags,
     REBDSP *definitional_return_dsp
 ){
@@ -241,7 +242,7 @@ void Push_Paramlist_Triads_May_Fail(
                 continue;  // !!! allow because of RETURN, still figuring...
             }
 
-            REBSPC* derived = Derive_Specifier(VAL_SPECIFIER(spec), item);
+            REBSPC* derived = Derive_Specifier(specifier, item);
             Init_Block(
                 types,
                 Copy_Array_At_Deep_Managed(
@@ -306,7 +307,7 @@ void Push_Paramlist_Triads_May_Fail(
             symbol = VAL_REFINEMENT_SYMBOL(cell);
             if (ID_OF_SYMBOL(symbol) == SYM_LOCAL)  // /LOCAL
                 if (ANY_WORD_KIND(KIND3Q_BYTE(item + 1)))  // END is 0
-                    fail (Error_Legacy_Local_Raw(spec));  // -> <local>
+                    fail (Error_Legacy_Local_Raw(rebUnrelativize(spec)));
 
             if (CELL_KIND(cell) == REB_GET_PATH) {
                 if (quoted)
@@ -358,7 +359,7 @@ void Push_Paramlist_Triads_May_Fail(
                     refinement_seen and mode == SPEC_MODE_NORMAL
                     and *definitional_return_dsp == 0
                 ){
-                    fail (Error_Legacy_Refinement_Raw(spec));
+                    fail (Error_Legacy_Refinement_Raw(rebUnrelativize(spec)));
                 }
 
                 if (kind == REB_GET_WORD) {
@@ -781,7 +782,8 @@ REBARR *Pop_Paramlist_With_Meta_May_Fail(
 //
 REBARR *Make_Paramlist_Managed_May_Fail(
     REBCTX **meta,
-    const REBVAL *spec,
+    const RELVAL *spec,
+    REBSPC *specifier,
     REBFLGS *flags  // flags may be modified to carry additional information
 ){
     REBDSP dsp_orig = DSP;
@@ -809,6 +811,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     Push_Paramlist_Triads_May_Fail(
         spec,
+        specifier,
         flags,
         &definitional_return_dsp
     );
@@ -1047,7 +1050,7 @@ void Get_Maybe_Fake_Action_Body(REBVAL *out, const REBVAL *action)
         // Interpreted code, the body is a block with some bindings relative
         // to the action.
 
-        RELVAL *body = ARR_AT(details, IDX_DETAILS_1);
+        RELVAL *body = ARR_AT(details, IDX_DETAILS_1_BODY);
 
         // The PARAMLIST_HAS_RETURN tricks for definitional return make it
         // seem like a generator authored more code in the action's body...but

@@ -45,8 +45,8 @@
 #endif
 
 
-#define FEED_SINGULAR(feed)     ARR(&(feed)->singular)
-#define FEED_SINGLE(feed)       SER_CELL(&(feed)->singular)
+#define FEED_SINGULAR(feed)     (&(feed)->singular)
+#define FEED_SINGLE(feed)       ARR_SINGLE(&(feed)->singular)
 
 #define LINK_Splice_TYPE        REBARR*
 #define LINK_Splice_CAST        ARR
@@ -132,13 +132,19 @@ inline static void Detect_Feed_Pointer_Maybe_Fetch(
             Isotopic_Quotify(&feed->fetched, QUOTING_BYTE(feed));
         }
 
-        assert(FEED_SPECIFIER(feed) == SPECIFIED);  // !!! why assert this?
+        // !!! Not clear why this assert was here, but it's no longer true
+        // where variadic feed specifiers are Get_Specifier_From_Stack() based.
+        //
+        /* assert(FEED_SPECIFIER(feed) == SPECIFIED); */
+
         feed->value = &feed->fetched;
 
     } else switch (Detect_Rebol_Pointer(p)) {
 
       case DETECTED_AS_UTF8: {
         REBDSP dsp_orig = DSP;
+
+        REBSPC *specifier = FEED_SPECIFIER(feed);
 
         // Note that the context is only used on loaded text from C string
         // data.  The scanner leaves all spliced values with whatever bindings
@@ -155,8 +161,7 @@ inline static void Detect_Feed_Pointer_Maybe_Fetch(
             Intern_Unsized_Managed("-variadic-"),
             start_line,
             cast(const REBYTE*, p),
-            feed,
-            Get_Context_From_Stack()
+            feed
         );
 
         REBVAL *error = rebRescue(cast(REBDNG*, &Scan_To_Stack), &level);
@@ -200,7 +205,13 @@ inline static void Detect_Feed_Pointer_Maybe_Fetch(
         Manage_Series(reified);
 
         feed->value = ARR_HEAD(reified);
-        Init_Any_Array_At(FEED_SINGLE(feed), REB_BLOCK, reified, 1);
+        Init_Any_Array_At_Core(
+            FEED_SINGLE(feed),
+            REB_BLOCK,
+            reified,
+            1,
+            specifier  // need to preserve specifier information
+        );
         break; }
 
       case DETECTED_AS_SERIES: {  // e.g. rebQ, rebU, or a rebR() handle
@@ -302,7 +313,10 @@ inline static void Detect_Feed_Pointer_Maybe_Fetch(
         const REBVAL *cell = cast(const REBVAL*, p);
         assert(not IS_RELATIVE(cast(const RELVAL*, cell)));
 
-        assert(FEED_SPECIFIER(feed) == SPECIFIED);
+        // !!! In the new workings, should we apply the FEED_SPECIFIER() to
+        // spliced in values?
+        //
+        /* assert(FEED_SPECIFIER(feed) == SPECIFIED); */
 
         if (IS_NULLED(cell))  // API enforces use of C's nullptr (0) for NULL
             assert(!"NULLED cell API leak, see NULLIFY_NULLED() in C source");
@@ -372,7 +386,7 @@ inline static void Fetch_Next_In_Feed(REBFED *feed) {
         assert(NOT_END(FEED_PENDING(feed)));
 
         feed->value = FEED_PENDING(feed);
-        mutable_MISC(Pending, &feed->singular) = nullptr;
+        mutable_MISC(Pending, FEED_SINGULAR(feed)) = nullptr;
     }
     else if (FEED_IS_VARIADIC(feed)) {
         //
@@ -520,12 +534,12 @@ inline static REBFED* Alloc_Feed(void) {
     Init_Trash(Prep_Cell(&feed->fetched));
     Init_Trash(Prep_Cell(&feed->lookback));
 
-    REBSER *s = &feed->singular;  // SER() not yet valid
-    s->leader.bits = NODE_FLAG_NODE | FLAG_FLAVOR(FEED);
-    SER_INFO(s) = SERIES_INFO_MASK_NONE;
-    Prep_Cell(FEED_SINGLE(feed));
-    mutable_LINK(Splice, &feed->singular) = nullptr;
-    mutable_MISC(Pending, &feed->singular) = nullptr;
+    REBARR *a = &feed->singular;  // SER() not yet valid
+    a->leader.bits = NODE_FLAG_NODE | FLAG_FLAVOR(FEED);
+    SER_INFO(a) = SERIES_INFO_MASK_NONE;
+    Prep_Cell(ARR_SINGLE(a));
+    mutable_LINK(Splice, a) = nullptr;
+    mutable_MISC(Pending, a) = nullptr;
 
     return feed;
 }
@@ -648,6 +662,8 @@ inline static void Prep_Va_Feed(
     // It must therefore be bindable.  Try a COMMA!
     //
     Init_Comma(FEED_SINGLE(feed));
+
+    INIT_SPECIFIER(FEED_SINGLE(feed), Get_Specifier_From_Stack());
 
     feed->flags.bits = flags;
     if (not vaptr) {  // `p` should be treated as a packed void* array

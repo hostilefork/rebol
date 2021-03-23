@@ -123,6 +123,7 @@ REBNATIVE(augment_p)  // see extended definition AUGMENT in %base-defs.r
     //
     Push_Paramlist_Triads_May_Fail(
         ARG(spec),
+        SPECIFIED,
         &flags,
         &definitional_return_dsp
     );

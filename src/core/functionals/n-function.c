@@ -77,6 +77,15 @@
 #include "sys-core.h"
 
 
+enum {
+    IDX_FUNC_BODY = 1,
+    IDX_FUNC_BODY_SPECIFIER,
+    IDX_FUNC_MAX
+};
+STATIC_ASSERT(IDX_FUNC_BODY == IDX_DETAILS_1_BODY);
+STATIC_ASSERT(IDX_FUNC_BODY_SPECIFIER == IDX_DETAILS_2_SPECIFIER);
+
+
 //
 //  None_Dispatcher: C
 //
@@ -104,7 +113,7 @@ REB_R None_Dispatcher(REBFRM *f)
 REB_R Empty_Dispatcher(REBFRM *f)
 {
     REBARR *details = ACT_DETAILS(FRM_PHASE(f));
-    assert(VAL_LEN_AT(ARR_AT(details, IDX_DETAILS_1)) == 0);  // empty body
+    assert(VAL_LEN_AT(ARR_AT(details, IDX_FUNC_BODY)) == 0);  // empty body
     UNUSED(details);
 
     return f->out;  // invisible
@@ -134,8 +143,12 @@ bool Interpreted_Dispatch_Details_1_Throws(
 
     REBACT *phase = FRM_PHASE(f);
     REBARR *details = ACT_DETAILS(phase);
-    RELVAL *body = ARR_AT(details, IDX_DETAILS_1);  // code to run
+
+    RELVAL *body = ARR_AT(details, IDX_DETAILS_1_BODY);  // code to run
     assert(IS_BLOCK(body) and IS_RELATIVE(body) and VAL_INDEX(body) == 0);
+
+    // The IDX_DETAILS_2_SPECIFIER was already taken into account via the
+    // Get_Specifier_From_Stack() call when the array was pushed.
 
     if (ACT_HAS_RETURN(phase)) {
         assert(KEY_SYM(ACT_KEYS_HEAD(phase)) == SYM_RETURN);
@@ -295,9 +308,7 @@ REB_R Elider_Dispatcher(REBFRM *f)
 REB_R Commenter_Dispatcher(REBFRM *f)
 {
     REBARR *details = ACT_DETAILS(FRM_PHASE(f));
-    RELVAL *body = ARR_AT(details, IDX_DETAILS_1);
-    assert(VAL_LEN_AT(body) == 0);
-    UNUSED(body);
+    assert(VAL_LEN_AT(ARR_AT(details, IDX_FUNC_BODY)) == 0);
 
     assert(f->out->header.bits & CELL_FLAG_OUT_NOTE_STALE);
     return f->out;
@@ -361,6 +372,7 @@ REBACT *Make_Interpreted_Action_May_Fail(
     REBARR *paramlist = Make_Paramlist_Managed_May_Fail(
         &meta,
         spec,
+        VAL_SPECIFIER(spec),
         &mkf_flags
     );
 
@@ -446,7 +458,7 @@ REBACT *Make_Interpreted_Action_May_Fail(
     //
     REBARR *details = ACT_DETAILS(a);
     RELVAL *rebound = Init_Relative_Block(
-        ARR_AT(details, IDX_NATIVE_BODY),
+        ARR_AT(details, IDX_DETAILS_1_BODY),
         a,
         copy
     );
@@ -476,6 +488,14 @@ REBACT *Make_Interpreted_Action_May_Fail(
     if (GET_CELL_FLAG(body, CONST))
         SET_CELL_FLAG(rebound, CONST);  // Inherit_Const() would need REBVAL*
 
+    Init_Any_Array_At_Core(
+        DETAILS_AT(details, IDX_FUNC_BODY_SPECIFIER),
+        REB_BLOCK,
+        EMPTY_ARRAY,
+        0,
+        VAL_SPECIFIER(body)
+    );
+
     return a;
 }
 
@@ -500,7 +520,7 @@ REBNATIVE(func_p)
         ARG(spec),
         ARG(body),
         MKF_RETURN | MKF_KEYWORDS,
-        1 + IDX_DETAILS_1  // archetype and one array slot (will be filled)
+        IDX_FUNC_MAX  // archetype and one array slot (will be filled)
     );
 
     return Init_Action(D_OUT, func, ANONYMOUS, UNBOUND);

@@ -107,18 +107,14 @@ REBCTX *Make_Context_For_Action_Push_Partials(
     REBDSP highest_ordered_dsp = DSP;
 
     REBACT *act = VAL_ACTION(action);
+    REBCTX *binding = VAL_ACTION_BINDING(action);
 
     REBLEN num_slots = ACT_NUM_PARAMS(act) + 1;  // +1 is for CTX_ARCHETYPE()
     REBARR *varlist = Make_Array_Core(num_slots, SERIES_MASK_VARLIST);
     INIT_CTX_KEYLIST_SHARED(CTX(varlist), ACT_KEYLIST(act));
 
     RELVAL *rootvar = ARR_HEAD(varlist);
-    INIT_VAL_FRAME_ROOTVAR(
-        rootvar,
-        varlist,
-        VAL_ACTION(action),
-        VAL_ACTION_BINDING(action)
-    );
+    INIT_VAL_FRAME_ROOTVAR(rootvar, varlist, act, binding);
 
     // If there is a PARTIALS list, then push its refinements.
     //

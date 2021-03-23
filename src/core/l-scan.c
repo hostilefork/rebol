@@ -1013,7 +1013,7 @@ static enum Reb_Token Locate_Token_May_Push_Mold(
             if (IS_END(ss->feed->value))
                 return TOKEN_END;
 
-            Derelativize(DS_PUSH(), ss->feed->value, FEED_SPECIFIER(ss->feed));
+            Copy_Cell(DS_PUSH(), SPECIFIC(ss->feed->value));
 
             if (level->newline_pending) {
                 level->newline_pending = false;
@@ -1690,12 +1690,10 @@ void Init_Va_Scan_Level_Core(
     const REBSTR *file,
     REBLIN line,
     const REBYTE *opt_begin,  // preload the scanner outside the va_list
-    REBFED *feed,
-    REBCTX *context
+    REBFED *feed
 ){
     level->ss = ss;
     ss->feed = feed;
-    ss->context = context;
 
     ss->begin = opt_begin;  // if null, Locate_Token's first fetch from vaptr
     TRASH_POINTER_IF_DEBUG(ss->end);
@@ -1727,8 +1725,7 @@ void Init_Scan_Level(
     const REBSTR *file,
     REBLIN line,
     const REBYTE *utf8,
-    REBLEN limit,  // !!! limit feature not implemented in R3-Alpha
-    REBCTX *context
+    REBLEN limit  // !!! limit feature not implemented in R3-Alpha
 ){
     out->ss = ss;
 
@@ -1742,7 +1739,6 @@ void Init_Scan_Level(
 
     ss->file = file;
     ss->feed = nullptr;
-    ss->context = context;
     ss->depth = 0;
 
     out->mode = '\0';
@@ -2393,17 +2389,27 @@ REBVAL *Scan_To_Stack(SCAN_LEVEL *level) {
         panic ("Invalid TOKEN in Scanner.");
     }
 
-    // We are able to bind code as we go into any "module", where the ambient
-    // hashing is available.
+    // !!! Previously we would offer the ability to bind code here.  But new
+    // philosophy makes it so that we don't think in terms of binding the
+    // words directly (e.g. to lib or user) in a concrete pre-pass, instead
+    // it comes as a "wave".  e.g. while a module body is running, the module
+    // is threaded as a specifier...that chains with other specifiers as they
+    // are added on, so the knowledge that code comes from a module is
+    // maintained through the movement of the values, not through the call
+    // stack itself.  Doing it this way means things like that when a
+    // function definition happens, it can glean from the body enough
+    // context information for what module that body should correspond to.
     //
-    // !!! While it wouldn't be impossible to do this with a binder for any
-    // object, it would be more complex...only for efficiency, and nothing
-    // like it existed before.
-    //
-    if (ss->context and ANY_WORD(DS_TOP)) {
-        INIT_VAL_WORD_BINDING(DS_TOP, CTX_VARLIST(unwrap(ss->context)));
-        INIT_VAL_WORD_PRIMARY_INDEX(DS_TOP, INDEX_ATTACHED);
-    }
+    // There may be a role for the scanner to play here in prepping the
+    // values with some knowledge the caller has.  But to help in clarity while
+    // developing the new module specifier behavior, we leave scanned code
+    // with null binding for now.
+    /*
+     *   if (ss->context and ANY_WORD(DS_TOP)) {
+     *       INIT_VAL_WORD_BINDING(DS_TOP, CTX_VARLIST(unwrap(ss->context)));
+     *       INIT_VAL_WORD_PRIMARY_INDEX(DS_TOP, INDEX_ATTACHED);
+     *   }
+     */
 
   lookahead:
 
@@ -2831,13 +2837,12 @@ static REBARR *Scan_Child_Array(SCAN_LEVEL *parent, REBYTE mode)
 REBARR *Scan_UTF8_Managed(
     const REBSTR *file,
     const REBYTE *utf8,
-    REBSIZ size,
-    REBCTX *context
+    REBSIZ size
 ){
     SCAN_STATE ss;
     SCAN_LEVEL level;
     const REBLIN start_line = 1;
-    Init_Scan_Level(&level, &ss, file, start_line, utf8, size, context);
+    Init_Scan_Level(&level, &ss, file, start_line, utf8, size);
 
     REBDSP dsp_orig = DSP;
     Scan_To_Stack(&level);
@@ -2868,7 +2873,7 @@ REBINT Scan_Header(const REBYTE *utf8, REBLEN len)
     SCAN_STATE ss;
     const REBSTR *file = ANONYMOUS;
     const REBLIN start_line = 1;
-    Init_Scan_Level(&level, &ss, file, start_line, utf8, len, nullptr);
+    Init_Scan_Level(&level, &ss, file, start_line, utf8, len);
 
     REBINT result = Scan_Head(&ss);
     if (result == 0)
@@ -2927,8 +2932,6 @@ void Shutdown_Scanner(void)
 //          [file! url!]
 //      /line "Line number for start of scan, word variable will be updated"
 //          [integer! any-word!]
-//      /where "Where you want to bind words to (default unbound)"
-//          [module!]
 //  ]
 //
 REBNATIVE(transcode)
@@ -2991,11 +2994,9 @@ REBNATIVE(transcode)
     REBSIZ size;
     const REBYTE *bp = VAL_BYTES_AT(&size, source);
 
-    REBCTX *context = REF(where) ? VAL_CONTEXT(ARG(where)) : nullptr;
-
     SCAN_LEVEL level;
     SCAN_STATE ss;
-    Init_Scan_Level(&level, &ss, file, start_line, bp, size, context);
+    Init_Scan_Level(&level, &ss, file, start_line, bp, size);
 
     if (REF(next))
         level.opts |= SCAN_FLAG_NEXT;
@@ -3107,7 +3108,7 @@ const REBYTE *Scan_Any_Word(
     // scanner did not implement scan limits; it always expected the input
     // to end at '\0'.  We crop the word based on the size after the scan.
     //
-    Init_Scan_Level(&level, &ss, file, start_line, utf8, UNLIMITED, nullptr);
+    Init_Scan_Level(&level, &ss, file, start_line, utf8, UNLIMITED);
 
     DECLARE_MOLD (mo);
 

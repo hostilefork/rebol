@@ -66,7 +66,7 @@ void Splice_Block_Into_Feed(REBFED *feed, const REBVAL *splice) {
         assert(NOT_SERIES_FLAG(saved, MANAGED));
 
         // old feed data resumes after the splice
-        mutable_LINK(Splice, &feed->singular) = saved;
+        mutable_LINK(Splice, FEED_SINGULAR(feed)) = saved;
 
         // The feed->value which would have been seen next has to be preserved
         // as the first thing to run when the next splice happens.
@@ -78,7 +78,7 @@ void Splice_Block_Into_Feed(REBFED *feed, const REBVAL *splice) {
     Copy_Cell(FEED_SINGLE(feed), splice);
     ++VAL_INDEX_UNBOUNDED(FEED_SINGLE(feed));
 
-    mutable_MISC(Pending, &feed->singular) = nullptr;
+    mutable_MISC(Pending, FEED_SINGULAR(feed)) = nullptr;
 
     // !!! See remarks above about this per-feed hold logic that should be
     // per-splice hold logic.  Pending whole system review of iteration.
@@ -132,7 +132,7 @@ REBNATIVE(macro)
         ARG(spec),
         ARG(body),
         MKF_RETURN | MKF_KEYWORDS,
-        IDX_DETAILS_1 + 1  // details capacity, just body slot (and archetype)
+        IDX_DETAILS_2_SPECIFIER + 1  // archetype, body, specifier
     );
 
     INIT_ACT_DISPATCHER(macro, &Macro_Dispatcher);

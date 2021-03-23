@@ -47,9 +47,12 @@
 
 enum {
     IDX_ADAPTER_PRELUDE = 1,  // Relativized block to run before Adaptee
+    IDX_ADAPTER_PRELUDE_SPECIFIER,
     IDX_ADAPTER_ADAPTEE,  // The ACTION! being adapted
     IDX_ADAPTER_MAX
 };
+STATIC_ASSERT(IDX_ADAPTER_PRELUDE == IDX_DETAILS_1_BODY);
+STATIC_ASSERT(IDX_ADAPTER_PRELUDE_SPECIFIER == IDX_DETAILS_2_SPECIFIER);
 
 
 //
@@ -72,8 +75,6 @@ REB_R Adapter_Dispatcher(REBFRM *f)
     // So simply DO-ing the array wouldn't have that effect.
 
     REBVAL *discarded = FRM_SPARE(f);
-
-    assert(IDX_ADAPTER_PRELUDE == IDX_DETAILS_1);  // same as interpreted body
 
     bool returned;
     if (Interpreted_Dispatch_Details_1_Throws(&returned, discarded, f)) {
@@ -149,6 +150,7 @@ REBNATIVE(adapt_p)  // see extended definition ADAPT in %base-defs.r
         adaptation,
         prelude
     );
+    Copy_Cell(ARR_AT(details, IDX_ADAPTER_PRELUDE_SPECIFIER), ARG(prelude));
     Copy_Cell(ARR_AT(details, IDX_ADAPTER_ADAPTEE), adaptee);
 
     return Init_Action(D_OUT, adaptation, VAL_ACTION_LABEL(adaptee), UNBOUND);

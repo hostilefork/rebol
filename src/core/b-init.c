@@ -633,13 +633,11 @@ static REBVAL *Startup_Mezzanine(BOOT_BLK *boot)
     // that are easier to write in usermode than in C (like inheriting HELP
     // information).
 
-    rebElide(
+    rebElide(  // ENSURE not available yet (but returns blank)
         //
-        // Code is already interned to Lib_Context by TRANSCODE.  Create
-        // actual variables for top-level SET-WORD!s only, and run.
+        // INTERN* creates variables for any top-level SET-WORD!
         //
-        "bind/only/set", &boot->base, Lib_Context,
-        "do", &boot->base  // ENSURE not available yet (but returns blank)
+        "do intern*", Lib_Context, &boot->base
     );
 
 
@@ -659,17 +657,13 @@ static REBVAL *Startup_Mezzanine(BOOT_BLK *boot)
 
     rebElide(
         //
-        // The scan of the boot block interned everything to Lib_Context, but
-        // we want to overwrite that with the Sys_Context here.
+        // INTERN* creates variables for any top-level SET-WORD!
         //
-        "intern*", Sys_Context, &boot->sys,
-
-        "bind/only/set", &boot->sys, Sys_Context,
-        "ensure blank! do", &boot->sys,
+        "ensure blank! do intern*", Sys_Context, &boot->sys,
 
         // SYS contains the implementation of the module machinery itself, so
-        // we don't have MODULE or EXPORT available.  Do the exports manually,
-        // and then import the results to lib.
+        // we don't have MODULE or EXPORT available.  So construct the module
+        // by hand...running the body and making the META information.
         //
         "set-meta", Sys_Context, "make object! [Name: 'System, Exports: []]",
         "sys/export*", Sys_Context,
@@ -696,20 +690,30 @@ static REBVAL *Startup_Mezzanine(BOOT_BLK *boot)
         // prohibiting it doesn't offer any real security...and only causes
         // headaches when trying to do something weird.)
 
-        // Create actual variables for top-level SET-WORD!s only, and run.
-        //
-        "bind/only/set", SPECIFIC(&boot->mezz), Lib_Context,
-        "do", SPECIFIC(&boot->mezz)
+        "do intern*", Lib_Context, SPECIFIC(&boot->mezz)
     );
 
 
   //=//// MAKE USER CONTEXT ////////////////////////////////////////////////=//
 
     // None of the above code should have needed the "user" context, which is
-    // purely application-space.  We probably shouldn't even create it during
-    // boot at all.  But at the moment, code like JS-NATIVE or TCC natives
-    // need to bind the code they run somewhere.  It's also where API called
-    // code runs if called from something like an int main() after boot.
+    // purely application-space.
+    //
+    // The only reason we would want to create a "user context" implicitly
+    // at all would be for those using the interpreter as a library, who
+    // need somewhere for variables to be created if calling APIs from
+    // `main()`, e.g.
+    //
+    //     int main() {
+    //        rebStartup();
+    //        rebElide("let x: {We don't want this variable in lib...}");
+    //        rebShutdown();
+    //     }
+    //
+    // (Previously there were more usages of the user context by the system
+    // than just that case, e.g. TCC and JS-Natives ran in the user context.
+    // But with full module isolation, those now use alternate techniques to
+    // pick up a context to run from from their bodies).
     //
     // Doing this as a proper module creation gives us IMPORT and INTERN (as
     // well as EXPORT...?  When do you export from the user context?)
@@ -885,8 +889,7 @@ void Startup_Core(void)
     REBARR *boot_array = Scan_UTF8_Managed(
         Intern_Unsized_Managed("-tmp-boot-"),
         utf8,
-        utf8_size,
-        VAL_CONTEXT(Lib_Context)  // used by Base + Mezzanine, overruled in SYS
+        utf8_size
     );
     PUSH_GC_GUARD(boot_array); // managed, so must be guarded
 

@@ -275,7 +275,7 @@ struct Reb_Feed {
     // It may also be NULL if it is known that there are no relatively bound
     // words that will be encountered from the source--as in va_list calls.
     //
-    REBSER singular;
+    REBARR singular;
 
     // There is a lookahead step to see if the next item in an array is a
     // WORD!.  If so it is checked to see if that word is a "lookback word"

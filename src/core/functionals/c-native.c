@@ -40,6 +40,14 @@
 
 #include "sys-core.h"
 
+enum {
+    IDX_NATIVE_BODY = 1,
+    IDX_NATIVE_SPECIFIER,
+    IDX_NATIVE_MAX
+};
+STATIC_ASSERT(IDX_NATIVE_BODY == IDX_DETAILS_1_BODY);
+STATIC_ASSERT(IDX_NATIVE_SPECIFIER == IDX_DETAILS_2_SPECIFIER);
+
 
 //
 //  Make_Native: C
@@ -72,7 +80,7 @@ REBVAL *Make_Native(
     REBNAT dispatcher,
     const REBVAL *module
 ){
-    assert(specifier == SPECIFIED); // currently a requirement
+    assert(specifier != SPECIFIED); // currently a requirement
 
     // Get the name the native will be started at with in Lib_Context
     //
@@ -124,6 +132,7 @@ REBVAL *Make_Native(
     REBARR *paramlist = Make_Paramlist_Managed_May_Fail(
         &meta,
         spec,
+        specifier,
         &flags  // return type checked only in debug build
     );
     ASSERT_SERIES_TERM_IF_NEEDED(paramlist);
@@ -139,8 +148,8 @@ REBVAL *Make_Native(
 
     REBACT *native = Make_Action(
         paramlist,
-        dispatcher, // "dispatcher" is unique to this "native"
-        IDX_NATIVE_MAX // details array capacity
+        dispatcher,  // "dispatcher" is unique to this "native"
+        IDX_NATIVE_MAX  // details array capacity
     );
 
     assert(ACT_META(native) == nullptr);
@@ -169,7 +178,13 @@ REBVAL *Make_Native(
     // stack and looks to see where the native function that is running
     // says its "module" is.  Core natives default to Lib_Context.
     //
-    Copy_Cell(ARR_AT(details, IDX_NATIVE_CONTEXT), module);
+    Init_Any_Array_At_Core(
+        ARR_AT(details, IDX_NATIVE_SPECIFIER),
+        REB_BLOCK,
+        EMPTY_ARRAY,
+        0,
+        CTX_VARLIST(VAL_CONTEXT(module))
+    );
 
     // Append the native to the module under the name given.
     //
@@ -232,7 +247,6 @@ REBARR *Startup_Natives(const REBVAL *boot_natives)
     assert(VAL_INDEX(boot_natives) == 0); // should be at head, sanity check
     const RELVAL *tail;
     RELVAL *item = VAL_ARRAY_KNOWN_MUTABLE_AT(&tail, boot_natives);
-    REBSPC *specifier = VAL_SPECIFIER(boot_natives);
 
     // Although the natives are not being "executed", there are typesets
     // being built from the specs.  So to process `foo: native [x [integer!]]`
@@ -256,7 +270,7 @@ REBARR *Startup_Natives(const REBVAL *boot_natives)
         REBVAL *native = Make_Native(
             &item,
             tail,
-            specifier,
+            SPC(VAL_CONTEXT(Lib_Context)),
             Native_C_Funcs[n],
             Lib_Context
         );

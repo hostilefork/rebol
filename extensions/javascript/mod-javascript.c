@@ -266,14 +266,15 @@ inline static heapaddr_t Frame_Id_For_Frame_May_Outlive_Call(REBFRM* f) {
 inline static heapaddr_t Native_Id_For_Action(REBACT *act)
   { return Heapaddr_From_Pointer(ACT_KEYLIST(act)); }
 
-#define IDX_JS_NATIVE_OBJECT \
-    IDX_NATIVE_MAX  // handle gives hookpoint for GC of table entry
-
-#define IDX_JS_NATIVE_IS_AWAITER \
-    (IDX_NATIVE_MAX + 1)  // LOGIC! of if this is an awaiter or not
-
-#define IDX_JS_NATIVE_MAX \
-    (IDX_JS_NATIVE_IS_AWAITER + 1)
+enum {
+    IDX_JS_NATIVE_BODY = 1,
+    IDX_JS_NATIVE_SPECIFIER,
+    IDX_JS_NATIVE_OBJECT,  // handle gives hookpoint for GC of table entry
+    IDX_JS_NATIVE_IS_AWAITER,  // LOGIC! of if this is an awaiter or not
+    IDX_JS_NATIVE_MAX
+};
+STATIC_ASSERT(IDX_JS_NATIVE_BODY == IDX_DETAILS_1_BODY);
+STATIC_ASSERT(IDX_JS_NATIVE_SPECIFIER == IDX_DETAILS_2_SPECIFIER);
 
 REB_R JavaScript_Dispatcher(REBFRM *f);
 
@@ -724,6 +725,7 @@ REBNATIVE(js_native)
     REBARR *paramlist = Make_Paramlist_Managed_May_Fail(
         &meta,
         spec,
+        SPECIFIED,
         &flags
     );
 
@@ -752,10 +754,10 @@ REBNATIVE(js_native)
     REBARR *details = ACT_DETAILS(native);
 
     if (Is_Series_Frozen(VAL_SERIES(source)))
-        Copy_Cell(ARR_AT(details, IDX_NATIVE_BODY), source);  // no copy
+        Copy_Cell(ARR_AT(details, IDX_JS_NATIVE_BODY), source);  // no copy
     else {
         Init_Text(
-            ARR_AT(details, IDX_NATIVE_BODY),
+            ARR_AT(details, IDX_JS_NATIVE_BODY),
             Copy_String_At(source)  // might change
         );
     }
@@ -863,10 +865,20 @@ REBNATIVE(js_native)
     Drop_Mold(mo);
 
     // !!! Natives on the stack can specify where APIs like reb.Run() should
-    // look for bindings.  For the moment, set user natives to use the user
-    // context...it could be a parameter of some kind (?)
+    // look for bindings.  For the moment, set the native to use whatever
+    // specifier the spec used.  If strings have binding, it would make more
+    // sense to use the body.
     //
-    Copy_Cell(ARR_AT(details, IDX_NATIVE_CONTEXT), User_Context);
+    // When the function is running, it adds on the function varlist itself
+    // to also be searched.  So parameters should be available too.
+    //
+    Init_Any_Array_At_Core(
+        ARR_AT(details, IDX_JS_NATIVE_SPECIFIER),
+        REB_BLOCK,
+        EMPTY_ARRAY,
+        0,
+        VAL_SPECIFIER(spec)
+    );
 
     Init_Handle_Cdata_Managed(
         ARR_AT(details, IDX_JS_NATIVE_OBJECT),

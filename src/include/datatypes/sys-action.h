@@ -259,14 +259,12 @@ inline static REBPAR *ACT_PARAMS_HEAD(REBACT *a) {
 #define DETAILS_AT(a,n) \
     SPECIFIC(ARR_AT((a), (n)))
 
-#define IDX_DETAILS_1 1  // Common index used for code body location
 
 // These are indices into the details array agreed upon by actions which have
 // the PARAMLIST_FLAG_IS_NATIVE set.
 //
-#define IDX_NATIVE_BODY 1 // text string source code of native (for SOURCE)
-#define IDX_NATIVE_CONTEXT 2 // libRebol binds strings here (and lib)
-#define IDX_NATIVE_MAX (IDX_NATIVE_CONTEXT + 1)
+#define IDX_DETAILS_1_BODY 1  // Common index used for code body location
+#define IDX_DETAILS_2_SPECIFIER 2  // Common index used for specifier location
 
 
 inline static const REBSYM *KEY_SYMBOL(const REBKEY *key)

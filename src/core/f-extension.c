@@ -218,8 +218,7 @@ REBNATIVE(load_extension)
     REBARR *specs = Scan_UTF8_Managed(
         ANONYMOUS,  // !!! Name of DLL if available?
         specs_utf8,
-        specs_size,
-        module_ctx  // !!! LOAD-MODULE redundantly interns
+        specs_size
     );
     rebFree(specs_utf8);
     PUSH_GC_GUARD(specs);
@@ -260,7 +259,7 @@ REBNATIVE(load_extension)
         REBVAL *native = Make_Native(
             &item, // gets advanced/incremented
             tail,
-            SPECIFIED,
+            SPC(module_ctx),  // search for spec types, etc (inherits lib)
             dispatchers[i],
             module
         );

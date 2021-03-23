@@ -83,20 +83,18 @@ int tcc_set_lib_path_i(TCCState *s, const char *path)
     { tcc_set_lib_path(s, path); return 0; } // make into a TCC_CSTR_API
 
 
-// Native actions all have common structure for fields up to IDX_NATIVE_MAX
-// in their ACT_DETAILS().  This lets the system know what context to do
-// binding into while the native is running--for instance.  However, the
-// details array can be longer and store more information specific to the
-// dispatcher being used, these fields are used by "user natives"
+// Natives have a common structure to know where to look for the body and
+// the specifier, but there can be extra fields custom to each native.
 
-#define IDX_TCC_NATIVE_LINKNAME \
-    IDX_NATIVE_MAX // generated if the native doesn't specify
-
-#define IDX_TCC_NATIVE_STATE \
-    IDX_TCC_NATIVE_LINKNAME + 1 // will be a BLANK! until COMPILE happens
-
-#define IDX_TCC_NATIVE_MAX \
-    (IDX_TCC_NATIVE_STATE + 1)
+enum {
+    IDX_TCC_NATIVE_BODY = 1,
+    IDX_TCC_NATIVE_SPECIFIER,
+    IDX_TCC_NATIVE_LINKNAME,  // generated if the native doesn't specify
+    IDX_TCC_NATIVE_STATE,  // will be a BLANK! until COMPILE happens
+    IDX_TCC_NATIVE_MAX
+};
+STATIC_ASSERT(IDX_TCC_NATIVE_BODY == IDX_DETAILS_1_BODY);
+STATIC_ASSERT(IDX_TCC_NATIVE_SPECIFIER == IDX_DETAILS_2_SPECIFIER);
 
 
 // COMPILE replaces &Pending_Native_Dispatcher that user natives start with,
@@ -111,7 +109,7 @@ bool Is_User_Native(REBACT *act) {
 
     REBARR *details = ACT_DETAILS(act);
     assert(ARR_LEN(details) >= 2); // ACTION_FLAG_NATIVE needs source+context
-    return IS_TEXT(ARR_AT(details, IDX_NATIVE_BODY));
+    return IS_TEXT(ARR_AT(details, IDX_TCC_NATIVE_BODY));
 }
 
 
@@ -253,17 +251,16 @@ REB_R Pending_Native_Dispatcher(REBFRM *f) {
     REBVAL *action = ACT_ARCHETYPE(phase); // this action's value
 
     // !!! We're calling COMPILE here via a textual binding.  However, the
-    // pending native dispatcher's IDX_NATIVE_CONTEXT for binding lookup is
-    // what's in effect.  And that's set up to look up its bindings in where
-    // the user native's body will be looking them up (this is defaulting to
-    // user context for now).
+    // pending native dispatcher's IDX_TCC_NATIVE_SPECIFIER for binding lookup
+    // is what's in effect.  And that's set up to look up its bindings in where
+    // the user native's body will be looking them up.
     //
-    // That means if COMPILE is not exported to the user context (or wherever
-    // the IDX_NATIVE_CONTEXT is set), this will fail.  Hence the COMPILE
-    // native's implementation needs to be factored out into a reusable C
-    // function that gets called here.  -or- some better way of getting at the
-    // known correct COMPILE Rebol function has to be done (NATIVE_VAL() is
-    // not in extensions yet, and may not be, so no NATIVE_VAL(compile).)
+    // That means if COMPILE is not exported to whatever this context is, this
+    // will fail.  Hence the COMPILE* native's implementation needs to be
+    // factored out into a reusable C function that gets called here.  -or-
+    // some better way of getting at the known correct COMPILE Rebol function
+    // has to be done (NATIVE_VAL() is not in extensions yet, and may not be,
+    // so no NATIVE_VAL(compile).)
     //
     rebElide("compile [", rebQ(action), "]");
     //
@@ -305,6 +302,7 @@ REBNATIVE(make_native)
     REBARR *paramlist = Make_Paramlist_Managed_May_Fail(
         &meta,
         ARG(spec),
+        SPECIFIED,
         &flags
     );
     REBACT *native = Make_Action(
@@ -319,19 +317,26 @@ REBNATIVE(make_native)
     REBARR *details = ACT_DETAILS(native);
 
     if (Is_Series_Frozen(VAL_SERIES(source)))
-        Copy_Cell(ARR_AT(details, IDX_NATIVE_BODY), source); // no copy
+        Copy_Cell(ARR_AT(details, IDX_TCC_NATIVE_BODY), source); // no copy
     else {
         Init_Text(
-            ARR_AT(details, IDX_NATIVE_BODY),
+            ARR_AT(details, IDX_TCC_NATIVE_BODY),
             Copy_String_At(source)  // might change before COMPILE call
         );
     }
 
     // !!! Natives on the stack can specify where APIs like rebValue() should
-    // look for bindings.  For the moment, set user natives to use the user
-    // context...it could be a parameter of some kind (?)
+    // look for bindings.  Right now we use the specifier of the spec block,
+    // but if strings had bindings we would want the body's specifier...which
+    // runtime would augment with the frame.
     //
-    Copy_Cell(ARR_AT(details, IDX_NATIVE_CONTEXT), User_Context);
+    Init_Any_Array_At_Core(
+        ARR_AT(details, IDX_TCC_NATIVE_SPECIFIER),
+        REB_BLOCK,
+        EMPTY_ARRAY,
+        0,
+        VAL_SPECIFIER(ARG(spec))
+    );
 
     if (REF(linkname)) {
         REBVAL *linkname = ARG(linkname);
@@ -358,7 +363,7 @@ REBNATIVE(make_native)
         rebRelease(linkname);
     }
 
-    Init_Blank(ARR_AT(details, IDX_TCC_NATIVE_STATE)); // no TCC_State, yet...
+    Init_Blank(ARR_AT(details, IDX_TCC_NATIVE_STATE));  // no TCC_State, yet...
 
     SET_ACTION_FLAG(native, IS_NATIVE);
     return Init_Action(D_OUT, native, ANONYMOUS, UNBOUND);
@@ -509,7 +514,7 @@ REBNATIVE(compile_p)
                 Copy_Cell(DS_PUSH(), SPECIFIC(item));
 
                 REBARR *details = ACT_DETAILS(VAL_ACTION(item));
-                RELVAL *source = ARR_AT(details, IDX_NATIVE_BODY);
+                RELVAL *source = ARR_AT(details, IDX_TCC_NATIVE_BODY);
                 RELVAL *linkname = ARR_AT(details, IDX_TCC_NATIVE_LINKNAME);
 
                 // !!! REBFRM is not exported by libRebol, though it could be
@@ -517,9 +522,7 @@ REBNATIVE(compile_p)
                 // interacting with it (such as picking arguments directly by
                 // value).  But transformations would be needed for Rebol arg
                 // names to make valid C, as with to-c-name...and that's not
-                // something to expose to the average user.  Hence rebArg()
-                // gives a solution that's more robust, albeit slower than
-                // picking by index:
+                // something to expose to the average user:
                 //
                 // https://forum.rebol.info/t/817
                 //

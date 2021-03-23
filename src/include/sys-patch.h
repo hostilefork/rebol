@@ -66,7 +66,7 @@
         assert(p != SPECIFIED); // use SPECIFIED, not SPC(SPECIFIED)
 
         REBCTX *c = CTX(p);
-        assert(CTX_TYPE(c) == REB_FRAME);
+        assert(CTX_TYPE(c) == REB_FRAME or CTX_TYPE(c) == REB_MODULE);
 
         // Note: May be managed or unamanged.
 
@@ -88,7 +88,10 @@
         // The keylist for a frame's context should come from a function's
         // paramlist, which should have an ACTION! value in keylist[0]
         //
-        assert(CTX_TYPE(CTX(a)) == REB_FRAME);  // may be inaccessible
+        assert(
+            CTX_TYPE(CTX(a)) == REB_FRAME
+            or CTX_TYPE(CTX(a)) == REB_MODULE
+        );  // may be inaccessible
         return cast(REBSPC*, a);
     }
 #endif
@@ -140,8 +143,13 @@ inline static REBARR *Make_Patch_Core(
     // not keep things GC live.
     //
     REBARR *patches;
-    if (IS_VARLIST(binding))
+    if (IS_VARLIST(binding)) {
+        //
+        // Note that a FRAME! can be bound to here, e.g. how SET-WORD! are
+        // bound in blocks during SPECIALIZE.
+        //
         patches = BONUS(Patches, binding);
+    }
     else
         patches = MISC(Variant, binding);
 

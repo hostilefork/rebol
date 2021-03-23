@@ -191,7 +191,7 @@ void Shutdown_Frame_Stack(void)
 
 
 //
-//  Get_Context_From_Stack: C
+//  Get_Specifier_From_Stack: C
 //
 // Generally speaking, Rebol does not have a "current context" in effect; as
 // should you call an `IF` in a function body, there is now a Rebol IF on the
@@ -201,14 +201,34 @@ void Shutdown_Frame_Stack(void)
 // This is used to an advantage in the APIs like rebValue(), to be able to get
 // a notion of a "current context" applicable *only* to when natives run.
 //
-REBCTX *Get_Context_From_Stack(void)
+REBSPC *Get_Specifier_From_Stack(void)
 {
     REBFRM *f = FS_TOP;
     REBACT *phase = nullptr; // avoid potential uninitialized variable warning
 
     for (; f != FS_BOTTOM; f = f->prior) {
-        if (not Is_Action_Frame(f))
+        if (not Is_Action_Frame(f)) {
+            //
+            // We want to skip enumeration frames, such as those that something
+            // like CASE or ANY would use.  The specifier we use needs to come
+            // from an actual native execution frame.
+            //
             continue;
+        }
+        if (Is_Action_Frame_Fulfilling(f)) {
+            //
+            // Fulfilling frames should not count.  e.g. while multiple return
+            // values are implemented with API code, then writing:
+            //
+            //     if not [x y]: some-func [...]
+            //
+            // This would mean the NOT would be on the stack pending, and
+            // potentially picked up by this walk.  If that's the case, we
+            // are inside the interpreter implementation (e.g. Eval() itself)
+            // so use the Lib_Context.
+            //
+            return SPC(VAL_CONTEXT(Lib_Context));
+        }
 
         phase = FRM_PHASE(f);
         break;
@@ -224,20 +244,31 @@ REBCTX *Get_Context_From_Stack(void)
         // Note: This can be dangerous if no rebRescue() or TRAP is in effect.
         //
         return User_Context != nullptr
-            ? VAL_CONTEXT(User_Context)
-            : VAL_CONTEXT(Lib_Context);
+            ? SPC(VAL_CONTEXT(User_Context))
+            : SPC(VAL_CONTEXT(Lib_Context));
     }
 
-    // This would happen if you call the API from something like a traced
-    // eval hook, or a Returner_Dispatcher().  For now, just assume that means
-    // you want the code to bind into the lib context.
+    // !!! At one point this asserted you'd only get here if the code running
+    // was a native...as a sanity check.  Since the call is for variadic C or
+    // JS code, then how could that run unless it was part of a native's
+    // implementation?  But this actually can happen if you are dealing with
+    // something like `Encloser_Dispatcher()` which at time of writing uses
+    // RunQ_Throws().  It doesn't fit the native schematic in its DETAILS()
+    // array because it doesn't need to.  For lack of a better idea in this
+    // case, go ahead and use Lib_Context...just so that any text portions
+    // could get bound.  Review better ideas of how the varlist might be able
+    // to be used (?)
     //
     if (NOT_ACTION_FLAG(phase, IS_NATIVE))
-        return VAL_CONTEXT(Lib_Context);
+        return SPC(VAL_CONTEXT(Lib_Context));
 
-    REBARR *details = ACT_DETAILS(phase);
-    REBVAL *context = DETAILS_AT(details, IDX_NATIVE_CONTEXT);
-    return VAL_CONTEXT(context);
+    // By using the FRAME! varlist itself, the word resolution knows where to
+    // look up function parameters in the API calls inside the native.  Also,
+    // the underlying specifier in IDX_DETAILS_2_SPECIFIER can be reached by
+    // fetching the action from the varlist and looking in its details, so
+    // you get the module/lib references resolved too.
+    //
+    return SPC(f->varlist);
 }
 
 

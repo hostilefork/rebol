@@ -795,8 +795,8 @@ REBNATIVE(js_native)
 
     // We do not try to auto-translate the Rebol arguments into JS args.  It
     // would make calling it more complex, and introduce several issues of
-    // mapping Rebol names to legal JavaScript identifiers.  reb.Arg() or
-    // reb.ArgR() must be used to access the arguments out of the frame.
+    // mapping Rebol names to legal JavaScript identifiers.  Arguments are
+    // accessed through API calls, e.g. `let arg = reb.Value("arg-name");`
     //
     Append_Ascii(mo->series, "function () {");
     Append_String(mo->series, source);

@@ -16,7 +16,7 @@ c-fib: make-native [
     "nth Fibonacci Number"
     n [integer!]
 ]{
-    int n = rebUnboxInteger(rebArgR("n"));
+    int n = rebUnboxInteger("n");
 
     if (n < 0) { return rebInteger(-1); }
     if (n <= 1) { return rebInteger(n); }
@@ -55,7 +55,7 @@ compilables: [
     ; embedded in them (it's a tricky case that trips up mbedTLS if
     ; you don't support it correctly).
     ;
-    {#include STDIO_INCLUDE} 
+    {#include STDIO_INCLUDE}
 
     c-fib
 ]

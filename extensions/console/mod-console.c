@@ -276,7 +276,7 @@ REBNATIVE(console)
 
     REBVAL *code;
     if (REF(provoke)) {
-        code = rebArg("provoke");  // fetch as an API handle
+        code = rebValue(rebQ(ARG(provoke)));
         goto provoked;
     }
     else {

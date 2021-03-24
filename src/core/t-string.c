@@ -1245,3 +1245,54 @@ void Shutdown_String(void)
     FREE_N(REBYTE, MAX_ESC_CHAR + 1, Char_Escapes);
     FREE_N(REBYTE, MAX_URL_CHAR + 1, URL_Escapes);
 }
+
+
+//
+//  interpolate: native [
+//
+//  {Replace words in string with variable values (REWORD/WITH?)}
+//
+//      return: [text!]
+//      text [text!]
+//  ]
+//
+REBNATIVE(interpolate)
+{
+    INCLUDE_PARAMS_OF_INTERPOLATE;
+
+    REBVAL *block = rebValue("let capturing, let inner, uparse", ARG(text), "[",
+        "return collect [any [",
+            "not end",
+            "(capturing: false)"
+            "keep opt between here [{$(} (capturing: true) | end]",
+            ":(if capturing '[",
+                "inner: between here {)}",
+                "keep @(as word! inner)",
+            "])",
+        "]]",
+    "]");
+
+    INIT_SPECIFIER(block, VAL_SPECIFIER(ARG(text)));
+
+    return rebValue("unspaced", rebR(block));
+}
+
+
+//
+//  nonbound: native [
+//
+//  {Strip off the *virtual* binding information from blocks/text/words}
+//
+//      return: [any-word! any-array! text!]
+//      value [any-word! any-array! text!]
+//  ]
+//
+REBNATIVE(nonbound)
+{
+    INCLUDE_PARAMS_OF_NONBOUND;
+
+    Move_Cell(D_OUT, ARG(value));
+    INIT_SPECIFIER(D_OUT, UNBOUND);
+
+    return D_OUT;
+}

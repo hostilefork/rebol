@@ -651,6 +651,16 @@ inline static REBVAL *Derelativize(
         //
         INIT_BINDING_MAY_MANAGE(out, Derive_Specifier(specifier, v));
     }
+    else if (heart == REB_TEXT) {
+        //
+        // !!! This is the beginning of an idea where strings carry bindings.
+        // The information could be taken advantage of by string interpolation.
+        // It's not clear which string types should receive this feature, as
+        // it carries the risk of making a lot of stray bindings.  For now
+        // just try TEXT! and see where it goes.
+        //
+        INIT_BINDING_MAY_MANAGE(out, specifier);
+    }
     else {
         // Things like contexts and varargs are not affected by specifiers,
         // at least not currently.

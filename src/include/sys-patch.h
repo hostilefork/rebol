@@ -74,7 +74,7 @@
     }
 
     inline static REBSPC *VAL_SPECIFIER(REBCEL(const*) v) {
-        assert(ANY_ARRAY_KIND(CELL_HEART(v)));
+        assert(ANY_ARRAY_KIND(CELL_HEART(v)) or REB_TEXT == CELL_HEART(v));
 
         REBARR *a = ARR(BINDING(v));
         if (not a)

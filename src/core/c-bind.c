@@ -165,6 +165,7 @@ option(REBSER*) Get_Word_Container(
         // module or a FRAME! varlist which points at a specifier.
         //
         if (CTX_TYPE(CTX(specifier)) == REB_FRAME) {
+          frame_bound: ;
             //
             // Try frame first...
             //
@@ -196,6 +197,9 @@ option(REBSER*) Get_Word_Container(
 
         if (SER_FLAVOR(specifier) == FLAVOR_PATCH)
             goto virtually_bound;
+
+        if (CTX_TYPE(CTX(specifier)) == REB_FRAME)
+            goto frame_bound;
 
         assert(CTX_TYPE(CTX(specifier)) == REB_MODULE);
         binding = specifier;
@@ -1237,8 +1241,10 @@ static void Clonify_And_Bind_Relative(
             // Word' symbol is in frame.  Relatively bind it.  Note that the
             // action bound to can be "incomplete" (LETs still gathering)
             //
-            INIT_VAL_WORD_BINDING(v, relative);
-            INIT_VAL_WORD_PRIMARY_INDEX(v, n);
+            /*INIT_VAL_WORD_BINDING(v, relative); */
+            INIT_VAL_WORD_BINDING(v, nullptr);  // !!! Temp, trying out
+            /*INIT_VAL_WORD_PRIMARY_INDEX(v, n);*/
+            INIT_VAL_WORD_PRIMARY_INDEX(v, 0);
         }
     }
     else if (ANY_ARRAY_KIND(heart)) {
@@ -1249,7 +1255,8 @@ static void Clonify_And_Bind_Relative(
         // easiest to debug if there is a clear mark on arrays that are
         // part of a deep copy of a function body either way.
         //
-        INIT_SPECIFIER(v, relative);  // "incomplete func" (LETs gathering?)
+        /*INIT_SPECIFIER(v, relative);*/  // "incomplete func" (LETs gathering?)
+        INIT_SPECIFIER(v, SPECIFIED);  // !!! TEMP, trying out
     }
 
     Quotify_Core(v, num_quotes);  // Quotify() won't work on RELVAL*

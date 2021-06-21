@@ -306,7 +306,7 @@ do*: func [
             ; just top-level ones.  This is to ease work on transitioning to
             ; isolated DO.  Review once this basic step is taken.
             ;
-            [_ result]: module/deep copy [] code
+            [# result]: module/deep copy [] code
         ]
     ] then :finalizer/quit
 
